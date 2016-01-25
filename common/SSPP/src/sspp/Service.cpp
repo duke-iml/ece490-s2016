@@ -13,7 +13,7 @@ using namespace std;
 #include <cstdio>
 #include <cassert>
 #include <iostream>
-#include <utils/SignalHandler.h>
+#include <KrisLibrary/utils/SignalHandler.h>
 #ifdef _WIN32
 #include <conio.h>
 #else
@@ -45,7 +45,7 @@ int _kbhit() {
     return select(STDIN + 1, &rdset, NULL, NULL, &timeout);  
 }
 #endif
-#include <Timer.h>
+#include <KrisLibrary/Timer.h>
 
 
 namespace SSPP {

@@ -23,6 +23,8 @@ SET(KRISLIBRARY_ROOT "../../Klampt/Library" CACHE PATH "KrisLibrary parent path"
 FIND_PACKAGE(KrisLibrary REQUIRED)
 ADD_DEFINITIONS(${KRISLIBRARY_DEFINITIONS})
 INCLUDE_DIRECTORIES(${KRISLIBRARY_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${KRISLIBRARY_ROOT})
+
 
 
 ####### Applications #########
@@ -73,3 +75,8 @@ MESSAGE ("\n")
 MESSAGE (STATUS "Compile everything using: make\n")
 MESSAGE (STATUS "Install using: make install")
 MESSAGE (STATUS "Uninstall using: make uninstall\n")
+
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+foreach(dir ${dirs})
+  message(STATUS "dir='${dir}'")
+endforeach()

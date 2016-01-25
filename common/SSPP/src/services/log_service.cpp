@@ -1,5 +1,5 @@
 #include <sspp/Service.h>
-#include <myfile.h>
+#include <KrisLibrary/myfile.h>
 using namespace std;
 
 ///This logs messages to a disk or plays back messages from disk

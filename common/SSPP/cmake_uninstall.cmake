@@ -1,8 +1,8 @@
-if (NOT EXISTS "/home/ece_user/Documents/ece490-s2016/common/SSPP/install_manifest.txt")
-    message(FATAL_ERROR "Cannot find install manifest: \"/home/ece_user/Documents/ece490-s2016/common/SSPP/install_manifest.txt\"")
-endif(NOT EXISTS "/home/ece_user/Documents/ece490-s2016/common/SSPP/install_manifest.txt")
+if (NOT EXISTS "/home/ece_user/iml-internal/SSPP/install_manifest.txt")
+    message(FATAL_ERROR "Cannot find install manifest: \"/home/ece_user/iml-internal/SSPP/install_manifest.txt\"")
+endif(NOT EXISTS "/home/ece_user/iml-internal/SSPP/install_manifest.txt")
 
-file(READ "/home/ece_user/Documents/ece490-s2016/common/SSPP/install_manifest.txt" files)
+file(READ "/home/ece_user/iml-internal/SSPP/install_manifest.txt" files)
 string(REGEX REPLACE "\n" ";" files "${files}")
 list(REVERSE files)
 foreach (file ${files})

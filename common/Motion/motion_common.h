@@ -1433,7 +1433,7 @@ BOOL setPlannerObstacleMargin(int id,double margin)
     fprintf(stderr,"setPlannerObstacleMargin: id %d is invalid, valid range [0,%d]\n",id,gData.planner.world.NumIDs()-1);
     return 0;
   }
-  gData.planner.world.GetGeometry(id).margin = margin;
+  gData.planner.world.GetGeometry(id)->margin = margin;
   return 1;
 }
 ///Clears the world used by the planner

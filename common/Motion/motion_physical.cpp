@@ -49,7 +49,7 @@ public:
   AutoMsg(): msgCount(0),lastReadMsg(0) {}
   void subscribe(ros::NodeHandle& nh,const char* topic,int queueSize = 100) {
     this->topic = topic;
-    sub = nh.subscribe(topic,10,&AutoMsg<Msg>::callback, this);
+    sub = nh.subscribe(topic,queueSize,&AutoMsg<Msg>::callback, this);
   }
   void unsubscribe() {
     this->topic = "";
@@ -608,7 +608,7 @@ void MyControllerUpdateData::MySendCommands()
     ScopedLock lock(mutex);
     baxter_core_msgs::HeadPanCommand msg;
     msg.target = robotState.head.panTarget;
-    msg.speed = robotState.head.panSpeed;
+    msg.speed_ratio = robotState.head.panSpeed;
     head_pan_pub.publish(msg);
     robotState.head.sendCommand = false;
   }

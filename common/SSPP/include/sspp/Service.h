@@ -1,9 +1,9 @@
 #ifndef SSPP_SERVICE_H
 #define SSPP_SERVICE_H
 
-#include <Timer.h>
-#include <utils/AsyncIO.h>
-#include <utils/AnyCollection.h>
+#include <KrisLibrary/Timer.h>
+#include <KrisLibrary/utils/AsyncIO.h>
+#include <KrisLibrary/utils/AnyCollection.h>
 
 namespace SSPP {
 

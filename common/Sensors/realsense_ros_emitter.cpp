@@ -1,6 +1,6 @@
-#include <myfile.h>
-#include <utils/AnyCollection.h>
-#include <Timer.h>
+#include <KrisLibrary/myfile.h>
+#include <KrisLibrary/utils/AnyCollection.h>
+#include <KrisLibrary/Timer.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
@@ -324,7 +324,8 @@ int main(int argc,char** argv)
     return 1;
   }
   //initialize ROS and publish messages
-  ros::init(argc, argv, "RealSense_ROS_Emitter", ros::init_options::NoSigintHandler);
+  string nodename = string("RealSense_ROS_Emitter_")+string(rostopic_prefix);
+  ros::init(argc, argv, nodename.c_str(), ros::init_options::NoSigintHandler);
   ros::NodeHandle nh;
   Loop loop(nh);
   Timer timer;

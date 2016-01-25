@@ -3,14 +3,14 @@
 #include "Planning/RealTimeIKPlanner.h"
 #include "Modeling/ParabolicRamp.h"
 #include "Interface/RobotInterface.h"
-#include <math/sparsevector.h>
-#include <utils/AnyCollection.h>
-#include <IO/XmlWorld.h>
-#include <robotics/Rotation.h>
-#include <robotics/IKFunctions.h>
-#include <math/angle.h>
-#include <math/SVDecomposition.h>
-#include <utils/stringutils.h>
+#include "IO/XmlWorld.h"
+#include <KrisLibrary/math/sparsevector.h>
+#include <KrisLibrary/utils/AnyCollection.h>
+#include <KrisLibrary/robotics/Rotation.h>
+#include <KrisLibrary/robotics/IKFunctions.h>
+#include <KrisLibrary/math/angle.h>
+#include <KrisLibrary/math/SVDecomposition.h>
+#include <KrisLibrary/utils/stringutils.h>
 #include <sspp/Topic.h>
 #include <sspp/Send.h>
 #include <fstream>
@@ -1813,22 +1813,22 @@ void ControllerUpdateData::OnWorldChange()
   if(planner.world.robots.empty()) {
     if(robotModel) {
       planner.world.robots.resize(1);
-      planner.world.robots[0].name = "Apc Robot";
-      planner.world.robots[0].robot = robotModel;
-      planner.world.robots[0].view.robot = robotModel;
-      planner.world.robots[0].view.SetGrey();
+      planner.world.robotViews.resize(1);
+      planner.world.robots[0] = robotModel;
+      planner.world.robotViews[0].robot = robotModel;
+      planner.world.robotViews[0].SetGrey();
     }
   }
   else {
     if(robotModel) {
       printf("Warning, world file has a robot in it... replacing robot 0 with previously loaded model\n");
-      planner.world.robots[0].robot = robotModel;
-      planner.world.robots[0].view.robot = robotModel;
-      planner.world.robots[0].view.SetGrey();
+      planner.world.robots[0] = robotModel;
+      planner.world.robotViews[0].robot = robotModel;
+      planner.world.robotViews[0].SetGrey();
     }
     else {
       printf("Warning, world file has a robot in it... is it the same as the Klamp't model?\n");
-      robotModel = planner.world.robots[0].robot;
+      robotModel = planner.world.robots[0];
     }
   }
   planner.settings.InitializeDefault(planner.world);

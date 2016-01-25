@@ -1,5 +1,5 @@
 #include <sspp/Service.h>
-#include <Timer.h>
+#include <KrisLibrary/Timer.h>
 using namespace std;
 
 class EchoService : public SSPP::Service

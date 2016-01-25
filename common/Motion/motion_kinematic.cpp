@@ -67,12 +67,12 @@ public:
     }
     robotState.leftLimb.senseUpdateTime = 0;
     robotState.rightLimb.senseUpdateTime = 0;
-    KlamptToLimb(planner.world.robots[0].robot->q,LEFT,robotState.leftLimb.sensedConfig);
-    KlamptToLimb(planner.world.robots[0].robot->q,RIGHT,robotState.rightLimb.sensedConfig);
+    KlamptToLimb(planner.world.robots[0]->q,LEFT,robotState.leftLimb.sensedConfig);
+    KlamptToLimb(planner.world.robots[0]->q,RIGHT,robotState.rightLimb.sensedConfig);
     robotState.leftLimb.commandedConfig = robotState.leftLimb.sensedConfig;
     robotState.rightLimb.commandedConfig = robotState.rightLimb.sensedConfig;
-    KlamptToLimb(planner.world.robots[0].robot->dq,LEFT,robotState.leftLimb.sensedVelocity);
-    KlamptToLimb(planner.world.robots[0].robot->dq,RIGHT,robotState.rightLimb.sensedVelocity);
+    KlamptToLimb(planner.world.robots[0]->dq,LEFT,robotState.leftLimb.sensedVelocity);
+    KlamptToLimb(planner.world.robots[0]->dq,RIGHT,robotState.rightLimb.sensedVelocity);
     robotState.leftLimb.commandedVelocity = robotState.leftLimb.sensedVelocity;
     robotState.rightLimb.commandedVelocity = robotState.rightLimb.sensedVelocity;
     return true;
