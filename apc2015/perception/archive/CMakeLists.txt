@@ -1,0 +1,27 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8 FATAL_ERROR)
+
+SET(ROS_VERSION hydro CACHE STRING "ROS version")
+IF(ROS_VERSION STREQUAL "")
+ELSE(ROS_VERSION STREQUAL "")
+SET(ROS_PATH /opt/ros/${ROS_VERSION})
+SET(ROSDEPS roscpp roscpp_serialization rostime rosconsole)
+FOREACH(NAME ${ROSDEPS})
+  FIND_LIBRARY(${NAME}_LIB NAMES ${NAME} PATHS ${ROS_PATH}/lib)
+  LIST(APPEND ROS_LIBRARIES ${${NAME}_LIB})
+ENDFOREACH(NAME)
+MESSAGE(${ROS_LIBRARIES})
+SET(ROS_WS /home/motion/ros_ws CACHE STRING "ROS workspace including Baxter SDK")
+INCLUDE_DIRECTORIES(${ROS_PATH}/include ${ROS_WS}/install/include ${ROS_WS}/devel/include)
+ENDIF(ROS_VERSION STREQUAL "")
+
+find_package(PCL 1.2 REQUIRED)
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
+ADD_EXECUTABLE(PointCloud2Subscriber point_cloud_subscriber.cpp)
+TARGET_LINK_LIBRARIES(PointCloud2Subscriber ${ROS_LIBRARIES} ${PCL_LIBRARIES})
+
+ADD_EXECUTABLE(PCLIO pcl_io_normal.cpp)
+TARGET_LINK_LIBRARIES(PCLIO ${PCL_LIBRARIES})
+

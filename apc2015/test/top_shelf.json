@@ -1,0 +1,49 @@
+{
+  "bin_contents":
+  {
+    "bin_A":
+    [
+      "oreo_mega_stuf","champion_copper_plus_spark_plug","expo_dry_erase_board_eraser","kong_duck_dog_toy"
+    ],
+    "bin_H":
+    [
+      "elmers_washable_no_run_school_glue",
+      "expo_dry_erase_board_eraser",
+      "crayola_64_ct"
+    ],
+    "bin_G":
+    [
+      "elmers_washable_no_run_school_glue"
+    ],
+    "bin_B":
+    [
+      "kong_duck_dog_toy"
+    ],
+    "bin_J":
+    [
+      "mead_index_cards"
+    ],
+    "bin_B":
+    [
+      "genuine_joe_plastic_stir_sticks",
+      "laugh_out_loud_joke_book",
+      "mead_index_cards"
+    ]
+  },
+
+  "work_order":
+  [
+    {
+      "bin": "bin_D",
+      "item": "champion_copper_plus_spark_plug"
+    },
+    {
+      "bin": "bin_B",
+      "item": "cheezit_big_original"
+    },
+    {
+      "bin": "bin_F",
+      "item": "kong_sitting_frog_dog_toy"
+    }
+  ]
+}

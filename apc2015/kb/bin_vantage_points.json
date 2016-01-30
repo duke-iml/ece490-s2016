@@ -1,0 +1,50 @@
+{
+    "bin_G": [
+        "bin_G_center", 
+        "bin_G_high"
+    ], 
+    "bin_F": [
+        "bin_F_center", 
+        "bin_F_high"
+    ], 
+    "bin_E": [
+        "bin_E_center", 
+        "bin_E_high"
+    ], 
+    "bin_D": [
+        "bin_D_center", 
+        "bin_D_high"
+    ], 
+    "bin_C": [
+        "bin_C_center", 
+        "bin_C_high"
+    ], 
+    "bin_B": [
+        "bin_B_center", 
+        "bin_B_high"
+    ], 
+    "bin_A": [
+        "bin_A_center", 
+        "bin_A_high"
+    ], 
+    "bin_L": [
+        "bin_L_center", 
+        "bin_L_high"
+    ], 
+    "bin_K": [
+        "bin_K_center", 
+        "bin_K_high"
+    ], 
+    "bin_J": [
+        "bin_J_center", 
+        "bin_J_high"
+    ], 
+    "bin_I": [
+        "bin_I_center", 
+        "bin_I_high"
+    ], 
+    "bin_H": [
+        "bin_H_center", 
+        "bin_H_high"
+    ]
+}

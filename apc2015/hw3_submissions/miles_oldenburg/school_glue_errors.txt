@@ -1,0 +1,260 @@
+started main
+iter 0 615 correspondences, mean squared error 0.0153972784367
+mean squared error 1 0.0230260917699
+mean squared error 2 0.0450672257624
+iter 1 615 correspondences, mean squared error 0.0261149916703
+mean squared error 1 0.00932092582437
+mean squared error 2 0.0289658770065
+iter 2 615 correspondences, mean squared error 0.0080335744343
+mean squared error 1 0.00883616485439
+mean squared error 2 0.00932595791345
+iter 3 615 correspondences, mean squared error 0.029948721734
+mean squared error 1 0.0117529317118
+mean squared error 2 0.00773493822214
+iter 4 615 correspondences, mean squared error 0.00714102951135
+mean squared error 1 0.0115009763282
+mean squared error 2 0.00955875409517
+iter 5 615 correspondences, mean squared error 0.00874686390504
+mean squared error 1 0.011205203361
+mean squared error 2 0.014481671954
+iter 6 615 correspondences, mean squared error 0.00968837123
+mean squared error 1 0.0194817745661
+mean squared error 2 0.0152116842761
+iter 7 615 correspondences, mean squared error 0.0158945222256
+mean squared error 1 0.0281713914834
+mean squared error 2 0.0305380848072
+iter 8 615 correspondences, mean squared error 0.0280657789907
+mean squared error 1 0.0786658409143
+mean squared error 2 0.0689568814277
+iter 9 615 correspondences, mean squared error 0.069862996583
+mean squared error 1 0.0108775699653
+mean squared error 2 0.0124558397067
+iter 10 615 correspondences, mean squared error 0.0106387385422
+mean squared error 1 0.0267865777842
+mean squared error 2 0.0203226816594
+iter 11 615 correspondences, mean squared error 0.0200252755761
+mean squared error 1 0.052559915215
+mean squared error 2 0.0604285096953
+iter 12 615 correspondences, mean squared error 0.0552585813764
+mean squared error 1 0.145555624129
+mean squared error 2 0.143040072397
+iter 13 615 correspondences, mean squared error 0.142134227932
+mean squared error 1 0.315505696519
+mean squared error 2 0.427928081869
+iter 14 615 correspondences, mean squared error 0.312762322141
+mean squared error 1 0.890674400904
+mean squared error 2 0.495657382285
+iter 15 615 correspondences, mean squared error 0.499532799738
+mean squared error 1 1.85257505005
+mean squared error 2 1.914856874
+iter 16 615 correspondences, mean squared error 1.87782652954
+mean squared error 1 1.773365726
+mean squared error 2 1.8850868423
+iter 17 615 correspondences, mean squared error 1.78302988056
+mean squared error 1 6.22150842799
+mean squared error 2 6.19744773892
+iter 18 615 correspondences, mean squared error 6.20819050731
+mean squared error 1 12.9340098243
+mean squared error 2 13.1376117436
+iter 19 615 correspondences, mean squared error 12.9303634415
+mean squared error 1 0.859015948804
+mean squared error 2 0.876071437451
+exited icp
+transformed points
+appended errors
+Object highlighters matching error: 124297.61784
+started main
+iter 0 687 correspondences, mean squared error 0.0269455434647
+mean squared error 1 0.0600983230651
+mean squared error 2 0.0430901266009
+iter 1 687 correspondences, mean squared error 0.0434694167854
+mean squared error 1 0.10071067443
+mean squared error 2 0.0593510142812
+iter 2 687 correspondences, mean squared error 0.058669967372
+mean squared error 1 0.0326545884153
+mean squared error 2 0.0995747617694
+iter 3 687 correspondences, mean squared error 0.0348764837618
+mean squared error 1 0.035888622011
+mean squared error 2 0.0395863209009
+iter 4 687 correspondences, mean squared error 0.0373148554872
+mean squared error 1 0.0662810679163
+mean squared error 2 0.0705611249296
+iter 5 687 correspondences, mean squared error 0.0667298321911
+mean squared error 1 0.161618448378
+mean squared error 2 0.154056245427
+iter 6 687 correspondences, mean squared error 0.153455481954
+mean squared error 1 0.323436173047
+mean squared error 2 0.397627662554
+iter 7 687 correspondences, mean squared error 0.324549229302
+mean squared error 1 0.551633298198
+mean squared error 2 0.515184304897
+iter 8 687 correspondences, mean squared error 0.487555420885
+mean squared error 1 0.464077161873
+mean squared error 2 0.995025594203
+iter 9 687 correspondences, mean squared error 0.465705294903
+mean squared error 1 0.0939498276654
+mean squared error 2 0.467366424241
+iter 10 687 correspondences, mean squared error 0.0885846362123
+mean squared error 1 0.0707291233399
+mean squared error 2 0.0975431199125
+iter 11 687 correspondences, mean squared error 0.0740929680085
+mean squared error 1 0.063698733853
+mean squared error 2 0.0719635729824
+iter 12 687 correspondences, mean squared error 0.0645931162586
+mean squared error 1 0.0412414532056
+mean squared error 2 0.0630513954736
+iter 13 687 correspondences, mean squared error 0.0381557347512
+mean squared error 1 0.0484430532552
+mean squared error 2 0.0947414848335
+iter 14 687 correspondences, mean squared error 0.0449522319482
+mean squared error 1 0.069153460404
+mean squared error 2 0.0656021921239
+iter 15 687 correspondences, mean squared error 0.0665126146383
+mean squared error 1 0.0220816465117
+mean squared error 2 0.0521401126072
+iter 16 687 correspondences, mean squared error 0.0226310952181
+mean squared error 1 0.0661700447245
+mean squared error 2 0.0537253298384
+iter 17 687 correspondences, mean squared error 0.0549519747528
+mean squared error 1 0.0900731060154
+mean squared error 2 0.0944774505764
+iter 18 687 correspondences, mean squared error 0.0900949758046
+mean squared error 1 0.251955950748
+mean squared error 2 0.239263896897
+iter 19 687 correspondences, mean squared error 0.243111854391
+mean squared error 1 0.29956410597
+mean squared error 2 0.158401103123
+exited icp
+transformed points
+appended errors
+Object kong_duck matching error: 13.4749216091
+started main
+iter 0 934 correspondences, mean squared error 0.0340142306558
+mean squared error 1 0.0210927952673
+mean squared error 2 0.0194874830231
+iter 1 934 correspondences, mean squared error 0.0176593568013
+mean squared error 1 0.0192402539088
+mean squared error 2 0.0221140602468
+iter 2 934 correspondences, mean squared error 0.0209255550474
+mean squared error 1 0.0213845980705
+mean squared error 2 0.0206171771518
+iter 3 934 correspondences, mean squared error 0.0195840887347
+mean squared error 1 0.0235991930987
+mean squared error 2 0.0225792843744
+iter 4 934 correspondences, mean squared error 0.0228746400763
+mean squared error 1 0.0313092503193
+mean squared error 2 0.0310651619623
+iter 5 934 correspondences, mean squared error 0.0310237719934
+mean squared error 1 0.0565910476626
+mean squared error 2 0.0555336678606
+iter 6 934 correspondences, mean squared error 0.0569833434229
+mean squared error 1 0.121326763592
+mean squared error 2 0.117167048945
+iter 7 934 correspondences, mean squared error 0.117715998124
+mean squared error 1 0.335403287626
+mean squared error 2 0.281871332446
+iter 8 934 correspondences, mean squared error 0.283757914967
+mean squared error 1 0.735811655976
+mean squared error 2 0.827609684026
+iter 9 934 correspondences, mean squared error 0.726854711116
+mean squared error 1 2.46994312859
+mean squared error 2 1.58717243717
+iter 10 934 correspondences, mean squared error 1.58923539931
+mean squared error 1 2.0002184072
+mean squared error 2 2.50575518047
+iter 11 934 correspondences, mean squared error 1.98311863386
+mean squared error 1 0.90805816022
+mean squared error 2 0.827287801412
+iter 12 934 correspondences, mean squared error 0.992885616391
+mean squared error 1 3.42008934257
+mean squared error 2 3.40927684367
+iter 13 934 correspondences, mean squared error 3.41874147402
+mean squared error 1 8.01024909497
+mean squared error 2 8.03579513098
+iter 14 934 correspondences, mean squared error 8.01250028361
+mean squared error 1 9.75092568667
+mean squared error 2 9.83545845338
+iter 15 934 correspondences, mean squared error 9.88230909604
+mean squared error 1 37.9101584813
+mean squared error 2 37.4786880893
+iter 16 934 correspondences, mean squared error 37.5059077959
+mean squared error 1 19.8902936943
+mean squared error 2 22.9626219755
+iter 17 934 correspondences, mean squared error 19.8520207837
+mean squared error 1 35.3039427759
+mean squared error 2 35.9373119455
+iter 18 934 correspondences, mean squared error 35.3778985101
+mean squared error 1 105.145806263
+mean squared error 2 106.91936995
+iter 19 934 correspondences, mean squared error 105.1857123
+mean squared error 1 89.1681868846
+mean squared error 2 91.1208008202
+exited icp
+transformed points
+appended errors
+Object kygen_eggs matching error: 12031869.155
+started main
+iter 0 378 correspondences, mean squared error 0.0196431572198
+mean squared error 1 0.0506979175902
+mean squared error 2 0.0431781082377
+iter 1 378 correspondences, mean squared error 0.0449153462235
+mean squared error 1 0.0655233514889
+mean squared error 2 0.0914992753554
+iter 2 378 correspondences, mean squared error 0.0708203257174
+mean squared error 1 0.0127621017679
+mean squared error 2 0.0191039477998
+iter 3 378 correspondences, mean squared error 0.0131223760636
+mean squared error 1 0.0413959941095
+mean squared error 2 0.028500819329
+iter 4 378 correspondences, mean squared error 0.0302418773879
+mean squared error 1 0.0241536096932
+mean squared error 2 0.057901433289
+iter 5 378 correspondences, mean squared error 0.0205505231886
+mean squared error 1 0.0382924962347
+mean squared error 2 0.0678760828049
+iter 6 378 correspondences, mean squared error 0.0370997684696
+mean squared error 1 0.0144222733575
+mean squared error 2 0.0227557531968
+iter 7 378 correspondences, mean squared error 0.0125908517793
+mean squared error 1 0.0338951573443
+mean squared error 2 0.0284606104529
+iter 8 378 correspondences, mean squared error 0.0297470967527
+mean squared error 1 0.0213770293193
+mean squared error 2 0.0217651577061
+iter 9 378 correspondences, mean squared error 0.0215994632454
+mean squared error 1 0.0208974937232
+mean squared error 2 0.030106065019
+iter 10 378 correspondences, mean squared error 0.0236357016704
+mean squared error 1 0.0238044670352
+mean squared error 2 0.0258732310481
+iter 11 378 correspondences, mean squared error 0.0239489150762
+mean squared error 1 0.0812794328998
+mean squared error 2 0.0776506767482
+iter 12 378 correspondences, mean squared error 0.0826825629351
+mean squared error 1 0.227689156141
+mean squared error 2 0.233027360371
+iter 13 378 correspondences, mean squared error 0.226166326956
+mean squared error 1 0.00395768443643
+mean squared error 2 0.0132040423734
+iter 14 378 correspondences, mean squared error 0.00362114775232
+mean squared error 1 0.010061580011
+mean squared error 2 0.0124666804823
+iter 15 378 correspondences, mean squared error 0.011353492715
+mean squared error 1 0.0095521857948
+mean squared error 2 0.0153169141922
+iter 16 378 correspondences, mean squared error 0.00897813513929
+mean squared error 1 0.018403370038
+mean squared error 2 0.0161178283066
+iter 17 378 correspondences, mean squared error 0.012272839976
+mean squared error 1 0.0127758771643
+mean squared error 2 0.0190458069551
+iter 18 378 correspondences, mean squared error 0.0138427383052
+mean squared error 1 0.0242162693605
+mean squared error 2 0.0246513610333
+iter 19 378 correspondences, mean squared error 0.0252430863148
+mean squared error 1 0.027308435302
+mean squared error 2 0.0206765291797
+exited icp
+transformed points
+appended errors
+Object school_glue matching error: 0.747510314841

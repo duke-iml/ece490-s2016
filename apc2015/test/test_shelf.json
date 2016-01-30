@@ -1,0 +1,36 @@
+{
+  "bin_contents":
+  {
+    "bin_D":
+    [
+      "champion_copper_plus_spark_plug"
+    ],
+    "bin_E":
+    [
+      "kong_sitting_frog_dog_toy",
+      "elmers_washable_no_run_school_glue",
+      "first_years_take_and_toss_straw_cups"
+    ],
+    "bin_F":
+    [
+      "cheezit_big_original",
+      "sharpie_accent_tank_style_highlighters"
+    ]
+  },
+
+  "work_order":
+  [
+    {
+      "bin": "bin_D",
+      "item": "champion_copper_plus_spark_plug"
+    },
+    {
+      "bin": "bin_E",
+      "item": "kong_sitting_frog_dog_toy"
+    },
+    {
+      "bin": "bin_F",
+      "item": "sharpie_accent_tank_style_highlighters"
+    }
+  ]
+}

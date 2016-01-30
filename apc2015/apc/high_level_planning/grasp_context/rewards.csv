@@ -1,0 +1,11 @@
+action,condition,reward,cost (seconds)
+PERCEIVE,SUCCESS,0,30
+PERCEIVE,MOVEFAIL,0,20
+PERCEIVE,DETECTFAIL,0,40
+GRASP,PLANFAIL,0,20
+GRASP,FAIL,0,30
+GRASP,SUCCESS,0,30
+GRASP,SUCCESS,"{p_detected_object}[{object}]*(10+5*max(2,len(bin_contents[{bin}])-1))",0
+GRASP,SUCCESS,(-12)*(1-{p_detected_object}[{object}]),0
+GRASP,SUCCESS,p_drop[{object}]*(-3),0
+GRASP,SUCCESS; {object} in bonus_items,bonus_items[{object}]*{p_detected_object}[{object}],0

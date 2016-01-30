@@ -1,0 +1,3 @@
+# ignore perception intermediate files
+*.pcd*
+xform_matrix*

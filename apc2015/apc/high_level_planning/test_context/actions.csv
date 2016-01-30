@@ -1,0 +1,19 @@
+action,condition,outcome1,probability1,outcome2,probability2,,
+"START_PICK(bin,object)","{bin}==None; ($object in order); object_in_bin($object,$bin); not {pick_done}",bin=$bin; object=$object; at_bin=False; pick_done=False,1,,,,
+MOVE_TO,{bin}!=None; {at_bin}==False; {pick_done}==False,SUCCESS; at_bin=True; recognized_object=None; good_pose_estimate=None; good_segmentation=None,0.8,FAIL,0.2,,
+RECOGNIZE,{at_bin}; {recognized_object}==None; num_items({bin})==1,recognized_object={object},1,recognized_object='other',0,,
+RECOGNIZE,{at_bin}; {recognized_object}==None; num_items({bin})==2,recognized_object={object},0.7,recognized_object='other',0.3,,
+RECOGNIZE,{at_bin}; {recognized_object}==None; num_items({bin})>=3,recognized_object={object},0.5,recognized_object='other',0.5,,
+ESTIMATE_POSE,{at_bin}; {good_pose_estimate}==None; not {good_segmentation}; {recognized_object}=={object},good_pose_estimate=True,0.6,good_pose_estimate=False,0.4,,
+ESTIMATE_POSE,{at_bin}; {good_pose_estimate}==None; {good_segmentation}; {recognized_object}=={object},good_pose_estimate=True,0.8,good_pose_estimate=False,0.2,,
+ESTIMATE_POSE,{at_bin}; {good_pose_estimate}==None;{good_segmentation}; {recognized_object}=='other',good_pose_estimate=True,0.3,good_pose_estimate=False,0.7,,
+ESTIMATE_POSE,{at_bin}; {good_pose_estimate}==None;not {good_segmentation}; {recognized_object}=='other',good_pose_estimate=True,0.3,good_pose_estimate=False,0.7,,
+SEGMENT,{at_bin}; {good_segmentation}==None; num_items({bin})==1,good_segmentation=True,0.8,good_segmentation=False,0.2,,
+SEGMENT,{at_bin}; {good_segmentation}==None; num_items({bin})>1,good_segmentation=True,0.6,good_segmentation=False,0.4,,
+GRASP,{at_bin}; {grasped_object}==None; {good_pose_estimate}==True; {recognized_object}=={object}; {grasp_failures} < 3,SUCCESS; grasped_object={recognized_object},0.6,FAIL_PLAN; grasp_failures = {grasp_failures}+1,0.2,FAIL_GRASP,0.2
+GRASP,{at_bin}; {grasped_object}==None; {good_pose_estimate}==True; {recognized_object}=='other'; {grasp_failures} < 3,SUCCESS; grasped_object={recognized_object},0.4,FAIL_PLAN; grasp_failures = {grasp_failures}+1,0.5,FAIL_GRASP,0.1
+PC_GRASP,{at_bin}; {grasped_object}==None; {good_segmentation}==True; {pc_grasp_failures} < 3,SUCCESS; grasped_object={recognized_object},0.7,FAIL_PLAN; pc_grasp_failures = {pc_grasp_failures}+1,0.1,FAIL_GRASP,0.2
+SCOOP,{at_bin}; {grasped_object}==None;  {good_segmentation}==True,SUCCESS; grasped_object={recognized_object},0.8,FAIL_GRASP,0.2,,
+PLACE,{grasped_object}!=None,SUCCESS; at_bin=False; pick_done=True; grasped_object=None,0.8,DROPPED; at_bin=False; pick_done=True; grasped_object=None,0.2,,
+QUIT_PICK,{at_bin}; {grasp_failures} + {pc_grasp_failures} >= 3,bin=None; object=None; grasp_failures=0; pc_grasp_failures=0,1,,,,
+STOP_PICK,{pick_done},bin=None; object=None; grasp_failures=0; pc_grasp_failures=0,1,,,,

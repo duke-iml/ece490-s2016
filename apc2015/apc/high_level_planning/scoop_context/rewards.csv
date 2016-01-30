@@ -1,0 +1,11 @@
+action,condition,reward,cost (seconds)
+PERCEIVE,SUCCESS,0,30
+PERCEIVE,MOVEFAIL,0,20
+PERCEIVE,DETECTFAIL,0,40
+SCOOP,PLANFAIL,0,20
+SCOOP,FAIL,0,30
+SCOOP,SUCCESS,0,30
+SCOOP,SUCCESS,"{p_detected_object}[{object}]*(10+5*max(2,len(bin_contents[{bin}])-1))",0
+SCOOP,SUCCESS,(-12)*(1-{p_detected_object}[{object}]),0
+SCOOP,SUCCESS,p_drop[{object}]*(-3),0
+SCOOP,SUCCESS; {object} in bonus_items,bonus_items[{object}]*{p_detected_object}[{object}],0

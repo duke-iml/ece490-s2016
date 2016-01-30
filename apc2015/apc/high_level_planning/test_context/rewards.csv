@@ -1,0 +1,15 @@
+action,condition,reward,cost (seconds)
+MOVE_TO,SUCCESS,0,30
+MOVE_TO,FAIL,0,20
+RECOGNIZE,,0,2
+ESTIMATE_POSE,,0,5
+SEGMENT,,0,2
+PC_GRASP,,0,10
+GRASP,,0,30
+PLACE,FAIL,0,30
+PLACE,SUCCESS; {object}!={grasped_object},-12,30
+PLACE,DROPPED,-3,30
+PLACE,SUCCESS; {object}=={grasped_object}; num_items({bin})==1,10,30
+PLACE,SUCCESS; {object}=={grasped_object}; num_items({bin})==2,15,30
+PLACE,SUCCESS; {object}=={grasped_object}; num_items({bin})>=3,20,30
+PLACE,SUCCESS; {object} in bonus_items,bonus_items[{object}],0

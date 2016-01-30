@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 2.6 FATAL_ERROR)
+project(cloud_conversion)
+find_package(PCL 1.3 REQUIRED COMPONENTS common io)
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+add_executable(point_cloud_subscriber point_cloud_subscriber.cpp)
+target_link_libraries(point_cloud_subscriber ${PCL_COMMON_LIBRARIES} ${PCL_IO_LIBRARIES})

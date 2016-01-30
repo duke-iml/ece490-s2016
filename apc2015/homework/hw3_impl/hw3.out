@@ -1,0 +1,8 @@
+\BOOKMARK [1][-]{section.1}{Background}{}% 1
+\BOOKMARK [1][-]{section.2}{ICP in 2D}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{Preprocessing}{section.2}% 3
+\BOOKMARK [2][-]{subsection.2.2}{Finding correspondences}{section.2}% 4
+\BOOKMARK [2][-]{subsection.2.3}{Minimizing the error}{section.2}% 5
+\BOOKMARK [1][-]{section.3}{ICP for a 3D point cloud}{}% 6
+\BOOKMARK [2][-]{subsection.3.1}{Matching with a Known Object}{section.3}% 7
+\BOOKMARK [2][-]{subsection.3.2}{Matching unknown objects}{section.3}% 8

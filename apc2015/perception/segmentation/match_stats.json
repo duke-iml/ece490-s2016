@@ -1,0 +1,198 @@
+{
+    "mead_index_cards": {
+        "cutoff": -0.75, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999897959, 
+        "ppv": 0.11320754716959772, 
+        "specificity": 0.67586206896505119
+    }, 
+    "feline_greenies_dental_treats": {
+        "cutoff": -1.26, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999875, 
+        "ppv": 0.084507042253402095, 
+        "specificity": 0.551724137930654
+    }, 
+    "genuine_joe_plastic_stir_sticks": {
+        "cutoff": -1.02, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999913047, 
+        "ppv": 0.16666666666620369, 
+        "specificity": 0.7931034482753152
+    }, 
+    "kygen_squeakin_eggs_plush_puppies": {
+        "cutoff": -0.31500000000000006, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999931044, 
+        "ppv": 0.99999999998333333, 
+        "specificity": 0.99999999999931044
+    }, 
+    "elmers_washable_no_run_school_glue": {
+        "cutoff": -0.71999999999999997, 
+        "sensitivity": 0.83333333331944448, 
+        "npv": 0.99029126213496088, 
+        "ppv": 0.10416666666644965, 
+        "specificity": 0.70344827586158387
+    }, 
+    "crayola_64_ct": {
+        "cutoff": -0.95999999999999996, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999925382, 
+        "ppv": 0.35294117646851214, 
+        "specificity": 0.92413793103384545
+    }, 
+    "paper_mate_12_count_mirado_black_warrior": {
+        "cutoff": -0.39000000000000012, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999923084, 
+        "ppv": 0.28571428571292518, 
+        "specificity": 0.89655172413731277
+    }, 
+    "kong_duck_dog_toy": {
+        "cutoff": -0.52500000000000002, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999927014, 
+        "ppv": 0.42857142856836733, 
+        "specificity": 0.94482758620624507
+    }, 
+    "mommys_helper_outlet_plugs": {
+        "cutoff": -0.33000000000000007, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999919353, 
+        "ppv": 0.2222222222213992, 
+        "specificity": 0.85517241379251374
+    }, 
+    "sharpie_accent_tank_style_highlighters": {
+        "cutoff": -1.1400000000000001, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999875, 
+        "ppv": 0.084507042253402095, 
+        "specificity": 0.551724137930654
+    }, 
+    "first_years_take_and_toss_straw_cups": {
+        "cutoff": -1.0649999999999999, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999927547, 
+        "ppv": 0.46153846153491124, 
+        "specificity": 0.95172413793037824
+    }, 
+    "mark_twain_huckleberry_finn": {
+        "cutoff": -1.02, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999887634, 
+        "ppv": 0.096774193548231011, 
+        "specificity": 0.61379310344785265
+    }, 
+    "dove_beauty_bar": {
+        "cutoff": -0.74999999999999978, 
+        "sensitivity": 0.0, 
+        "npv": 0.99999999999933786, 
+        "ppv": 0.0, 
+        "specificity": 0.99999999999933786
+    }, 
+    "highland_6539_self_stick_notes": {
+        "cutoff": -0.98999999999999999, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999925382, 
+        "ppv": 0.35294117646851214, 
+        "specificity": 0.92413793103384545
+    }, 
+    "shelf": {
+        "cutoff": 0.35999999999999999, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999931044, 
+        "ppv": 0.99999999998333333, 
+        "specificity": 0.99999999999931044
+    }, 
+    "rollodex_mesh_collection_jumbo_pencil_cup": {
+        "cutoff": 0.375, 
+        "sensitivity": 0.99999999989999999, 
+        "npv": 0.99999999999933342, 
+        "ppv": 0.99999999989999999, 
+        "specificity": 0.99999999999933342
+    }, 
+    "laugh_out_loud_joke_book": {
+        "cutoff": -0.81000000000000005, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999896905, 
+        "ppv": 0.11111111111090535, 
+        "specificity": 0.66896551724091802
+    }, 
+    "champion_copper_plus_spark_plug": {
+        "cutoff": -0.66000000000000003, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999921885, 
+        "ppv": 0.26086956521625709, 
+        "specificity": 0.88275862068904642
+    }, 
+    "stanley_66_052": {
+        "cutoff": -1.23, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999864864, 
+        "ppv": 0.077922077921976723, 
+        "specificity": 0.51034482758585498
+    }, 
+    "one_with_nature_soap_dead_sea_mud": {
+        "cutoff": -0.74999999999999978, 
+        "sensitivity": 0.0, 
+        "npv": 0.99999999999933786, 
+        "ppv": 0.0, 
+        "specificity": 0.99999999999933786
+    }, 
+    "kong_sitting_frog_dog_toy": {
+        "cutoff": -0.84000000000000008, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999924827, 
+        "ppv": 0.33333333333148152, 
+        "specificity": 0.91724137930971228
+    }, 
+    "cheezit_big_original": {
+        "cutoff": -0.70499999999999996, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999924249, 
+        "ppv": 0.3157894736825485, 
+        "specificity": 0.91034482758557911
+    }, 
+    "oreo_mega_stuf": {
+        "cutoff": -0.78000000000000003, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999928069, 
+        "ppv": 0.49999999999583333, 
+        "specificity": 0.95862068965451142
+    }, 
+    "dr_browns_bottle_brush": {
+        "cutoff": -0.27000000000000002, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999927547, 
+        "ppv": 0.46153846153491124, 
+        "specificity": 0.95172413793037824
+    }, 
+    "munchkin_white_hot_duck_bath_toy": {
+        "cutoff": -0.55500000000000005, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999915257, 
+        "ppv": 0.18181818181763085, 
+        "specificity": 0.81379310344771472
+    }, 
+    "safety_works_safety_glasses": {
+        "cutoff": -0.40500000000000014, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999928069, 
+        "ppv": 0.49999999999583333, 
+        "specificity": 0.95862068965451142
+    }, 
+    "expo_dry_erase_board_eraser": {
+        "cutoff": -0.79500000000000004, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.99999999999923084, 
+        "ppv": 0.28571428571292518, 
+        "specificity": 0.89655172413731277
+    }, 
+    "kong_air_dog_squeakair_tennis_ball": {
+        "cutoff": -0.79500000000000015, 
+        "sensitivity": 0.99999999998333333, 
+        "npv": 0.9999999999992909, 
+        "ppv": 0.599999999994, 
+        "specificity": 0.97241379310277776
+    }
+}

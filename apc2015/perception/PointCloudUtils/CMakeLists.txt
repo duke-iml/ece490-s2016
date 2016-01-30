@@ -1,0 +1,34 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6.4)
+PROJECT( PointCloudUtils )
+
+##### External libraries: KrisLibrary, its dependencies, OpenHaptics#####
+SET(KRISLIBRARY_ROOT "../../Klampt/Library" CACHE PATH "KrisLibrary parent path")
+SET (CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMakeModules")
+
+FIND_PACKAGE(KrisLibrary REQUIRED)
+ADD_DEFINITIONS(${KRISLIBRARY_DEFINITIONS})
+INCLUDE_DIRECTORIES(${KRISLIBRARY_INCLUDE_DIRS})
+
+# COMPILER SETTINGS (default: Release) and flags
+INCLUDE(CompilerSettings)
+
+# Set output directories for libraries and executables
+SET( BASE_DIR ${CMAKE_BINARY_DIR} )
+SET( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BASE_DIR}/lib )
+SET( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BASE_DIR}/lib )
+SET( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BASE_DIR}/bin )
+
+set(INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/include")
+INCLUDE_DIRECTORIES(${INCLUDE_DIRS})
+
+LINK_DIRECTORIES(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+
+
+ADD_EXECUTABLE(pc_process pc_process.cpp)
+TARGET_LINK_LIBRARIES(pc_process ${KRISLIBRARY_LIBRARIES})
+ADD_EXECUTABLE(pc_view pc_view.cpp)
+TARGET_LINK_LIBRARIES(pc_view ${KRISLIBRARY_LIBRARIES})
+
+# Finished:
+MESSAGE ("\n")
+MESSAGE (STATUS "Compile everything using: make\n")

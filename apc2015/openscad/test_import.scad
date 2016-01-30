@@ -1,0 +1,2 @@
+//import("/home/motion/ece590-s2015/3d_scans/first_years_take_and_toss_straw_cups/meshes/depth_integrated.stl", convexity=3);
+import("/home/motion/ece590-s2015/3d_scans/rollodex_mesh_collection_jumbo_pencil_cup/meshes/depth_integrated.stl", convexity=3);

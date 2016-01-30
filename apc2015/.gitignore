@@ -1,0 +1,11 @@
+*.pyc
+build
+*.sublime-*
+CMakeFiles
+CMakeCache.txt
+Makefile
+*.cmake
+*.stackdump
+*~
+.idea
+
