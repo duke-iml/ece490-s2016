@@ -17,7 +17,7 @@ Workstation Setup:
 4. Install Baxter SDK. Follow this link: http://sdk.rethinkrobotics.com/wiki/Workstation_Setup. You might want to do the last few steps with the baxter robot because you need its serial number (011408P0016). Also if you follow the newest instruction you will get sdk 1.2.0, while the robot has sdk 1.1.1. Please follow this link to downgrade your sdk to 1.1.1: http://sdk.rethinkrobotics.com/wiki/Workstation_Update
 
 
-5. Install iai-kinect2 ROS package. This is the driver for perception system. Try to follow this link: https://github.com/code-iai/iai_kinect2. 
+5. First check if you have a USB 3.0 port on your computer. If you don't have it, skip this step because kinect only works with 3.0 port. You will still be able to control the robot and run simulations, you just can't work with kinect on your computer. If you have it, please install iai-kinect2 ROS package. This is the driver for perception system. Try to follow this link: https://github.com/code-iai/iai_kinect2. 
 
 
 6. Install python 2.7. I think most system comes with python 2.7.x, so check it first. 
