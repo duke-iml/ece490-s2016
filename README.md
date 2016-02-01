@@ -1,8 +1,8 @@
 # ece490-s2016
 ECE 490 Spring 2016 shared repository
-
+--------------------------------------------------------
 Workstation Setup:
-
+--------------------------------------------------------
 
 1. You can only control the robot with Linux OS, so please install Ubuntu 14.04 first. All of the following instructions are based on this.
 
