@@ -35,10 +35,8 @@ Workstation Setup:
 10. Some useful softwares, not required but can be helpful: sublime edit, terminator, Pycharm(Try to install the EDU version.The community version somehow is not working...)
 
 -----------------------------------------
-Simple test
+Simple test On Lab Workstation:
 -----------------------------------------
-On Lab Workstation:
-
 Turn on baxter by pushing the little white button on its back once. 
 After you log in to ubuntu, open a terminal and run ". /home/ece_user/ros_ws/baxter.sh". Then you can try to follow this link from step 2: http://sdk.rethinkrobotics.com/wiki/Hello_Baxter. Have fun!
 
