@@ -55,3 +55,12 @@ docs/_build/
 
 # PyBuilder
 target/
+
+
+# Big data folders
+group1/data
+group2/data
+group3/data
+group4/data
+group5/data
+group6/data
