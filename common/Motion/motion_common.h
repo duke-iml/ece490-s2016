@@ -838,6 +838,12 @@ APIENTRY BOOL sendEndEffectorDrive(int limb,const double* angVel,const double* v
   return 1;
 }
 
+BOOL isEndEffectorDriveEnabled(int limb)
+{
+  if(limb == LEFT) return gData.robotState.leftLimb.governor == LimbState::EndEffectorDrive;
+  else if(limb == RIGHT) return gData.robotState.rightLimb.governor == LimbState::EndEffectorDrive;
+  else return gData.robotState.leftLimb.governor == LimbState::EndEffectorDrive && gData.robotState.rightLimb.governor == LimbState::EndEffectorDrive;
+}
 
 ////// GRIPPER ///////
 
