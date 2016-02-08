@@ -608,7 +608,7 @@ void MyControllerUpdateData::MySendCommands()
     ScopedLock lock(mutex);
     baxter_core_msgs::HeadPanCommand msg;
     msg.target = robotState.head.panTarget;
-    msg.speed_ratio = robotState.head.panSpeed;
+    msg.speed = robotState.head.panSpeed;
     head_pan_pub.publish(msg);
     robotState.head.sendCommand = false;
   }
