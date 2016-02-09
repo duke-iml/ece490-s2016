@@ -258,6 +258,8 @@ APIENTRY BOOL sendEndEffectorPositionDrive(int limb,const double* vel);
 ///instantaneous velocity which is translated into joint velocities, which drifts
 ///away from the integrated Cartesian motion over time.
 APIENTRY BOOL sendEndEffectorDrive(int limb,const double* angVel,const double* vel);
+///Returns true if the limb is in end effector drive mode
+APIENTRY BOOL isEndEffectorDriveEnabled(int limb);
 
 
 

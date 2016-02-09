@@ -118,9 +118,11 @@ class Limb:
         self.temp_p = cast(self.temp,POINTER(c_double))
         self.itemp = None
     def mode(self):
-        """Returns 'position', 'velocity', 'effort', 'raw_position', 'motion_queue',
+        """Returns 'position', 'velocity', 'effort', 'raw_position',
+        'motion_queue', 'end_effector_drive',
         or 'planner' depending on the current operational mode of the limb."""
         if motion_lib.isPlannerEnabled(self.limb): return 'planner'
+        elif motion_lib.isEndEffectorDriveEnabled(self.limb): return 'end_effector_drive'
         elif motion_lib.isMotionQueueEnabled(self.limb): return 'motion_queue'
         elif motion_lib.isLimbPositionMode(self.limb): return 'position'
         elif motion_lib.isLimbVelocityMode(self.limb): return 'velocity'
