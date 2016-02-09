@@ -90,10 +90,12 @@ public:
     robotState.rightLimb.senseUpdateTime = t;
 
     //base moving flag
-    if(robotState.base.velocity.norm() > 1e-3 || robotState.base.sendCommand)
-      robotState.base.moving = true;
-    else
-      robotState.base.moving = false;
+    if(robotState.base.enabled) {
+      if(robotState.base.velocity.norm() > 1e-3 || robotState.base.sendCommand)
+	robotState.base.moving = true;
+      else
+	robotState.base.moving = false;
+    }
 
     lastSensorTime = t;
     return true;
