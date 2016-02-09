@@ -42,7 +42,7 @@ class MyGLViewer(GLWidgetProgram):
         #the current example draws the sensed robot in grey and the
         #commanded configurations in transparent green
 
-        #this line with draw the world
+        #this line will draw the robot's sensed configuration in the world
         robot = motion.robot
         q = robot.getKlamptSensedPosition()
         self.world.robot(0).setConfig(q)
