@@ -120,15 +120,12 @@ BOOL publishState(const char* system_state_addr)
 }
 
 void my_interrupt_handler(int s){
-  printf("Caught signal %d\n",s);
+  printf("Caught signal %d, stopping robot motion\n",s);
   gData.mutex.try_lock();
   gData.mutex.unlock();
-  printf("stopMotion\n");
   stopMotion();
-  printf("sendShutdown\n");
   sendShutdown();
   exit(1); 
-
 }
 
 ///Starts up the robot
@@ -148,6 +145,7 @@ BOOL sendStartup()
   sigIntHandler.sa_handler = my_interrupt_handler;
   sigemptyset(&sigIntHandler.sa_mask);
   sigIntHandler.sa_flags = 0;
+  sigIntHandler.sa_sigaction = 0;
   
   sigaction(SIGINT, &sigIntHandler, NULL);
 
@@ -167,6 +165,15 @@ BOOL sendShutdown()
   stopMotion();
   gData.kill = true;
   ThreadJoin(gControllerUpdateThread);
+
+  struct sigaction sigIntHandler;
+  sigIntHandler.sa_handler = SIG_DFL;
+  sigemptyset(&sigIntHandler.sa_mask);
+  sigIntHandler.sa_flags = 0;
+  sigIntHandler.sa_sigaction = 0;
+
+  sigaction(SIGINT, &sigIntHandler, NULL);
+
   return true;
 }
 
@@ -1035,21 +1042,27 @@ BOOL isMotionQueueEnabled(int limb)
 ///Returns true the limb is moving according to the motion queue
 BOOL isMotionQueueMoving(int limb)
 {
-  ScopedLock lock(gData.mutex);
-  if(limb == LEFT) return gData.robotState.leftLimb.motionQueueActive && (gData.robotState.leftLimb.motionQueue.TimeRemaining() >= 0);
-  else if(limb == RIGHT) return gData.robotState.rightLimb.motionQueueActive && (gData.robotState.rightLimb.motionQueue.TimeRemaining() >= 0);
+  if(limb == LEFT) {
+    ScopedLock lock(gData.mutex);
+    return gData.robotState.leftLimb.motionQueueActive && (gData.robotState.leftLimb.motionQueue.TimeRemaining() >= 0);
+  }
+  else if(limb == RIGHT) {
+    ScopedLock lock(gData.mutex);
+    return gData.robotState.rightLimb.motionQueueActive && (gData.robotState.rightLimb.motionQueue.TimeRemaining() >= 0);
+  }
   else return isMotionQueueMoving(LEFT) && isMotionQueueMoving(RIGHT);
 }
 ///Returns the estimated amount of time until the motion queue stops
 double getMotionQueueMoveTime(int limb)
 {
-  ScopedLock lock(gData.mutex);
   if(limb == LEFT) {
+    ScopedLock lock(gData.mutex);
     if(gData.robotState.leftLimb.motionQueueActive)
       return Max(gData.robotState.leftLimb.motionQueue.TimeRemaining(),0.0);
     return 0;
   }
   else if(limb == RIGHT) {
+    ScopedLock lock(gData.mutex);
     if(gData.robotState.rightLimb.motionQueueActive)
       return Max(gData.robotState.rightLimb.motionQueue.TimeRemaining(),0.0);
     return 0;
@@ -1166,7 +1179,7 @@ BOOL _sendMotionQueueRamp(int limb,const double* angles,double speed,bool immedi
     }
   }
   else {
-    printf("sendMotionQueueRamp(): warning, can't ramp arms simultaneously\n");
+    printf("sendMotionQueueRamp(): warning, can't ramp arms simultaneously yet\n");
     return _sendMotionQueueRamp(LEFT,angles,speed,immediate) && _sendMotionQueueRamp(RIGHT,angles+numLimbDofs,speed,immediate);
   }
   return 1;

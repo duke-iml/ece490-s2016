@@ -80,11 +80,11 @@ APIENTRY BOOL publishState(const char* system_state_addr="tcp://localhost:4568")
 
 ////// OVERALL ROBOT ///////
 
-///Starts up the robot
+///Starts up the robot and motion API
 APIENTRY BOOL sendStartup();
 ///Returns true if the robot is started
 APIENTRY BOOL isStarted();
-///Shuts down the robot
+///Shuts down the motion API.  (Does not shut down the robot)
 APIENTRY BOOL sendShutdown();
 ///Gets the time since startup
 APIENTRY double getTime();
