@@ -25,7 +25,8 @@ class MyGLViewer(GLRealtimeProgram):
         robot = motion.robot
         q = robot.getKlamptSensedPosition()
         self.world.robot(0).setConfig(q)
-        GLWidgetProgram.display(self)
+        self.world.drawGL()
+        GLRealtimeProgram.display(self)
 
         #draw commanded configuration
         glEnable(GL_BLEND)
@@ -45,7 +46,7 @@ class MyGLViewer(GLRealtimeProgram):
             motion.robot.shutdown()
             exit(0)
         else:
-            GLWidgetProgram.keyboardfunc(self,c,x,y)
+            GLRealtimeProgram.keyboardfunc(self,c,x,y)
             self.refresh()
 
 
