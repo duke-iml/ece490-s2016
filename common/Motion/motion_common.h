@@ -120,13 +120,11 @@ BOOL publishState(const char* system_state_addr)
 }
 
 void my_interrupt_handler(int s){
-  printf("Caught signal %d\n",s);
+  printf("Caught signal %d, stopping robot\n",s);
   gData.mutex.try_lock();
   gData.mutex.unlock();
-  printf("stopMotion\n");
   stopMotion();
-  printf("sendShutdown\n");
-  sendShutdown();
+  //sendShutdown();
   exit(1); 
 
 }
