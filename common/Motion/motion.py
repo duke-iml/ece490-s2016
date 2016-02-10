@@ -34,7 +34,7 @@ Caveats:
 from ctypes import *
 import json
 import platform
-
+import signal
 
 LEFT=0
 RIGHT=1
@@ -570,7 +570,14 @@ class Motion:
         return p.value
     def startup(self):
         """Starts up the robot"""
-        return motion_lib.sendStartup()
+        res = motion_lib.sendStartup()
+        if res == False: return False
+        #overrides the default Ctrl+C behavior which kills the program
+        def interrupter(x,y):
+            self.shutdown()
+            raise KeyboardInterrupt()
+        signal.signal(signal.SIGINT,interrupter)
+        return res
     def shutdown(self):
         """Shuts down the robot"""
         return motion_lib.sendShutdown()
