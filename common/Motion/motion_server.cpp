@@ -579,6 +579,7 @@ void run_motion_server()
   printf("(press Ctrl+C to exit)\n");
   signal(SIGINT,killFunc);
   MyRequestReplyServer server(serverAddr,10);
-  server.Start();
+  if(!server.Start()) 
+    return;
   server.Run();
 }

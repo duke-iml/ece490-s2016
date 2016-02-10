@@ -170,8 +170,8 @@ bool MyControllerUpdateData::MyStartup() {
   assemblyState.subscribe(*nh,"robot/state",10);
   jointState.subscribe(*nh,"robot/joint_states",10);
   headState.subscribe(*nh,"robot/head/head_state",10);
-  leftCuffState.state = 0;
-  rightCuffState.state = 0;
+  leftCuffState->state = 0;
+  rightCuffState->state = 0;
   leftCuffState.subscribe(*nh,"robot/digital_io/left_lower_cuff/state",10);
   rightCuffState.subscribe(*nh,"robot/digital_io/right_lower_cuff/state",10);
   leftGripperState.subscribe(*nh,"robot/end_effector/left_gripper/state",10);
@@ -447,7 +447,7 @@ bool MyControllerUpdateData::MyProcessSensors()
 	robotState.rightLimb.sensedEffort[k] = jointState->effort[i];
       }      
     }
-    if(robotState.leftLimb.commandedConfig.empty() || leftCuffState.state==1 /*startup or cuff pressed, reset commanded*/) {
+    if(robotState.leftLimb.commandedConfig.empty() || leftCuffState->state==1 /*startup or cuff pressed, reset commanded*/) {
       SetLimbGovernor(LEFT,LimbState::Normal);
       robotState.leftLimb.controlMode = LimbState::POSITION;
       robotState.leftLimb.sendCommand = false;
@@ -455,7 +455,7 @@ bool MyControllerUpdateData::MyProcessSensors()
       robotState.leftLimb.commandedVelocity = robotState.leftLimb.sensedVelocity;
       robotState.leftLimb.commandedEffort = robotState.leftLimb.sensedEffort;
     }
-    if(robotState.rightLimb.commandedConfig.empty() || rightCuffState.state==1 /*startup or cuff pressed, reset commanded*/) {
+    if(robotState.rightLimb.commandedConfig.empty() || rightCuffState->state==1 /*startup or cuff pressed, reset commanded*/) {
       SetLimbGovernor(RIGHT,LimbState::Normal);
       robotState.rightLimb.controlMode = LimbState::POSITION;
       robotState.rightLimb.sendCommand = false;
@@ -748,6 +748,7 @@ void MyControllerUpdateData::MySendCommands()
 
 void MyControllerUpdateData::MyShutdown()
 {
+  /*
   ros::Publisher enabler = nh->advertise<std_msgs::Bool>("/robot/set_super_enable",10);
   while(ros::ok()) {
     if(!assemblyState->enabled) {
@@ -762,6 +763,7 @@ void MyControllerUpdateData::MyShutdown()
     ros::spinOnce();
     ThreadSleep(0.5);
   }
+  */
 
   ros::shutdown();
 }
