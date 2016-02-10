@@ -7,29 +7,43 @@ from Motion import config
 rate = 10.0
 #save here, by default
 fn = "arm_motion.traj"
+#commanded or sensed?
+switch = 'c'
 
 print "Saves arm motions to disk for later inspection and playback"
-print "Usage: arm_motion_record.py [RATE] [FN]"
+print "Usage: arm_motion_record.py TYPE [RATE] [FN]"
+print " TYPE can be 'sensed' or 'commanded', or 's' or 'c' for short"
 print " [RATE] can be 0 to only save when enter is pressed"
 print " [FN] is the file to save to"
-if len(sys.argv) > 1:
-    rate = float(sys.argv[1])
 
-if rate > 0:
-    print "Saving motion at %g Hz... "%(rate,)
-else:
-    print "Saving motion when enter is pressed"
+if len(sys.argv) > 1:
+    switch = sys.argv[1]
+if switch == 's':
+    switch = 'sensed'
+if switch == 'c':
+    switch = 'commanded'
+if switch not in ['sensed','commanded']:
+    print "TYPE argument must be either 'sensed' or 'commanded'"
+    exit(1)
 
 if len(sys.argv) > 2:
-    fn = sys.argv[2]
+    rate = float(sys.argv[2])
 
-print "Saving motion to",fn
-f = open(fn,'w')
+if len(sys.argv) > 3:
+    fn = sys.argv[3]
+
 
 #simple motion setup
 config.setup(parse_sys=False)
-
 motion.robot.startup()
+
+if rate > 0:
+    print "Saving %s motion at %g Hz to %s "%(switch,rate,fn)
+else:
+    print "Saving %s motion when enter is pressed to %s"%(switch,fn)
+
+f = open(fn,'w')
+
 lastt = None
 lastq = None
 try:
@@ -38,7 +52,10 @@ try:
     while True:
         t = time.time() - t0
         if t < 1e-3: t = 0
-        q = motion.robot.left_limb.sensedPosition()+motion.robot.right_limb.sensedPosition()
+        if switch == 'sensed':
+            q = motion.robot.left_limb.sensedPosition()+motion.robot.right_limb.sensedPosition()
+        else:
+            q = motion.robot.left_limb.commandedPosition()+motion.robot.right_limb.commandedPosition()
         if q != lastq:
             if lastq is not None:
                 f.write(str(lastt) + '\t' + str(len(lastq)) + '\t'+ ' '.join(str(v) for v in lastq)+'\n')
