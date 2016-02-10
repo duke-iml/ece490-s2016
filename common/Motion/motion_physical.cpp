@@ -10,6 +10,7 @@
 #include <baxter_core_msgs/JointCommand.h>
 #include <baxter_core_msgs/HeadPanCommand.h>
 #include <baxter_core_msgs/EndEffectorCommand.h>
+#include <baxter_core_msgs/DigitalIOState.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Twist.h>
 #include <reflex_sf_msgs/JointState.h>
@@ -116,6 +117,7 @@ public:
   AutoMsg<baxter_core_msgs::HeadState> headState;
   AutoMsg<baxter_core_msgs::EndEffectorState> leftGripperState,rightGripperState;
   AutoMsg<reflex_sf_msgs::JointState> leftReflexGripperState,rightReflexGripperState;
+  AutoMsg<baxter_core_msgs::DigitalIOState> leftCuffState,rightCuffState;
   AutoMsg<nav_msgs::Odometry> baseState;
   Config lastBaseDifferencePos;
   double lastBaseDifferenceTime;
@@ -161,13 +163,17 @@ bool MyControllerUpdateData::MyStartup() {
   nh = new ros::NodeHandle();
   larm_pub = nh->advertise<baxter_core_msgs::JointCommand>(string("robot/limb/left/joint_command"),10,false);
   rarm_pub = nh->advertise<baxter_core_msgs::JointCommand>(string("robot/limb/right/joint_command"),10,false);
-  head_pan_pub = nh->advertise<baxter_core_msgs::HeadPanCommand>(string("robot/head/command_head_pan"),100,false);
+  head_pan_pub = nh->advertise<baxter_core_msgs::HeadPanCommand>(string("robot/head/command_head_pan"),10,false);
   head_nod_pub = nh->advertise<std_msgs::Bool>("robot/head/command_head_nod",10,false);
   base_twist_pub = nh->advertise<geometry_msgs::Twist>("hstar_amp1/base/auto/cmd/ts",10,false);
   
   assemblyState.subscribe(*nh,"robot/state",10);
   jointState.subscribe(*nh,"robot/joint_states",10);
   headState.subscribe(*nh,"robot/head/head_state",10);
+  leftCuffState.state = 0;
+  rightCuffState.state = 0;
+  leftCuffState.subscribe(*nh,"robot/digital_io/left_lower_cuff/state",10);
+  rightCuffState.subscribe(*nh,"robot/digital_io/right_lower_cuff/state",10);
   leftGripperState.subscribe(*nh,"robot/end_effector/left_gripper/state",10);
   rightGripperState.subscribe(*nh,"robot/end_effector/right_gripper/state",10);
 
@@ -441,12 +447,18 @@ bool MyControllerUpdateData::MyProcessSensors()
 	robotState.rightLimb.sensedEffort[k] = jointState->effort[i];
       }      
     }
-    if(robotState.leftLimb.commandedConfig.empty()) {
+    if(robotState.leftLimb.commandedConfig.empty() || leftCuffState.state==1 /*startup or cuff pressed, reset commanded*/) {
+      SetLimbGovernor(LEFT,LimbState::Normal);
+      robotState.leftLimb.controlMode = LimbState::POSITION;
+      robotState.leftLimb.sendCommand = false;
       robotState.leftLimb.commandedConfig = robotState.leftLimb.sensedConfig;
       robotState.leftLimb.commandedVelocity = robotState.leftLimb.sensedVelocity;
       robotState.leftLimb.commandedEffort = robotState.leftLimb.sensedEffort;
     }
-    if(robotState.rightLimb.commandedConfig.empty()) {
+    if(robotState.rightLimb.commandedConfig.empty() || rightCuffState.state==1 /*startup or cuff pressed, reset commanded*/) {
+      SetLimbGovernor(RIGHT,LimbState::Normal);
+      robotState.rightLimb.controlMode = LimbState::POSITION;
+      robotState.rightLimb.sendCommand = false;
       robotState.rightLimb.commandedConfig = robotState.rightLimb.sensedConfig;
       robotState.rightLimb.commandedVelocity = robotState.rightLimb.sensedVelocity;
       robotState.rightLimb.commandedEffort = robotState.rightLimb.sensedEffort;
