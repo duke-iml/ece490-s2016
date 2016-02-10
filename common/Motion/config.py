@@ -4,8 +4,8 @@
 #change this to "kinematic" to test in kinematic mode
 #change this to "physical" if you are ready to test on the real robot
 #mode = 'client'
-mode = 'kinematic'
-#mode = 'physical'
+#mode = 'kinematic'
+mode = 'physical'
 
 #relative path, assumes everything is run from the common directory
 klampt_model = "klampt_models/baxter_with_parallel_gripper_col.rob"
