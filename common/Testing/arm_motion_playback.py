@@ -6,14 +6,17 @@ from klampt.trajectory import Trajectory
 
 fn = "arm_motion.traj"
 speed = 1
+trim = 0
 
 print "Plays back an arm motion"
-print "Usage: arm_motion_playback.py FILE [SPEED]"
+print "Usage: arm_motion_playback.py FILE [SPEED] [TRIM]"
 if len(sys.argv) <= 1:
     print "Please specify a motion file"
     exit(0)
 if len(sys.argv) > 2:
     speed = float(sys.argv[2])
+if len(sys.argv) > 3:
+    trim = float(sys.argv[3])
 
 fn = sys.argv[1]
 print "Loading motion from",fn
@@ -28,8 +31,11 @@ config.setup(parse_sys=False)
 
 motion.robot.startup()
 try:
-    print "Moving to start, 20% speed..."
-    motion.robot.arms_mq.setRamp(traj.milestones[0],speed=0.2)
+    if trim == 0:
+        print "Moving to start, 20%% speed..."
+    else:
+        print "Moving to config at time %f, 20%% speed..."%(trim,)
+    motion.robot.arms_mq.setRamp(traj.eval(trim),speed=0.2)
     while motion.robot.arms_mq.moving():
         time.sleep(0.1)
     print "Starting motion..."
@@ -43,13 +49,13 @@ try:
         time.sleep(0.02)
     """
     #this uses the motion queue
-    t = 0
+    t = trim
     q = traj.milestones[0]
     for i in range(len(traj.times)):
         if traj.times[i] > t:
             motion.robot.arms_mq.appendLinear((traj.times[i]-t)/speed,traj.milestones[i])
-        t = traj.times[i]
-        q = traj.milestones[i]
+            t = traj.times[i]
+            q = traj.milestones[i]
     while motion.robot.arms_mq.moving():
         time.sleep(0.1)        
 except KeyboardInterrupt:
