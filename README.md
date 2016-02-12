@@ -37,8 +37,4 @@ Workstation Setup:
 -----------------------------------------
 Simple test On Lab Workstation:
 -----------------------------------------
-Turn on baxter by pushing the little white button on its back once. 
-After you log in to ubuntu, open a terminal and run "cd ros_ws" then ".baxter.sh". Then you can try to follow this link from step 2: http://sdk.rethinkrobotics.com/wiki/Hello_Baxter. Have fun!
-
-
-To turn off baxter, push the same button once.
+Follow [Baxter Basics](https://github.com/duke-iml/ece490-s2016/wiki/Baxter-Basics) to start.
