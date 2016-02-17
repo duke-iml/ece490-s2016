@@ -7,4 +7,4 @@ Simple test On Lab Workstation:
 Follow [Baxter Basics](https://github.com/duke-iml/ece490-s2016/wiki/Baxter-Basics) to start.
 
 
-Check [wiki](https://github.com/duke-iml/ece490-s2016/wiki)for more instructions.
+Check [wiki](https://github.com/duke-iml/ece490-s2016/wiki) for more instructions.
