@@ -1,0 +1,136 @@
+APC2015_CodeReview.txt
+2/17/2016, Hyunsoo Kim
+
+< Homework Assignments >
+HW2: Baxter modelling, IK, Transforms
+    - no collision checking
+HW3: ICP
+    - pose estimation of bins (not objects in bin)
+HW4: Motion Planning
+    - collision checking
+    - configuration spaces
+    - run motion planning on Klampt
+
+Layout:
+    - KnowledgeBase: shared high-level information
+    - need a high-level controller API
+    - able to switch between simulation / hardware mode without rewriting code
+    - motion planning: writing CSpace's, finding goals, debugging
+
+Things not included in HW
+    - calibration (robot-shelf TF, IK models, gripper finger models, object colors, etc)
+    - etc, etc...
+
+
+< APC Code >
+KnowledgeBase Setup
+    - transforms, cameras, etc. were not calibrated every time
+    - common configurations
+    - cached motion
+
+Perception
+    - subtract shelf info from pointcloud
+    - color based obj. recognition with good "confidence eestimation"
+
+PC Grasping
+    - most objects were pc-based grasps
+    - a lot of object-specific tweaks
+
+Motion Planning
+    - go back to HW4... APC2015 code is "black-magic / hacking"
+
+Master
+    - manage jobs, kill failed/timed-out processes, proceed to next step
+
+High-level Planner
+    - read JSON file
+    - decide action plan via expected utility optimization
+
+Visual Debugging
+    - show paths
+    - CRITICAL for motion planning (opened up the black-box motion planning)
+
+Testing Code
+    - lots of them
+
+
+< Useful Codes >
+apc/ general comon code (one file in this directory is the super-master)
+    - high_level_planning/hlp_master.py
+        - loads "launch_files/apc.json" and launches a master object
+    - baxter.py, motion.py
+
+calibration/ need this if the gripper is heavy (sagging)
+
+api/ need this for communicating bewteen subgroups
+integration/ has master coordinator (below the one file in apc/)
+    - master.py : execute all high-level tasks
+    - *_server.py : master uses this to communicate with sub tasks
+    - visualization.py : dont have to use this. use Klampt.visualization module
+
+kb/ variable items to be loaded to knowledge base
+
+klampt_models/ all scanned models
+
+launch_files/ example JSON launch files
+
+perception/
+    - interface.py : interface used by the master
+        - localizeSpecificObject(bin, object) : the main method
+    - segmentation/ : main algorithm for localization
+
+planning/ motion planning
+    - interface.py : high-level interface
+        - planMoveToXform
+        - planPointCloudGrasp
+    - planningpy : glue between APC world and Klampt CSpace
+
+resources/ hard-coded stuff (want to avoid re-using this stuff)
+
+test/ visualize knowledgebase, or load Master and start testing functionalities
+     - ex) testing planning code: load stored PC, run planning code
+     - test_interactive.py : most useful testing program
+
+< Code Block Diagram >
+High-level Planner (apc/) & Testing (test/) --> Master (integration/) -->
+
+--> (via APIs in api/) --> 1) Planning
+                       --> 2) Perception           --> camera/sensors (via ROS)
+                       --> 3) Low-level controller --> robot (via ROS/Arduino)
+
+
+KnowledgeBase Block communicates with 1) High-level planner, 2) Master, 3) Planning, 4) Perception
+
+
+< Constant Data >
+- bin location (bin bounds, shelf frame)
+- shelf transform relative to robot (we may want to calibrate this every time)
+- camera vantage points (we may not need this)
+- color histograms (may not need this)
+
+
+< KnowledgeBase >
+- defined in apc/apc.py for homework
+- defined in api/shared.py for the read APC
+- constant items
+    - bin contents, bounds, transforms, etc.
+- changing items
+    - bin contents, targets, etc.
+
+
+< What worked well >
+- obj perception
+- job manager
+- visualization
+
+< What didn't work well >
+- code structure
+- reliance on hard-coding (esp. in planning)
+
+< Suggestions >
+- agree to a file structure
+- documentation
+- klampt.resource, klampt.coordinates modules? (visual)
+- Use MotionServerkinematic
+- Use MotionServer_physical (but, use klampt.visualization module to debug paths before sending commands)
+- Turn off visual debugging (keep hands on E-stop!)
