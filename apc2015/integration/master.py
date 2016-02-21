@@ -156,18 +156,31 @@ class MotionManager:
         if not self._check_control():
             return False
 
-        # request a robot state update
-        task = self.control.update()
+        # < 1. request a robot state update >
+        task = self.control.update()  # = MotionManager.control.update() = ControlServer(KB).update() = ControlServer._call(None,None,None)
+
+        # wait for task to finish, or time-out, using task.done as the condition for determining whether the task is completed, and 10s as timeout
         wait_task(task, lambda: task.done, 10)
         if task.error:
             logger.warn('robot state updated failed... planning from old state')
 
-        # map to the plan name
+        # < 2. Invoke the planner to plan for a task (plan_method) >
+        # map to the plan name (capitalize the first letter of the method: ie. blah --> planBlah)
         plan_method = 'plan' + method[0].upper() + method[1:]
 
         # invoke the planner
+        # task = PlanningServer.planBlah(*args, **kwargs)
+        #      = JobServer.planBlah(*args, **kwargs)
+        #      = JobServer._call(planBlah, *args, **kwargs)
+        #      = create, run and return JobManager(factory=lambda: self.factory(self.init_args, method, args, kwargs),
+        #                                          count=self.parallelism)
+        #      = create, run, and return JobManager(factory = function handle of PlanningJob(knowledgeBase, method, args, kwargs),
+        #                                           count = self.parallelism)
+        # JobManager.run creates a Process(target = _handler) in the BaseJob class
         task = getattr(self.planner, plan_method)(*args, **kwargs)
+
         target_plan_count = 3
+        # let the planner do its job, count number of successes
         # the failed wait is only a problem if no plans were returned so ignore its return value
         wait_task(task, lambda: task.count_success() >= target_plan_count or task.all_done(), 600)
         if task.count_success() == 0:

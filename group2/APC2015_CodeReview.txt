@@ -153,3 +153,9 @@ in high_level_planning/hlp_master.py:
 # so by calling "self.manager.graspObjectInBin" in the Master calss, we are referring to --> MotionManager.graspObjectInBin --> MotionManager._call(graspObjectInBin, args, kwargs)
 
 # master.run_all() in hlp_master.py runs all subsections of the program (perception, planning, control, etc.)
+
+-------------
+
+# In jobs.py's BaseJob class, the method "_get_interface" is not implemented. Looks the like "_handler" won't work without this method.
+    def _get_interface(self):
+        raise NotImplemented
