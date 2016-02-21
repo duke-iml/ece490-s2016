@@ -32,8 +32,8 @@ Perception
     - subtract shelf info from pointcloud
     - color based obj. recognition with good "confidence eestimation"
 
-PC Grasping
-    - most objects were pc-based grasps
+Point Cloud Grasping
+    - most objects were point cloud based grasps
     - a lot of object-specific tweaks
 
 Motion Planning
@@ -134,3 +134,22 @@ KnowledgeBase Block communicates with 1) High-level planner, 2) Master, 3) Plann
 - Use MotionServerkinematic
 - Use MotionServer_physical (but, use klampt.visualization module to debug paths before sending commands)
 - Turn off visual debugging (keep hands on E-stop!)
+
+
+**** End of In-Class Notes ***
+
+
+< Comments on APC2015 Code >
+in high_level_planning/hlp_master.py:
+
+# PlanningMaster class is derived/inherited from the Master class in apc2015/integration/master.py (master = PlanningMaster(apc_order, False))
+
+# the Master class in master.py contains motion functions like "_grasp_object", "_retrieve_object", etc.
+
+# these functions call self.manager.graspObjectInBin and self.manager.moveObjectToOrderBin.
+
+# self.manager is an instantiation of the MotionManager class in the same master.py file
+
+# so by calling "self.manager.graspObjectInBin" in the Master calss, we are referring to --> MotionManager.graspObjectInBin --> MotionManager._call(graspObjectInBin, args, kwargs)
+
+# master.run_all() in hlp_master.py runs all subsections of the program (perception, planning, control, etc.)
