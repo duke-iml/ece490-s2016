@@ -469,6 +469,14 @@ class MyGLViewer(GLNavigationProgram):
         #xform initialization
         global ground_truth_shelf_xform
         ground_truth_shelf_xform = world.rigidObject(0).getTransform()
+
+        # TODO: Merge these four lines to hw2_imply.py ?
+        # Added these lines to fix the object orientations
+        R1 = so3.rotation([0,-1,0], math.pi/2)
+        R2 = so3.rotation([0,0,-1], math.pi/2)
+        R = so3.mul(R1,R2)
+        ground_truth_shelf_xform = (R, [1.2,0,0])
+
         init_ground_truth()
         self.controller.knowledge.shelf_xform = ground_truth_shelf_xform
 
