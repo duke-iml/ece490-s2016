@@ -1,0 +1,6 @@
+mesh "meshes/poisson.ply"
+mass 0.1
+
+kRestitution 0
+kFriction 0.8
+
