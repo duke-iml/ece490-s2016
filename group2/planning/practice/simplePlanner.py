@@ -3,12 +3,12 @@
 
 from klampt import robotsim
 from klampt.glprogram import *
-from klampt import so3, loader, gldraw
-# from klampt import vectorops,se3,ik
+from klampt import se3, so3, loader, gldraw, ik
+# from klampt import vectorops
 import apc
 # import os
-# import math
-# import random
+import math
+import random
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -54,16 +54,16 @@ global knowledge
 
 def init_ground_truth():
     global ground_truth_items
-    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_G'),
+    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_C'),
                           apc.ItemInBin(apc.small_item,'bin_A'),
-                          apc.ItemInBin(apc.med_item,'bin_D')]
+                          apc.ItemInBin(apc.med_item,'bin_E')]
     # apy.ItemInBin.set_in_bin_xform(self,shelf_xform,ux,uy,theta)
     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.2,0.2,0.0)
     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.4,math.pi/2)
 
 # TODO:
-# def run_perception_on_bin(knowledge,bin_name):
+def run_perception_on_bin(knowledge,bin_name):  return True
 #     """This is a fake perception module that simply reveals all the items
 #     the given bin."""
 #     global ground_truth_items
@@ -121,7 +121,127 @@ class KnowledgeBase:
             res.append(grasp_xform_world)
         return res
 
-# TODO: Controller
+
+class MyController():
+    """Maintains the robot's internal state. (KnowledgeBase is maintained by
+       the global knowledgeBase object)
+       Members include:
+    - state: either 'ready' or 'holding'
+    - configuration: the robot's current configuration
+    - active_limb: the limb currently active, either holding or viewing a state
+    - current_bin: the name of the bin where the camera is viewing or the gripper is located
+    - held_object: the held object, if one is held, or None otherwise
+
+    External modules can call viewBinAction(), graspAction(), ungraspAction(),
+    and placeInOrderBinAction()
+    """
+    def __init__(self,world):
+        self.world = world
+        self.robot = world.robot(0)
+        self.state = 'ready'  # or 'holding'
+        self.config = self.robot.getConfig()
+        self.active_limb = None
+        self.current_bin = None
+        self.held_object = None
+
+        # define camera and joint link "objects"
+        self.left_camera_link   = self.robot.link(left_camera_link_name)
+        self.right_camera_link  = self.robot.link(right_camera_link_name)
+        self.left_gripper_link  = self.robot.link(left_gripper_link_name)
+        self.right_gripper_link = self.robot.link(right_gripper_link_name)
+        self.left_arm_links     = [self.robot.link(i) for i in left_arm_link_names]
+        self.right_arm_links    = [self.robot.link(i) for i in right_arm_link_names]
+
+        # define mapping from "link ID" to "link index"
+        id_to_index = dict([(self.robot.link(index).getID(), index) for index in range(self.robot.numLinks())])
+
+        # define a list of link indices on both arms
+        self.left_arm_indices  = [id_to_index[i.getID()] for i in self.left_arm_links]
+        self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
+
+    def viewBinAction(self, bin):
+        if self.state != 'ready' :
+            print "Error: Holding an object, robot cannot view bin"
+            return False
+        else:
+            # If a valid bin name
+            if bin in apc.bin_names:
+                print "Valid bin, ",
+
+                if self.move_camera_to_bin(bin):
+                    self.current_bin = bin
+                    #TODO:
+                    # run_perception_on_bin(knowledge, bin)
+                    print "sensed bin", bin, " with camera", self.active_limb
+                else:
+                    print "but move to bin", bin, " failed"
+                    return False
+            else:
+                print "Error: Invalid bin"
+                return False
+        return True
+
+    # TODO:
+    def graspAction(self):                      return True
+    def ungraspAction(self):                    return True
+    def placeInOrderBinAction(self):            return True
+    def fulfillOrderAction(self,objectList):    return True
+
+
+    def move_camera_to_bin(self,bin):
+        # Camera rotation and translation relative to world frame
+        R_camera = [0,0,-1, 1,0,0, 0,1,0]
+        t_camera = knowledge.bin_vantage_point(bin)
+
+        # Setup ik objectives for both arms
+        left_goal  = ik.objective(self.left_camera_link,  R=R_camera, t=t_camera)
+        right_goal = ik.objective(self.right_camera_link, R=R_camera, t=t_camera)
+
+        # Joint Limits
+        qmin,qmax = self.robot.getJointLimits()
+
+        for i in range(100):
+            # initialize to the resting pose
+            # NOTE: that this (without [:]) doesn't work because the list
+            #       must be copied by value, not reference.
+            #       See python shallow copy vs. deep copy for more details
+            # q = baxter_rest_config
+            q = baxter_rest_config[:]
+
+
+            # use left hand
+            if random.random() < 0.5:
+                # randomly initialize each joint in the arm within joint limits
+                for jointIndex in self.left_arm_indices:
+                    q[jointIndex] = random.uniform(qmin[jointIndex], qmax[jointIndex])
+                self.robot.setConfig(q)
+
+                # attempt to solve ik objective
+                if ik.solve(left_goal):
+                    self.config = self.robot.getConfig()
+                    self.active_limb = 'left'
+                    return True
+
+            # use right hand
+            else:
+                # randomly initialize each joint in the arm within joint limits
+                for jointIndex in self.right_arm_indices:
+                    q[jointIndex] = random.uniform(qmin[jointIndex], qmax[jointIndex])
+                self.robot.setConfig(q)
+
+                # attempt to solve ik objective
+                if ik.solve(right_goal):
+                    self.config = self.robot.getConfig()
+                    self.active_limb = 'right'
+                    return True
+        return False
+
+    # TODO:
+    def move_to_grasp_object(self,object):      return True
+    def move_to_ungrasp_object(self,object):    return True
+    def move_to_order_bin(self,object):         return True
+
+
 
 # Define methods for drawing objects in scene
 def draw_xformed(xform,localDrawFunc):
@@ -188,7 +308,7 @@ class MyGLViewer(GLNavigationProgram):
     def __init__(self,world):
         GLNavigationProgram.__init__(self,"My GL program")
         self.world = world
-        # self.controller = PickingController(world)
+        self.controller = MyController(world)
 
         # you can set these to true to draw the bins, grasps, and/or gripper/camera frames
         self.draw_bins = False
@@ -262,71 +382,71 @@ class MyGLViewer(GLNavigationProgram):
         glEnable(GL_LIGHTING)
         return
 
-    # TODO:
-    # def keyboardfunc(self,c,x,y):
-        # c = c.lower()
-        # if c >= 'a' and c <= 'l':
-        #     self.controller.viewBinAction('bin_'+c.upper())
-        # elif c == 'x':
-        #     self.controller.graspAction()
-        # elif c == 'u':
-        #     self.controller.ungraspAction()
-        # elif c == 'p':
-        #     self.controller.placeInOrderBinAction()
-        # elif c == 'o':
-        #     self.controller.fulfillOrderAction(['med_item','small_item'])
-        # glutPostRedisplay()
+    def keyboardfunc(self,c,x,y):
+        c = c.lower()
+        if c >= 'a' and c <= 'l':
+            self.controller.viewBinAction('bin_'+c.upper())
+        elif c == 'x':
+            self.controller.graspAction()
+        elif c == 'u':
+            self.controller.ungraspAction()
+        elif c == 'p':
+            self.controller.placeInOrderBinAction()
+        elif c == 'o':
+            self.controller.fulfillOrderAction(['med_item','small_item'])
+        glutPostRedisplay()
 
 
 
 
 
 if __name__ == "__main__":
-   # or, from klampt import *; world = WorldModel()
-   world = robotsim.WorldModel()
+    # or, from klampt import *; world = WorldModel()
+    world = robotsim.WorldModel()
 
-   knowledge = KnowledgeBase()
+    knowledge = KnowledgeBase()
 
-   # Load the robot model
-   # 1) full Baxter model
-   # print "Loading full Baxter model (be patient, this will take a minute)..."
-   # world.loadElement(os.path.join(model_dir,"baxter.rob"))
-   # 2) simplified Baxter model
-   print "Loading simplified Baxter model..."
-   world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
+    # Load the robot model
+    # 1) full Baxter model
+    # print "Loading full Baxter model (be patient, this will take a minute)..."
+    # world.loadElement(os.path.join(model_dir,"baxter.rob"))
+    # 2) simplified Baxter model
+    print "Loading simplified Baxter model..."
+    world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
 
-   # Load the shelves
-   # NOTE: world.loadRigidObject(~) works too because the shelf model is a rigid object
-   #       and loadElement automatically detects the object type
-   print "Loading Kiva pod model..."
-   world.loadElement(os.path.join(model_dir,"kiva_pod/model.obj"))
+    # Load the shelves
+    # NOTE: world.loadRigidObject(~) works too because the shelf model is a rigid object
+    #       and loadElement automatically detects the object type
+    print "Loading Kiva pod model..."
+    world.loadElement(os.path.join(model_dir,"kiva_pod/model.obj"))
 
-   # Load the floor plane
-   print "Loading plane model..."
-   world.loadElement(os.path.join(model_dir,"plane.env"))
+    # Load the floor plane
+    print "Loading plane model..."
+    world.loadElement(os.path.join(model_dir,"plane.env"))
 
-   # Shift the Baxter up a bit (95cm)
-   Rbase,tbase = world.robot(0).link(0).getParentTransform()
-   world.robot(0).link(0).setParentTransform(Rbase,(0,0,0.95))
-   world.robot(0).setConfig(world.robot(0).getConfig())
 
-   # Translate the shelf to be in front of the robot, and rotate it by 90 degrees
-   Trel = (so3.rotation((0,0,1),-math.pi/2),[1.2,0,0])  # desired shelf's xform
-   T = world.rigidObject(0).getTransform()              # shelf model's xform
-   world.rigidObject(0).setTransform(*se3.mul(Trel,T))  # combine the two xforms
+    # Shift the Baxter up a bit (95cm)
+    Rbase,tbase = world.robot(0).link(0).getParentTransform()
+    world.robot(0).link(0).setParentTransform(Rbase,(0,0,0.95))
+    world.robot(0).setConfig(world.robot(0).getConfig())
 
-   # Up until this point, the baxter model is extending its arms
-   # Load the resting configuration from klampt_models/baxter_rest.config
-   f = open(model_dir+'baxter_rest.config','r')
-   baxter_rest_config = loader.readVector(f.readline())
-   f.close()
-   world.robot(0).setConfig(baxter_rest_config)
+    # Translate the shelf to be in front of the robot, and rotate it by 90 degrees
+    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.2,0,0])  # desired shelf's xform
+    T = world.rigidObject(0).getTransform()              # shelf model's xform
+    world.rigidObject(0).setTransform(*se3.mul(Trel,T))  # combine the two xforms
 
-   # Orient bin boxes correctly w.r.t. the shelf
-   ground_truth_shelf_xform = world.rigidObject(0).getTransform()
-   R = so3.mul(apc.Xto_Z,ground_truth_shelf_xform[0])
-   ground_truth_shelf_xform = (R, [1.2,0,0])
+    # Up until this point, the baxter model is extending its arms
+    # Load the resting configuration from klampt_models/baxter_rest.config
+    f = open(model_dir+'baxter_rest.config','r')
+    baxter_rest_config = loader.readVector(f.readline())
+    f.close()
+    world.robot(0).setConfig(baxter_rest_config)
 
-   # run the visualizer
-   visualizer = MyGLViewer(world)
-   visualizer.run()
+    # Orient bin boxes correctly w.r.t. the shelf
+    ground_truth_shelf_xform = world.rigidObject(0).getTransform()
+    R = so3.mul(apc.Xto_Z,ground_truth_shelf_xform[0])
+    ground_truth_shelf_xform = (R, [1.2,0,0])
+
+    # run the visualizer
+    visualizer = MyGLViewer(world)
+    visualizer.run()
