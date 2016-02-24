@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # this forces the executable file to be interpreted with this python
 
+# TODO: gripper doesn't seem to align with object grasping points during grasp action
+
 from klampt import robotsim
 from klampt.glprogram import *
 from klampt import se3, so3, loader, gldraw, ik
@@ -9,6 +11,7 @@ import apc
 # import os
 import math
 import random
+import copy
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -22,10 +25,12 @@ left_gripper_link_name = 'left_gripper'
 right_gripper_link_name = 'right_gripper'
 
 # indices of the left and right arms in the Baxter robot file
-left_arm_link_names = ['left_upper_shoulder','left_lower_shoulder','left_upper_elbow','left_lower_elbow','left_upper_forearm','left_lower_forearm','left_wrist']
-right_arm_link_names = ['right_upper_shoulder','right_lower_shoulder','right_upper_elbow','right_lower_elbow','right_upper_forearm','right_lower_forearm','right_wrist']
+left_arm_link_names = ['left_upper_shoulder','left_lower_shoulder','left_upper_elbow',
+                       'left_lower_elbow','left_upper_forearm','left_lower_forearm','left_wrist']
+right_arm_link_names = ['right_upper_shoulder','right_lower_shoulder','right_upper_elbow',
+                        'right_lower_elbow','right_upper_forearm','right_lower_forearm','right_wrist']
 
-# local transformations (rotation, translation pairs) of the grasp center
+# local transformations (rotation, translation pairs) of the grasp center (relative to gripper_link)
 # = identity rotation, and translation in y, and z
 left_gripper_center_xform = (so3.identity(),[0,-0.04,0.1])
 right_gripper_center_xform = (so3.identity(),[0,-0.04,0.1])
@@ -43,14 +48,12 @@ global baxter_rest_config
 # Declare the shelf xform variable
 global ground_truth_shelf_xform
 
+# Order list. Can be parsed from JSON input
+global orderList
+orderList = ['med_item','tall_item']
+
 # Declare the knowledge base
 global knowledge
-
-# List of actual items -- this is only used for the fake perception module, and your
-# code should not use these items directly
-# ground_truth_items = []
-# ground_truth_shelf_xform = se3.identity()
-
 
 def init_ground_truth():
     global ground_truth_items
@@ -61,21 +64,6 @@ def init_ground_truth():
     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.2,0.2,0.0)
     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.4,math.pi/2)
-
-# TODO:
-def run_perception_on_bin(knowledge,bin_name):  return True
-#     """This is a fake perception module that simply reveals all the items
-#     the given bin."""
-#     global ground_truth_items
-#     if knowledge.bin_contents[bin_name]==None:
-#         #not sensed yet
-#         knowledge.bin_contents[bin_name] = []
-#         for item in ground_truth_items:
-#             if item.bin_name == bin_name:
-#                 #place it in the bin
-#                 knowledge.bin_contents[bin_name].append(item)
-#     return
-
 
 # KnowledgeBase Class
 class KnowledgeBase:
@@ -96,10 +84,10 @@ class KnowledgeBase:
     estimated perfectly.)
     """
     def __init__(self):
+        # dictionary of sensed bin contents. Append the item name to
+        # the value (a list) to the bin_names key when an item is sensed
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
-        # Use global variable ground_truth_shelf_xform instead
-        # self.shelf_xform = se3.identity()
 
     def bin_front_center(self,bin_name):
         bmin,bmax = apc.bin_bounds[bin_name]
@@ -117,10 +105,15 @@ class KnowledgeBase:
         if object.xform == None: return None
         res = []
         for g in object.info.grasps:
+            # NOTE: g.grasp_xform: the transformation of the gripper fingers
+            #                      relative to the object's local frame
+            #        object.xform: the transformation of the object center
+            #                      relative to the world frame
+            #   grasp_xform_world: the transformation of the gripper fingers
+            #                      relative to the world frame
             grasp_xform_world = se3.mul(object.xform, g.grasp_xform)
             res.append(grasp_xform_world)
         return res
-
 
 class MyController():
     """Maintains the robot's internal state. (KnowledgeBase is maintained by
@@ -170,8 +163,7 @@ class MyController():
 
                 if self.move_camera_to_bin(bin):
                     self.current_bin = bin
-                    #TODO:
-                    # run_perception_on_bin(knowledge, bin)
+                    self.run_perception_on_bin(knowledge, bin)
                     print "sensed bin", bin, " with camera", self.active_limb
                 else:
                     print "but move to bin", bin, " failed"
@@ -181,12 +173,93 @@ class MyController():
                 return False
         return True
 
-    # TODO:
-    def graspAction(self):                      return True
-    def ungraspAction(self):                    return True
-    def placeInOrderBinAction(self):            return True
-    def fulfillOrderAction(self,objectList):    return True
+    def graspAction(self):
+        if self.current_bin == None:
+            print "Not located at a bin"
+            return False
+        elif self.state != 'ready':
+            print "Already holding an object, can't grasp another"
+            return False
+        elif len(knowledge.bin_contents[self.current_bin])==0:
+            print "The current bin is empty"
+            return False
+        else:
+            if self.move_to_grasp_object(knowledge.bin_contents[self.current_bin][0]):
+                self.held_object = knowledge.bin_contents[self.current_bin].pop()
+                # self.held_object = knowledge.bin_contents[self.current_bin][0]
+                self.state = 'holding'
+                print "Holding object",self.held_object.info.name,"in hand",self.active_limb
+                return True
+            else:
+                print "Grasp failed"
+                return False
 
+    def ungraspAction(self):
+        if self.state != 'holding':
+            print "Not holding an object"
+            return False
+        else:
+            if self.move_to_ungrasp_object(self.held_object):
+                print "Object",self.held_object.info.name,"placed back in bin"
+                # self.knowledge.bin_contents[self.current_bin].append(self.held_object)
+                self.state = 'ready'
+                self.held_object = None
+                return True
+            else:
+                print "Ungrasp failed"
+                return False
+
+    def placeInOrderBinAction(self):
+        if self.state != 'holding':
+            print "Not holding an object"
+        else:
+            # heldObject = self.held_object
+            if self.move_to_order_bin(self.held_object):
+                self.drop_in_order_bin(self.held_object)
+                print "Successfully placed",self.held_object.info.name,"into order bin"
+                knowledge.order_bin_contents.append(self.held_object)
+                # self.held_object.xform = None
+                self.held_object.bin_name = 'order_bin'
+                self.state = 'ready'
+                self.held_object = None
+                return True
+            else:
+                print "Move to order bin failed"
+                return False
+
+    def fulfillOrderAction(self,objectList):
+        # go through all bins
+        for b in apc.bin_names:
+            # if the bin is empty
+            if knowledge.bin_contents[b] == None:
+                # try to view the bin
+                if not self.viewBinAction(b):
+                    continue
+
+            doNextBin = False
+            # if any of the objects in the bin is in the "remaining objets" list, and we want to keep searching in current bin
+            while any(obj.info.name in objectList for obj in knowledge.bin_contents[b]) and not doNextBin:
+                # grasp failed
+                if not self.graspAction():
+                    doNextBin = True
+                    break
+                # if robot is not holding on to something, or the object it is holding is not in order
+                while (self.held_object == None or self.held_object.info.name not in objectList) and not doNextBin:
+                    if not self.ungraspAction():
+                        return False
+                    if not self.graspAction():
+                        doNextBin = True
+                        break
+
+                # temporarily store held object because placeInOrderBinAction sets held object to None
+                heldObject = self.held_object
+                if not self.placeInOrderBinAction():
+                    return False
+
+        if len(objectList) == 0:
+            return True
+        print "Items Remaining in Order: ", objectList
+        return False
 
     def move_camera_to_bin(self,bin):
         # Camera rotation and translation relative to world frame
@@ -207,7 +280,6 @@ class MyController():
             #       See python shallow copy vs. deep copy for more details
             # q = baxter_rest_config
             q = baxter_rest_config[:]
-
 
             # use left hand
             if random.random() < 0.5:
@@ -236,12 +308,148 @@ class MyController():
                     return True
         return False
 
-    # TODO:
-    def move_to_grasp_object(self,object):      return True
-    def move_to_ungrasp_object(self,object):    return True
-    def move_to_order_bin(self,object):         return True
+    def move_to_grasp_object(self,object):
+        # Candidate grasps for the object
+        grasps = knowledge.grasp_xforms(object)
 
+        # Joint Limits
+        qmin,qmax = self.robot.getJointLimits()
 
+        for i in range(100):
+            # initialize to the resting pose
+            # NOTE: that this (without [:]) doesn't work because the list
+            #       must be copied by value, not reference.
+            #       See python shallow copy vs. deep copy for more details
+            # q = baxter_rest_config
+            q = baxter_rest_config[:]
+
+            g = random.choice(grasps)
+
+            # use left hand
+            if self.active_limb == 'left':
+                # randomly initialize each joint in the arm within joint limits
+                for jointIndex in self.left_arm_indices:
+                    q[jointIndex] = random.uniform(qmin[jointIndex], qmax[jointIndex])
+                self.robot.setConfig(q)
+
+                # Setup ik objective using 3 points around the grasps and gripper to align gripper to grasp points
+                l, w = list(), list()
+                l.append(left_gripper_center_xform[1])
+                w.append(g[1])
+
+                # align red-axis on gripper with red-axis on object
+                l.append([left_gripper_center_xform[1][0]+0.01, left_gripper_center_xform[1][1], left_gripper_center_xform[1][2]])
+                offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
+                w.append(  [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]]  )
+
+                left_goal  = ik.objective(self.left_gripper_link, local=[l[0],l[1]], world=[w[0],w[1]])
+
+                # attempt to solve ik objective
+                if ik.solve(left_goal):
+                    self.config = self.robot.getConfig()
+                    self.active_limb = 'left'
+                    return True
+
+            # use right hand
+            else:
+                # randomly initialize each joint in the arm within joint limits
+                for jointIndex in self.right_arm_indices:
+                    q[jointIndex] = random.uniform(qmin[jointIndex], qmax[jointIndex])
+                self.robot.setConfig(q)
+
+                # Setup ik objective using 3 points around the grasps and gripper to align gripper to grasp points
+                l, w = list(), list()
+                l.append(right_gripper_center_xform[1])
+                w.append(g[1])
+
+                l.append([right_gripper_center_xform[1][0]+0.01, right_gripper_center_xform[1][1], right_gripper_center_xform[1][2]])
+                offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
+                w.append(  [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]]  )
+
+                right_goal  = ik.objective(self.right_gripper_link, local=[l[0],l[1]], world=[w[0],w[1]])
+
+                # attempt to solve ik objective
+                if ik.solve(right_goal):
+                    self.config = self.robot.getConfig()
+                    self.active_limb = 'right'
+                    return True
+        return False
+
+    def move_to_ungrasp_object(self,object):
+        knowledge.bin_contents[self.current_bin].append(object)
+        return self.move_camera_to_bin(object.bin_name)
+
+    def move_to_order_bin(self,object):
+        # apply the order_bin_xform to the given point
+        left_target_point  = se3.apply(order_bin_xform, [0.0, 0.2, order_bin_bounds[1][2]+0.1])
+        right_target_point = se3.apply(order_bin_xform, [0.0, -0.2, order_bin_bounds[1][2]+0.1])
+
+        # Setup ik objectives for both arms
+        left_goal  = ik.objective(self.left_gripper_link,  local=left_gripper_center_xform[1],  world=left_target_point)
+        right_goal = ik.objective(self.right_gripper_link, local=right_gripper_center_xform[1], world=right_target_point)
+
+        qmin, qmax = self.robot.getJointLimits()
+
+        for i in range(100):
+            # initialize to the resting pose
+            # NOTE: that this (without [:]) doesn't work because the list
+            #       must be copied by value, not reference.
+            #       See python shallow copy vs. deep copy for more details
+            # q = baxter_rest_config
+            q = baxter_rest_config[:]
+
+            # use left hand
+            if self.active_limb == 'left':
+                # randomly initialize each joint in the arm within joint limits
+                for jointIndex in self.left_arm_indices:
+                    q[jointIndex] = random.uniform(qmin[jointIndex], qmax[jointIndex])
+                self.robot.setConfig(q)
+
+                # attempt to solve ik objective
+                if ik.solve(left_goal):
+                    self.config = self.robot.getConfig()
+                    return True
+
+            # use right hand
+            else:
+                # randomly initialize each joint in the arm within joint limits
+                for jointIndex in self.right_arm_indices:
+                    q[jointIndex] = random.uniform(qmin[jointIndex], qmax[jointIndex])
+                self.robot.setConfig(q)
+
+                # attempt to solve ik objective
+                if ik.solve(right_goal):
+                    self.config = self.robot.getConfig()
+                    return True
+        self.config = self.robot.getConfig()
+        return False
+
+    def drop_in_order_bin(self,object):
+        R, t = order_bin_xform
+        tRandom = [random.uniform(-0.05,0.1),random.uniform(-0.4,.4),0]
+        objHeight = object.info.bmax[2] - object.info.bmin[2]
+        object.xform = (R, [t[0]+tRandom[0], t[1]+tRandom[1], t[2]+objHeight/2])
+        if object.info.name in orderList:
+            print "OrderList:", orderList
+            print "Picked Item:", object.info.name
+            orderList.remove(object.info.name)
+        else:
+            print "OrderList:", orderList
+            print "Wrongly Picked Item:", object.info.name
+        return True
+
+    def run_perception_on_bin(self,knowledge,bin_name):
+        """This is a fake perception module that simply reveals all the items
+        the given bin."""
+        # if the dictionary "bin_contents" doesn't contain any values for the key "bin_name"
+        if knowledge.bin_contents[bin_name]==None:
+            # not sensed yet
+            knowledge.bin_contents[bin_name] = []
+            for item in ground_truth_items:
+                if (item.bin_name == bin_name) :
+                    # add the item to the list of sensed items for the bin
+                    knowledge.bin_contents[bin_name].append(item)
+        return
 
 # Define methods for drawing objects in scene
 def draw_xformed(xform,localDrawFunc):
@@ -321,13 +529,11 @@ class MyGLViewer(GLNavigationProgram):
         # you may run auxiliary openGL calls, if you wish to visually debug
         # self.world.robot(0).setConfig(self.controller.config)
         self.world.drawGL()
-        global ground_truth_items
 
         # show bin boxes
         if self.draw_bins:
             glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0,1])
             for b in apc.bin_bounds.values():
-               # draw_oriented_box(self.controller.knowledge.shelf_xform,b[0],b[1])
                draw_oriented_box(ground_truth_shelf_xform,b[0],b[1])
 
             for b in apc.bin_names:
@@ -346,6 +552,13 @@ class MyGLViewer(GLNavigationProgram):
         for i in ground_truth_items:
             if i.xform == None:
                 continue
+
+            if i.bin_name == 'order_bin':
+            # draw in wireframe
+                glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0.5,0,1])
+                draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
+                continue
+
             # if perceived bin has an item, draw it in solid color
             if knowledge.bin_contents[i.bin_name]!=None and i in knowledge.bin_contents[i.bin_name]:
                 glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0.5,0,1])
@@ -362,9 +575,9 @@ class MyGLViewer(GLNavigationProgram):
                 g = knowledge.grasp_xforms(i)
                 if g:
                     for xform in g:
-                        gldraw.xform_widget(xform,0.05,0.005)
+                        gldraw.xform_widget(xform,0.02,0.002)
 
-        # # Show gripper and camera frames
+        # Show gripper and camera frames
         if self.draw_gripper_and_camera:
             left_camera_link = self.world.robot(0).link(left_camera_link_name)
             right_camera_link = self.world.robot(0).link(right_camera_link_name)
@@ -372,8 +585,12 @@ class MyGLViewer(GLNavigationProgram):
             right_gripper_link = self.world.robot(0).link(right_gripper_link_name)
             gldraw.xform_widget(left_camera_link.getTransform(),0.1,0.01)
             gldraw.xform_widget(right_camera_link.getTransform(),0.1,0.01)
-            gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),left_gripper_center_xform),0.05,0.005)
-            gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),right_gripper_center_xform),0.05,0.005)
+            gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),left_gripper_center_xform),0.05,0.005, lighting=False, fancy=True)
+            gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),right_gripper_center_xform),0.05,0.005, lighting=False, fancy=True)
+
+        # Show world frame and shelf frame
+        gldraw.xform_widget(ground_truth_shelf_xform, 0.1, 0.015, lighting=False, fancy=True)
+        gldraw.xform_widget(se3.identity(), 0.2, 0.037, lighting=False, fancy=True)
 
         # Draw order box
         glDisable(GL_LIGHTING)
@@ -393,12 +610,8 @@ class MyGLViewer(GLNavigationProgram):
         elif c == 'p':
             self.controller.placeInOrderBinAction()
         elif c == 'o':
-            self.controller.fulfillOrderAction(['med_item','small_item'])
+            self.controller.fulfillOrderAction(orderList)
         glutPostRedisplay()
-
-
-
-
 
 if __name__ == "__main__":
     # or, from klampt import *; world = WorldModel()
@@ -411,19 +624,18 @@ if __name__ == "__main__":
     # print "Loading full Baxter model (be patient, this will take a minute)..."
     # world.loadElement(os.path.join(model_dir,"baxter.rob"))
     # 2) simplified Baxter model
-    print "Loading simplified Baxter model..."
+    print "\n<Loading simplified Baxter model...>"
     world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
 
     # Load the shelves
     # NOTE: world.loadRigidObject(~) works too because the shelf model is a rigid object
     #       and loadElement automatically detects the object type
-    print "Loading Kiva pod model..."
+    print "\n<Loading Kiva pod model...>"
     world.loadElement(os.path.join(model_dir,"kiva_pod/model.obj"))
 
     # Load the floor plane
-    print "Loading plane model..."
+    print "\n<Loading plane model...>"
     world.loadElement(os.path.join(model_dir,"plane.env"))
-
 
     # Shift the Baxter up a bit (95cm)
     Rbase,tbase = world.robot(0).link(0).getParentTransform()
