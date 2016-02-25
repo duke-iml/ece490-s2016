@@ -1,8 +1,6 @@
 #!/usr/bin/python
 # this forces the executable file to be interpreted with this python
 
-# TODO: gripper doesn't seem to align with object grasping points during grasp action
-
 from klampt import robotsim
 from klampt.glprogram import *
 from klampt import se3, so3, loader, gldraw, ik
@@ -60,7 +58,6 @@ def init_ground_truth():
     ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_C'),
                           apc.ItemInBin(apc.small_item,'bin_A'),
                           apc.ItemInBin(apc.med_item,'bin_E')]
-    # apy.ItemInBin.set_in_bin_xform(self,shelf_xform,ux,uy,theta)
     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.2,0.2,0.0)
     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.4,math.pi/2)
@@ -201,7 +198,6 @@ class MyController():
         else:
             if self.move_to_ungrasp_object(self.held_object):
                 print "Object",self.held_object.info.name,"placed back in bin"
-                # self.knowledge.bin_contents[self.current_bin].append(self.held_object)
                 self.state = 'ready'
                 self.held_object = None
                 return True
@@ -213,12 +209,10 @@ class MyController():
         if self.state != 'holding':
             print "Not holding an object"
         else:
-            # heldObject = self.held_object
             if self.move_to_order_bin(self.held_object):
                 self.drop_in_order_bin(self.held_object)
                 print "Successfully placed",self.held_object.info.name,"into order bin"
                 knowledge.order_bin_contents.append(self.held_object)
-                # self.held_object.xform = None
                 self.held_object.bin_name = 'order_bin'
                 self.state = 'ready'
                 self.held_object = None
@@ -320,7 +314,7 @@ class MyController():
             # NOTE: that this (without [:]) doesn't work because the list
             #       must be copied by value, not reference.
             #       See python shallow copy vs. deep copy for more details
-            # q = baxter_rest_config
+            #       ( q = baxter_rest_config ) doesn't work!
             q = baxter_rest_config[:]
 
             g = random.choice(grasps)
@@ -340,7 +334,7 @@ class MyController():
                 # align red-axis on gripper with red-axis on object
                 l.append([left_gripper_center_xform[1][0]+0.01, left_gripper_center_xform[1][1], left_gripper_center_xform[1][2]])
                 offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
-                w.append(  [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]]  )
+                w.append( [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]] )
 
                 left_goal  = ik.objective(self.left_gripper_link, local=[l[0],l[1]], world=[w[0],w[1]])
 
@@ -364,7 +358,7 @@ class MyController():
 
                 l.append([right_gripper_center_xform[1][0]+0.01, right_gripper_center_xform[1][1], right_gripper_center_xform[1][2]])
                 offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
-                w.append(  [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]]  )
+                w.append( [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]] )
 
                 right_goal  = ik.objective(self.right_gripper_link, local=[l[0],l[1]], world=[w[0],w[1]])
 
@@ -395,7 +389,7 @@ class MyController():
             # NOTE: that this (without [:]) doesn't work because the list
             #       must be copied by value, not reference.
             #       See python shallow copy vs. deep copy for more details
-            # q = baxter_rest_config
+            #       ( q = baxter_rest_config ) doesn't work!
             q = baxter_rest_config[:]
 
             # use left hand
@@ -611,12 +605,23 @@ class MyGLViewer(GLNavigationProgram):
             self.controller.placeInOrderBinAction()
         elif c == 'o':
             self.controller.fulfillOrderAction(orderList)
+        elif c == 'r':
+            restart_program()
         glutPostRedisplay()
 
-if __name__ == "__main__":
-    # or, from klampt import *; world = WorldModel()
-    world = robotsim.WorldModel()
+def restart_program():
+    """Restarts the current program.
+    Note: this function does not return. Any cleanup action (like
+    saving data) must be done before calling this function."""
+    python = sys.executable
+    os.execl(python, python, * sys.argv)
 
+if __name__ == "__main__":
+    world = robotsim.WorldModel()
+    # or,
+    # from klampt import *; world = WorldModel()
+
+    # Instantiate global knowledge base
     knowledge = KnowledgeBase()
 
     # Load the robot model
