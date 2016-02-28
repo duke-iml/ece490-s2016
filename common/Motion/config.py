@@ -3,8 +3,8 @@
 #change this to "client" to use the MotionServer_X program
 #change this to "kinematic" to test in kinematic mode
 #change this to "physical" if you are ready to test on the real robot
-#mode = 'client'
-mode = 'kinematic'
+mode = 'client'
+#mode = 'kinematic'
 #mode = 'physical'
 
 #relative path, assumes everything is run from the common directory
