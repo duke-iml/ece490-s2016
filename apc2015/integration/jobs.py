@@ -12,6 +12,7 @@ class BaseJob:
         self.args = args or ()
         self.kwargs = kwargs or {}
 
+    # TODO: need to understand this method. This is the key to spawning and running processes
     def run(self):
         # create a pipe to communicate with the child
         (self.pipe, self.child_pipe) = Pipe()
@@ -31,7 +32,7 @@ class BaseJob:
         logger.debug('job {} start: {} {} {}'.format(self.child.pid, self.method, self.args, self.kwargs))
 
         try:
-            # construct the interface
+            # construct the interface --> will get NotImplemented exception
             interface = self._get_interface()(*self.init_args)
 
             # call the target method
@@ -186,6 +187,7 @@ class JobServer:
 
     def _call(self, method, args, kwargs):
         manager = JobManager(
+            # factory = function handle of PlanningJob(knowledgeBase, method, args, kwargs)
             factory=lambda: self.factory(self.init_args, method, args, kwargs),
             count=self.parallelism
         )
