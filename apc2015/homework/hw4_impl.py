@@ -802,6 +802,7 @@ class MyGLViewer(GLRealtimeProgram):
         self.simworld = simworld
         self.planworld = planworld
         self.sim = Simulator(simworld)
+
         self.simulate = True
         # self.sim.simulate(0)
 
