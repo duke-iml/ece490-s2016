@@ -121,20 +121,34 @@ def load_strategy_constants(fn = "Strategy Optimization.csv"):
             p_pinch_success[obj] = float(line[pinchcol])
             p_power_success[obj] = float(line[powercol])
 
+# this PlanningMaster class is derived from the Master class in apc2015/integration/master.py
 class PlanningMaster(Master):
     def __init__(self, apc_order, test=False):
+        # if currently a testing run
         if not test:
             Master.__init__(self,apc_order)
+        # if currently not a testing run
         else:
             self._create_knowledge_base()
             self._load_apc_order(apc_order)
+
+        # load the .csv file in /apc/high_level_planning/...csv
         load_strategy_constants("apc/high_level_planning/Strategy Optimization.csv")
+
+        # defaultdict is a "high-performance container datatype". Similar to a dictionary
+        # Using "list" as the argument of defaultdict
         self.order_by_bin = defaultdict(list)
+
+        # sort the order item by bin
+        # i.e.) [ (binA,[item1, item2]), (binB,[item4,item9]), (...), ... ]
         for orderitem in self.order:
             self.order_by_bin[orderitem['bin']].append(orderitem['item'])
 
+
         self.cache = False
         print "Loading prior point clouds"
+
+        # load prior point cloud, transforms from databse for items in the knowledgeBase
         if self.cache:
             for bin,objects in self.knowledge_base.bin_contents.iteritems():
                 for o in objects:
@@ -148,13 +162,18 @@ class PlanningMaster(Master):
     def run_all(self):
         global logger
         global total_time,rewards,bonus_items,p_drop,p_drop_miss,p_pickup_success
+
+        # start time
         t0 = time.time()
 
+        # print items to get for each bin
         for orderitem in self.order:
             print "  ",orderitem["bin"],orderitem["item"]
         print len(self.order),"Items to get"
         logger.info("Running localization, time 0")
 
+        # try to move to initial pose, and localize the shelf and order bin
+        # also, update the shelf and orderbin xforms in the knowlegebase
         if not self._move_initial() or not self._localize_shelf_and_order_bin():
             return False
 
@@ -163,20 +182,31 @@ class PlanningMaster(Master):
         not_found_objects = []
         confusion_matrices = {}
         global sensing_order
+
+        # for each bin...
         for bin in ['bin_'+x for x in sensing_order]:
             # if bin[4] in 'CFIL':
             #     continue
             logger.info("bin {}".format(bin))
+
+            # skip if nothing in the bin
             if len(self.order_by_bin[bin])==0:
                 continue
                 print "No order item in bin",bin
+                # set target bin to bin and target object to None
                 self._set_target(bin,None)
+                # report failure to move to vantage point
                 if not self._move_vantage_point(bin+"_center"):
                     logger.info("Couldn't move to vantage point %s... pressing on."%(bin,))
+
+            # if there are items in bin_X,
             else:
                 for i,o in enumerate(self.order_by_bin[bin]):
+                    # print binName and objects in the bin
                     print bin,o
                     confusion_matrix_file = "/tmp/confusion_matrices_"+o+"_"+bin+".json"
+
+                    # if the object point cloud is in the knowledge base...
                     if o in self.knowledge_base.object_clouds:
                         if self.cache:
                             try:
@@ -191,7 +221,11 @@ class PlanningMaster(Master):
                             del self.knowledge_base.object_clouds[o]
                     #confusion_matrices[(bin,o)] = dict((o2,1.0/len(self.knowledge_base.bin_contents[bin])) for o2 in self.knowledge_base.bin_contents[bin])
                     #continue
+
+                    # set target bin to bin and target object to o
                     self._set_target(bin,o)
+
+                    # if currently working on the first bin (?)
                     if i==0:
                         #if not self._move_vantage_point(bin+"_center"):
                         self._set_target(bin,o)
@@ -222,6 +256,8 @@ class PlanningMaster(Master):
                         f.write(json.dumps(self.knowledge_base.last_confusion_matrix))
                         f.write("\n")
                         f.close()
+
+        # end time of localization
         t = time.time()-t0
         logger.info("Localization done, time %f. %f time remaining"%(t,total_time-t))
 
@@ -251,7 +287,7 @@ class PlanningMaster(Master):
                 success_points = rewards["place_multi_item"]
             else:
                 raise ValueError("empty bin?")
-            
+
             if o in bonus_items:
                 success_points += bonus_items[o]
             p_drop_o = p_drop[best_op][o]*1.0
@@ -259,14 +295,14 @@ class PlanningMaster(Master):
             p_drop_o_miss = p_drop[best_op][o]*p_drop_miss
             p_successful_place = (1.0-p_drop_o)*p_pickup_success[best_op][o]
             p_successful_place_dropped = p_drop_o_in_bin*p_pickup_success[best_op][o]
-            
+
             for (other,prob) in confusion.iteritems():
                 if other==o:
                     #probability of success
                     epoints += prob*(success_points*p_successful_place+p_drop_o_in_bin*(success_points-rewards["drop"]))
                 else:
                     epoints += rewards["place_wrong_item"]*prob*p_pickup_success[best_op][other]
-            
+
             expected_reward[(b,o)] = epoints
         #print expected_reward.keys()
         #print expected_reward.values()
@@ -290,25 +326,30 @@ class PlanningMaster(Master):
                 logger.info("  Object %s in bin %s reward %f"%(b,o,expected_reward[(b,o)]))
             else:
                 logger.info("  Object %s in bin %s reward %f"%(b,o,0.0))
-    
+
+        # move robot to initial pose, and activate the left arm
         self._move_initial()
         self.knowledge_base.active_limb = 'left'
+
         #start grasping
         for (b,o) in grasp_order:
-            #decide whether to switch to scooping
+            # timer
             t = time.time()-t0
             t_left = total_time - t
+
+            #decide whether to switch to scooping or stay with grasping
             s = self.optimal_stopping(t_left,[expected_reward[x] for x in grasp_order[i:]],[expected_reward[x] for x in scoop_order])
             if s == 0:
                 logger.info("Deciding to switch to scooping")
-                break
+                break #--> switch to scooping
 
+            # set target bin and object
             self._set_target(b,o)
             #TODO: do we want to re-find the object?
             #self._find_object()
             if self._grasp_object():
                 if self._retrieve_object():
-                    # this order item is completed 
+                    # this order item is completed
                     logger.info('completed order for {}'.format(o))
                 else:
                     logger.info("Failed to retrieve object")
@@ -338,7 +379,7 @@ class PlanningMaster(Master):
                 #self._find_object()
                 if self._grasp_object():
                     if self._retrieve_object():
-                        # this order item is completed 
+                        # this order item is completed
                         logger.info('completed order for {}'.format(o))
                     else:
                         logger.info("Failed to retrieve object")
@@ -346,9 +387,10 @@ class PlanningMaster(Master):
                 else:
                     logger.info("Failed to plan scoop for object")
                 self._set_target(None, None)
+
             #put down tray
             self.manager.PickUpOrderTray(False)
- 
+
 
         logger.info("Done.")
         #TODO: go back and re-sense
@@ -367,10 +409,10 @@ class PlanningMaster(Master):
         for i in range(max_items_to_scoop):
             rewards.append(rscoop+rgrasp)
             tconsumed_scoop += expected_scoop_time_per_item
-            
+
             num_items_to_grasp = min(len(grasp_reward),int(math.floor(t_left - tconsumed_scoop)/expected_grasp_time_per_item))
             rgrasp -= sum(grasp_reward[num_items_to_grasp:max_items_to_grasp])
-            
+
             max_items_to_grasp = num_items_to_grasp
             rscoop += scoop_reward[i]
         print rewards
@@ -391,7 +433,9 @@ if __name__=="__main__":
     # log everything to the file
     import time, os
     logging.basicConfig(
+        # A level of the logger
         level=logging.INFO,
+        # Specify format string for the handler
         format='%(asctime)s %(filename)-15s:%(lineno)-4d %(levelname)-8s %(message)s',
         datefmt='%m-%d-%Y %H:%M:%S',
         filename='/tmp/hlp-{}-{}.log'.format(int(time.time()), os.getpid()),
@@ -405,13 +449,13 @@ if __name__=="__main__":
     logging.getLogger('planning.interface').addHandler(console)
     logging.getLogger('integration.master').addHandler(console)
     logging.getLogger('__main__').addHandler(console)
-    
+
     # log all warnings or higher
     consoleError = RainbowLoggingHandler(sys.stderr)
     consoleError.setLevel(logging.WARN)
     consoleError.setFormatter(logging.Formatter('%(filename)s:%(lineno)d\t%(levelname)-8s: %(message)s'))
     logging.getLogger().addHandler(consoleError)
-    
+
     logging.getLogger('OpenGL').setLevel(99)
     # logging.getLogger('integration.jobs').setLevel(logging.WARNING)
     # logging.getLogger('integration.visualization').setLevel(logging.WARNING)
@@ -433,7 +477,8 @@ if __name__=="__main__":
     from integration.interface import fake
     fake.delay_scale = 0
     fake.fail_scale = 100
-    
+
+    # loads the JSON launch file here
     fn = "launch_files/apc.json"
     if len(sys.argv) > 1:
         fn = sys.argv[1]
