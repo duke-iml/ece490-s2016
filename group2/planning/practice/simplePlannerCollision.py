@@ -22,16 +22,17 @@ from Queue import Queue
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 0
+NO_SIMULATION_COLLISIONS = 1
 #Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 1
+FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
-
-
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
 
+# global variable for baxter's resting configuration
+# baxter_rest_config = [0.0]*54  # no need to declare as this because we load from file in main()
+global baxter_rest_config
 
 # The transformation of the order bin
 # = identity rotation and translation in x
@@ -39,12 +40,6 @@ order_bin_xform = (so3.identity(),[0.5,0,0])
 # the local bounding box of the order bin
 order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
-# global variable for baxter's resting configuration
-# baxter_rest_config = [0.0]*54  # no need to declare as this because we load from file in main()
-global baxter_rest_config
-
-# Declare the shelf xform variable
-global ground_truth_shelf_xform
 
 # Order list. Can be parsed from JSON input
 global orderList
@@ -517,8 +512,6 @@ class MyGLViewer(GLNavigationProgram):
         self.draw_grasps = True
         self.draw_gripper_and_camera = True
 
-        init_ground_truth()
-
     def display(self):
         # you may run auxiliary openGL calls, if you wish to visually debug
         # self.world.robot(0).setConfig(self.controller.config)
@@ -663,6 +656,8 @@ if __name__ == "__main__":
     ground_truth_shelf_xform = world.rigidObject(0).getTransform()
     R = so3.mul(apc.Xto_Z,ground_truth_shelf_xform[0])
     ground_truth_shelf_xform = (R, [1.2,0,0])
+
+    init_ground_truth()
 
     # run the visualizer
     visualizer = MyGLViewer(world)

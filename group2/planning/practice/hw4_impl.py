@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
-from klampt import *
+from klampt import robotsim
 from klampt.glprogram import *
-from klampt import vectorops,so3,se3,gldraw,ik,loader
+from klampt import vectorops, se3, so3, loader, gldraw, ik
 from klampt.robotsim import Geometry3D
 from baxter import *
 from hw4_planner_impl import *
@@ -10,73 +10,49 @@ import apc
 import os
 import math
 import random
+import copy
 from threading import Thread,Lock
-from Queue import Quee
+from Queue import Queue
 
-#configuration variables
-#Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
-#Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 0
+
+# configuration variables
+# Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
+# Question 4: set NO_SIMULATION_COLLISIONS = 0
+NO_SIMULATION_COLLISIONS = 1
 #Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 1
-
+FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
 
-#The path of the klampt_models directory
+# The path of the klampt_models directory
 model_dir = "../klampt_models/"
 
-#resting configuration
-baxter_rest_config = [0.0]*60
+# global variable for baxter's resting configuration
+# baxter_rest_config = [0.0]*54  # no need to declare as this because we load from file in main()
+global baxter_rest_config
 
-#the transformation of the order bin
+# The transformation of the order bin
+# = identity rotation and translation in x
 order_bin_xform = (so3.identity(),[0.5,0,0])
-#the local bounding box of the order bin
+# the local bounding box of the order bin
 order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 
-class KnowledgeBase:
-    """A structure containing the robot's dynamic knowledge about the world.
-    Members:
-    - bin_contents: a map from bin names to lists of known items in
-      the bin.  Items are given by apc.ItemInBin objects.
-    - order_bin_contents: the list of objects already in the order bin.
-      also given by apc.ItemInBin objects
-    - shelf_xform: the transformation (rotation, translation) of the bottom
-      center of the shelf in world coordinates.  The x coordinate increases
-      from left to right, the y coordinate increases from bottom to top,
-      and the z coordinate increases from back to front.
-      this will be loaded dynamically either from perception or hard coded.
+# Order list. Can be parsed from JSON input
+global orderList
+orderList = ['med_item','tall_item']
 
-    (in this homework assignment we will use the fake perception module
-    to populate the bin contents, and assume the shelf xform is
-    estimated perfectly.)
-    """
-    def __init__(self):
-        self.bin_contents = dict((n,None) for n in apc.bin_names)
-        self.order_bin_contents = []
-        self.shelf_xform = se3.identity()
-
-    def bin_front_center(self,bin_name):
-        bmin,bmax = apc.bin_bounds[bin_name]
-        local_center = [(bmin[0]+bmax[0])*0.5,(bmin[1]+bmax[1])*0.5,bmax[2]]
-        world_center = se3.apply(self.shelf_xform,local_center)
-        return world_center
-
-
-    def bin_vantage_point(self,bin_name):
-        world_center = self.bin_front_center(bin_name)
-        #20cm offset
-        world_offset = so3.apply(self.shelf_xform[0],[0,0,0.2])
-        return vectorops.add(world_center,world_offset)
-
-
-    def grasp_xforms(self,object):
-        if object.xform == None: return None
-        res = []
-        for g in object.info.grasps:
-            grasp_xform_world = se3.mul(object.xform,g.grasp_xform)
-            res.append((g,grasp_xform_world))
-        return res
+# a list of actual items -- this is only used for the fake perception module, and your
+# code should not use these items directly
+def init_ground_truth():
+    global ground_truth_items
+    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_C'),
+                          apc.ItemInBin(apc.small_item,'bin_A'),
+                          apc.ItemInBin(apc.med_item,'bin_E')]
+    ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,0.0)
+    ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
+    ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
+    for item in ground_truth_items:
+        item.info.geometry = load_item_geometry(item)
 
 def load_item_geometry(item,geometry_ptr = None):
     """Loads the geometry of the given item and returns it.  If geometry_ptr
@@ -104,20 +80,52 @@ def load_item_geometry(item,geometry_ptr = None):
             exit(1)
         return geometry_ptr
 
-#a list of actual items -- this is only used for the fake perception module, and your
-#code should not use these items directly
-ground_truth_items = []
-ground_truth_shelf_xform = se3.identity()
-def init_ground_truth():
-    global ground_truth_items
-    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_B'),
-                          apc.ItemInBin(apc.small_item,'bin_D'),
-                          apc.ItemInBin(apc.med_item,'bin_H')]
-    ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,0.0)
-    ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
-    ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
-    for item in ground_truth_items:
-        item.info.geometry = load_item_geometry(item)
+class KnowledgeBase:
+    """A structure containing the robot's dynamic knowledge about the world.
+    Members:
+    - bin_contents: a map from bin names to lists of known items in
+      the bin.  Items are given by apc.ItemInBin objects.
+    - order_bin_contents: the list of objects already in the order bin.
+      also given by apc.ItemInBin objects
+    - shelf_xform: the transformation (rotation, translation) of the bottom
+      center of the shelf in world coordinates.  The x coordinate increases
+      from left to right, the y coordinate increases from bottom to top,
+      and the z coordinate increases from back to front.
+      this will be loaded dynamically either from perception or hard coded.
+
+    (in this homework assignment we will use the fake perception module
+    to populate the bin contents, and assume the shelf xform is
+    estimated perfectly.)
+    """
+    def __init__(self):
+        self.bin_contents = dict((n,None) for n in apc.bin_names)
+        self.order_bin_contents = []
+
+    def bin_front_center(self,bin_name):
+        bmin,bmax = apc.bin_bounds[bin_name]
+        local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
+        world_center = se3.apply(ground_truth_shelf_xform, local_center)
+        return world_center
+
+    def bin_vantage_point(self,bin_name):
+        world_center = self.bin_front_center(bin_name)
+        # Vantage point has 20cm offset from bin center
+        world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0,0.2])
+        return vectorops.add(world_center,world_offset)
+
+    def grasp_xforms(self,object):
+        if object.xform == None: return None
+        res = []
+        for g in object.info.grasps:
+            # NOTE: g.grasp_xform: the transformation of the gripper fingers
+            #                      relative to the object's local frame
+            #        object.xform: the transformation of the object center
+            #                      relative to the world frame
+            #   grasp_xform_world: the transformation of the gripper fingers
+            #                      relative to the world frame
+            grasp_xform_world = se3.mul(object.xform,g.grasp_xform)
+            res.append((g,grasp_xform_world))
+        return res
 
 def run_perception_on_shelf(knowledge):
     """This is a fake perception module that simply reveals the shelf
@@ -127,17 +135,18 @@ def run_perception_on_shelf(knowledge):
 def run_perception_on_bin(knowledge,bin_name):
     """This is a fake perception module that simply reveals all the items
     the given bin."""
+    # if the dictionary "bin_contents" doesn't contain any values for the key "bin_name"
     global ground_truth_items
     if knowledge.bin_contents[bin_name]==None:
-        #not sensed yet
+        # not sensed yet
         knowledge.bin_contents[bin_name] = []
         for item in ground_truth_items:
             if item.bin_name == bin_name:
-                #place it in the bin
+                # add the item to the list of sensed items for the bin
                 knowledge.bin_contents[bin_name].append(item)
     return
 
-
+# TODO
 class LowLevelController:
     """A low-level interface to the Baxter robot (with parallel jaw
     grippers).  Does appropriate locking for multi-threaded use.
@@ -202,7 +211,7 @@ class LowLevelController:
         set_model_gripper_command(self.robotModel,limb,command)
         self.controller.setMilestone(self.robotModel.getConfig())
         self.lock.release()
-
+# TODO
 class FakeLowLevelController:
     """A faked low-level interface to the Baxter robot (with parallel jaw
     grippers).  Does appropriate locking for multi-threaded use.
@@ -264,7 +273,7 @@ class FakeLowLevelController:
         self.lastCommandTime = time.time()
         self.lock.release()
 
-
+# TODO
 class PickingController:
     """Maintains the robot's knowledge base and internal state.  Most of
     your code will go here.  Members include:
@@ -755,7 +764,7 @@ def draw_oriented_wire_box(xform,bmin,bmax):
     """Helper: draws an oriented wireframe box"""
     draw_xformed(xform,lambda:draw_wire_box(bmin,bmax))
 
-
+# TODO
 def run_controller(controller,command_queue):
     run_perception_on_shelf(controller.knowledge)
     while True:
@@ -941,9 +950,10 @@ class MyGLViewer(GLRealtimeProgram):
                 exit(0)
         glutPostRedisplay()
 
+# TODO
 def load_apc_world():
     """Produces a world with only the Baxter, shelf, and ground plane in it."""
-    world = WorldModel()
+    world = robotsim.WorldModel()
     #uncomment these lines and comment out the next 2 if you want to use the
     #full Baxter model
     # print "Loading full Baxter model (be patient, this will take a minute)..."
@@ -973,9 +983,10 @@ def load_apc_world():
     ground_truth_shelf_xform = se3.mul(Trel,T)
     return world
 
+# TODO
 def load_baxter_only_world():
     """Produces a world with only the Baxter in it."""
-    world = WorldModel()
+    world = robotsim.WorldModel()
     print "Loading simplified Baxter model..."
     world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     #shift the Baxter up a bit (95cm)
@@ -984,6 +995,7 @@ def load_baxter_only_world():
     world.robot(0).setConfig(world.robot(0).getConfig())
     return world
 
+# TODO
 def spawn_objects_from_ground_truth(world):
     """For all ground_truth_items, spawns RigidObjects in the world
     according to their sizes / mass properties"""
@@ -1009,6 +1021,7 @@ def spawn_objects_from_ground_truth(world):
         obj.setTransform(item.xform[0],item.xform[1])
     return
 
+# TODO
 def main():
     """The main loop that loads the planning / simulation models and
     starts the OpenGL visualizer."""
