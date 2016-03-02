@@ -2,40 +2,36 @@
 # this forces the executable file to be interpreted with this python
 
 # TODO: simplePlannerCollision.py : Implement Collision Detection
-
 # TODO: complexPlannerCollision.py : Add spatula model, picking from above
 
 from klampt import robotsim
 from klampt.glprogram import *
-from klampt import se3, so3, loader, gldraw, ik
-# from klampt import vectorops
+from klampt import vectorops, se3, so3, loader, gldraw, ik
+from klampt.robotsim import Geometry3D
+from baxter import *
+from hw4_planner_impl import *
 import apc
-# import os
+import os
 import math
 import random
 import copy
+from threading import Thread,Lock
+from Queue import Queue
+
+
+# configuration variables
+# Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
+# Question 4: set NO_SIMULATION_COLLISIONS = 0
+NO_SIMULATION_COLLISIONS = 0
+#Turn this on to help fast prototyping of later stages
+FAKE_SIMULATION = 1
+SKIP_PATH_PLANNING = 0
+
+
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
 
-# indices of the left and right cameras in the Baxter robot file
-left_camera_link_name = 'left_hand_camera'
-right_camera_link_name = 'right_hand_camera'
-
-# indices of the left and right grippers in the Baxter robot file
-left_gripper_link_name = 'left_gripper'
-right_gripper_link_name = 'right_gripper'
-
-# indices of the left and right arms in the Baxter robot file
-left_arm_link_names = ['left_upper_shoulder','left_lower_shoulder','left_upper_elbow',
-                       'left_lower_elbow','left_upper_forearm','left_lower_forearm','left_wrist']
-right_arm_link_names = ['right_upper_shoulder','right_lower_shoulder','right_upper_elbow',
-                        'right_lower_elbow','right_upper_forearm','right_lower_forearm','right_wrist']
-
-# local transformations (rotation, translation pairs) of the grasp center (relative to gripper_link)
-# = identity rotation, and translation in y, and z
-left_gripper_center_xform = (so3.identity(),[0,-0.04,0.1])
-right_gripper_center_xform = (so3.identity(),[0,-0.04,0.1])
 
 # The transformation of the order bin
 # = identity rotation and translation in x
@@ -336,7 +332,7 @@ class MyController():
                 w.append(g[1])
 
                 # align red-axis on gripper with red-axis on object
-                l.append([left_gripper_center_xform[1][0]+0.01, left_gripper_center_xform[1][1], left_gripper_center_xform[1][2]])
+                l.append([left_gripper_center_xform[1][0], left_gripper_center_xform[1][1]+0.01, left_gripper_center_xform[1][2]])
                 offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
                 w.append( [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]] )
 
@@ -360,7 +356,7 @@ class MyController():
                 l.append(right_gripper_center_xform[1])
                 w.append(g[1])
 
-                l.append([right_gripper_center_xform[1][0]+0.01, right_gripper_center_xform[1][1], right_gripper_center_xform[1][2]])
+                l.append([right_gripper_center_xform[1][0], right_gripper_center_xform[1][1]+0.01, right_gripper_center_xform[1][2]])
                 offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
                 w.append( [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]] )
 
