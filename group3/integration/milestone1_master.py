@@ -1,8 +1,9 @@
 import sys
 sys.path.insert(0, "..")
+sys.path.insert(0, "../../common")
 
+from Motion import motion
 import rospy
-import baxter_interface
 from klampt import *
 from klampt.glprogram import *
 from klampt import vectorops,so3,se3,gldraw,ik,loader
@@ -42,23 +43,23 @@ class MyGLViewer(GLNavigationProgram):
 class Milestone1Master:
     def __init__(self, world):
         self.world = world
-        self.robot = world.robot(0)
-        self.config = self.robot.getConfig()
-        self.left_camera_link = self.robot.link(LEFT_CAMERA_LINK_NAME)
-        self.right_camera_link = self.robot.link(RIGHT_CAMERA_LINK_NAME)
-        self.left_gripper_link = self.robot.link(LEFT_GRIPPER_LINK_NAME)
-        self.right_gripper_link = self.robot.link(RIGHT_GRIPPER_LINK_NAME)
-        self.left_arm_links = [self.robot.link(i) for i in LEFT_ARM_LINK_NAMES]
-        self.right_arm_links = [self.robot.link(i) for i in RIGHT_ARM_LINK_NAMES]
-        id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
+        self.robotModel = world.robot(0)
+        self.config = self.robotModel.getConfig()
+        self.left_camera_link = self.robotModel.link(LEFT_CAMERA_LINK_NAME)
+        self.right_camera_link = self.robotModel.link(RIGHT_CAMERA_LINK_NAME)
+        self.left_gripper_link = self.robotModel.link(LEFT_GRIPPER_LINK_NAME)
+        self.right_gripper_link = self.robotModel.link(RIGHT_GRIPPER_LINK_NAME)
+        self.left_arm_links = [self.robotModel.link(i) for i in LEFT_ARM_LINK_NAMES]
+        self.right_arm_links = [self.robotModel.link(i) for i in RIGHT_ARM_LINK_NAMES]
+        id_to_index = dict([(self.robotModel.link(i).getID(),i) for i in range(self.robotModel.numLinks())])
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
     def right_arm_ik(self, right_target):
         """Solves IK to move the right arm to the specified
-            right_target ([x, y, z] in world space
+            right_target ([x, y, z] in world space)
         """
-        qmin,qmax = self.robot.getJointLimits()
+        qmin,qmax = self.robotModel.getJointLimits()
         for i in range(100):
             q = baxter_rest_config[:]
             for j in self.right_arm_indices:
@@ -66,19 +67,23 @@ class Milestone1Master:
             #goal = ik.objective(self.right_gripper_link,local=[vectorops.sub(right_gripper_center_xform[1],[0,0,0.1]),right_gripper_center_xform[1]],world=[vectorops.add(target,[0,0,0.1]),target])
             goal = ik.objective(self.right_gripper_link,local=RIGHT_GRIPPER_CENTER_XFORM[1],world=right_target)
             if ik.solve(goal,tol=0.1):
-                #self.config = self.robot.getConfig()
-                print "ik done"
-                print self.robot.getConfig()
+                #self.config = self.robotModel.getConfig()
                 return True
             else:
-                print "ik failed"
+                print "IK failed"
         return False
 
     def start(self):
-        rospy.init_node("milestone1_master", anonymous=True)
-        limb_left = baxter_interface.Limb('left')
-        limb_right = baxter_interface.Limb('right')
-        pc_processor = PCProcessor()
+        motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath="../../common/")
+        motion.robot.startup()
+
+        self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
+        self.right_arm_ik([.5, -.25, 1])
+        destination = self.robotModel.getConfig()
+        motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+        #motion.robot.right_limb.configToKlampt(qX,qklampt)
+
+        #pc_processor = PCProcessor()
         #rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback)
         #rospy.spin()
 
@@ -88,11 +93,11 @@ class Milestone1Master:
         # print "Moving right limb to 0"
         # limb_right.move_to_joint_positions(Q_RIGHT_ZEROS)
 
-        print "Scanning bin for point cloud"
-        limb_right.move_to_joint_positions(Q_SCAN_BIN)
-        cloud = "hi"
-        cloud = pc_processor.subtractShelf(cloud)
-        centroid = pc_processor.getCentroid(cloud)
+        # print "Scanning bin for point cloud"
+        # limb_right.move_to_joint_positions(Q_SCAN_BIN)
+        # cloud = "hi"
+        # cloud = pc_processor.subtractShelf(cloud)
+        # centroid = pc_processor.getCentroid(cloud)
 
         # print "Moving to centroid of cloud"
         # Calculate IK for cloud centroid
@@ -136,8 +141,7 @@ if __name__ == '__main__':
     
     # Initialize master
     master = Milestone1Master(world)
-    master.right_arm_ik([50, 0, 0])
-    #master.start()
+    master.start()
 
     #run the visualizer
     visualizer = MyGLViewer(world)
