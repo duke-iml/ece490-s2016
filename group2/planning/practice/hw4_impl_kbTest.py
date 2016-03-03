@@ -1,5 +1,10 @@
 #!/usr/bin/python
 
+# TODO: Pickup object in bin A ??
+# TODO: Right hand having hard time picking up object in bin E
+# TODO: Collision detector (pull from Klampt)
+# TODO: multi-thread, plan/execute two arms together?
+
 from klampt import robotsim
 from klampt.glprogram import *
 from klampt import vectorops, se3, so3, loader, gldraw, ik
@@ -40,6 +45,9 @@ order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 # Order list. Can be parsed from JSON input
 global orderList
 orderList = ['med_item','tall_item']
+
+# Declare the knowledge base
+global knowledge
 
 # a list of actual items -- this is only used for the fake perception module, and your
 # code should not use these items directly
@@ -290,14 +298,17 @@ class PickingController:
     def __init__(self,world,robotController):
         self.world = world
         self.robot = world.robot(0)
+
         self.controller = robotController
-        self.knowledge = KnowledgeBase()
-        self.planner = LimbPlanner(self.world,self.knowledge)
+        self.planner = LimbPlanner(self.world, knowledge)
+
+        # either 'ready' or 'holding'
         self.state = 'ready'
         self.active_limb = None
         self.active_grasp = None
         self.current_bin = None
         self.held_object = None
+
         #these may be helpful
         self.left_camera_link = self.robot.link(left_camera_link_name)
         self.right_camera_link = self.robot.link(right_camera_link_name)
@@ -305,23 +316,32 @@ class PickingController:
         self.right_gripper_link = self.robot.link(right_gripper_link_name)
         self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
+
+        # define mapping from "link ID" to "link index"
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
+
+        # define a list of link indices on both arms
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
-    def waitForMove(self,timeout = None, pollRate = 0.5):
+    def waitForMove(self,timeout = None, pollRate = 0.1):
         """Waits for the move to complete, or timeout seconds is elapsed,
         before terminating."""
+        if timeout == None:
+            timeout = 30
         iters = 0
         t = 0
-        while self.controller.isMoving():
+        print "Waiting for move to complete",
+        while self.controller.isMoving(): # remaining time > 0
             if iters % 10 == 0:
-                print "Waiting for move to complete..."
+                print ".",
             time.sleep(pollRate)
             t += pollRate
             if timeout != None and t > timeout:
+                print "Timed Out!"
                 return False
             iters += 1
+        print "--> done\n"
         return True
 
     def viewBinAction(self,b):
@@ -331,15 +351,18 @@ class PickingController:
             print "Already holding an object, can't move to bin"
             return False
         else:
+            # If a valid bin name
             if b in apc.bin_names:
+                print "Valid bin (", b, ")"
+
                 if self.move_camera_to_bin(b):
                     self.waitForMove()
                     self.current_bin = b
-                    run_perception_on_bin(self.knowledge,b)
-                    print "Sensed bin",b,"with camera",self.active_limb
+                    run_perception_on_bin(knowledge, b)
+                    print "Sensed bin", b, "with camera", self.active_limb
                     return True
                 else:
-                    print "Move to bin",b,"failed"
+                    print "but move to bin",b,"failed"
                     return False
             else:
                 print "Invalid bin",b
@@ -355,17 +378,18 @@ class PickingController:
         elif self.state != 'ready':
             print "Already holding an object, can't grasp another"
             return False
-        elif len(self.knowledge.bin_contents[self.current_bin])==0:
+        elif len(knowledge.bin_contents[self.current_bin])==0:
             print "The current bin is empty"
             return False
         else:
-            if self.move_to_grasp_object(self.knowledge.bin_contents[self.current_bin][0]):
-                self.waitForMove()
-                #now close the gripper
-                self.controller.commandGripper(self.active_limb,self.active_grasp.gripper_close_command)
+            if self.move_to_grasp_object(knowledge.bin_contents[self.current_bin][0]):
                 self.waitForMove()
 
-                self.held_object = self.knowledge.bin_contents[self.current_bin].pop(0)
+                # now close the gripper
+                self.controller.commandGripper(self.active_limb, self.active_grasp.gripper_close_command)
+                self.waitForMove()
+
+                self.held_object = knowledge.bin_contents[self.current_bin].pop()
                 self.state = 'holding'
                 print "Holding object",self.held_object.info.name,"in hand",self.active_limb
                 return True
@@ -382,12 +406,13 @@ class PickingController:
         else:
             if self.move_to_ungrasp_object(self.held_object):
                 self.waitForMove()
-                #now open the gripper
+
+                # now open the gripper
                 self.controller.commandGripper(self.active_limb,self.active_grasp.gripper_open_command)
                 self.waitForMove()
 
                 print "Object",self.held_object.info.name,"placed back in bin"
-                self.knowledge.bin_contents[self.current_bin].append(self.held_object)
+                knowledge.bin_contents[self.current_bin].append(self.held_object)
                 self.state = 'ready'
                 self.held_object = None
                 return True
@@ -403,56 +428,83 @@ class PickingController:
         else:
             if self.move_to_order_bin(self.held_object):
                 self.waitForMove()
-                #now open the gripper
+
+                # now open the gripper
                 self.controller.commandGripper(self.active_limb,self.active_grasp.gripper_open_command)
                 self.waitForMove()
-                print "Successfully placed",self.held_object.info.name,"into order bin"
-                self.knowledge.order_bin_contents.append(self.held_object)
+
+                knowledge.order_bin_contents.append(self.held_object)
                 self.active_limb = self.active_grasp = None
                 self.held_object.xform = None
                 self.held_object.bin_name = 'order_bin'
+                self.drop_in_order_bin(self.held_object)
                 self.state = 'ready'
+                print "Successfully placed",self.held_object.info.name,"into order bin"
+
                 self.held_object = None
                 return True
             else:
                 print "Move to order bin failed"
                 return False
 
+    def drop_in_order_bin(self,object):
+        R, t = order_bin_xform
+        tRandom = [random.uniform(-0.05,0.1),random.uniform(-0.4,.4),0]
+        objHeight = object.info.bmax[2] - object.info.bmin[2]
+        object.xform = (R, [t[0]+tRandom[0], t[1]+tRandom[1], t[2]+objHeight/2])
+        if object.info.name in orderList:
+            print "\nOrderList:", orderList
+            print "Picked Item:", object.info.name, "\n"
+            orderList.remove(object.info.name)
+        else:
+            print "\nOrderList:", orderList
+            print "Wrongly Picked Item:", object.info.name, "\n"
+        return True
+
     def fulfillOrderAction(self,objectList):
         """Given a list of objects to be put in the order bin, run
         until completed."""
-        remainingObjects = objectList
+        # go through all bins
         for b in apc.bin_names:
-            if self.knowledge.bin_contents[b]==None:
+            # if the bin is empty
+            if knowledge.bin_contents[b]==None:
+                # try to view the bin
                 if not self.viewBinAction(b):
                     print "Could not view bin",b
                     continue
 
-            donextbin = False
-            while any(o.info.name in remainingObjects for o in self.knowledge.bin_contents[b]) and not donextbin:
-                #pick up and put down objects until you are holding one that is in the remainingObjects list
+            doNextBin = False
+            # if any of the objects in the bin is in the "remaining objets" list, and we want to keep searching in current bin
+            while any(o.info.name in objectList for o in knowledge.bin_contents[b]) and not doNextBin:
+                #pick up and put down objects until you are holding one that is in the objectList list
+
+                # grasp failed
                 if not self.graspAction():
                     print "Error grasping object"
-                    donextbin = True
+                    doNextBin = True
                     break
-                while not donextbin and (self.held_object == None or self.held_object.info.name not in remainingObjects):
-                    #cycle through objects by putting down and picking up the next object
+                # if robot is not holding on to something, or the object it is holding is not in order
+                while (self.held_object == None or self.held_object.info.name not in objectList) and not doNextBin:
+                    # cycle through objects by putting down and picking up the next object
                     if not self.ungraspAction():
                         print "Error putting down object"
                         return False
                     if not self.graspAction():
                         print "Error grasping object"
-                        donextbin = True
+                        doNextBin = True
                         break
+
+                # temporarily store held object because placeInOrderBinAction sets held object to None
                 obj = self.held_object
                 if self.placeInOrderBinAction():
-                    remainingObjects.remove(obj.info.name)
+                    objectList.remove(obj.info.name)
                 else:
                     print "Error putting object into order bin"
                     return False
-            if len(remainingObjects)==0:
+
+            if len (objectList)==0:
                 return True
-        print "These items are remaining from the order:",remainingObjects
+        print "These items are remaining from the order:", objectList
         return False
 
     def randomize_limb_position(self,limb,center=None, range=None):
@@ -508,25 +560,46 @@ class PickingController:
             validity_checker = self.planner.check_collision_free
         numTrials = [0]*len(goals)
         ikSolutions = []
+        numSolutions = [0]*len(goals)
+
         for i in range(maxIters):
-            index = random.randint(0,len(goals)-1)
+            index = random.randint(0,len(goals)-1) # choose which ik goals to solve
             goal = goals[index]
             limb = limbs[index]
             numTrials[index] += 1
+
+            # if first time trying the ik goal, initialize with current config
             if numTrials[index] == 1:
                 self.robot.setConfig(initialConfig)
+            # else, initialize with a random q, incrementally perturbing more from inital config
             else:
-                self.randomize_limb_position(limb,center=initialConfig,range=0.05*(numTrials[index]-1))
+                self.randomize_limb_position(limb,center=initialConfig,range=0.1*(numTrials[index]-1))
+
             if ik.solve(goal,tol=tol):
+                numSolutions[index] += 1
                 if validity_checker(limb):
                     ikSolutions.append((self.robot.getConfig(),index))
                     if len(ikSolutions) >= maxResults: break
-                else:
-                    print "IK solution for goal",index,"was in collision, trying again"
+                    # print "IK solution for goal <", limb, "> was found"
+                # else:
+                    # print "IK solution for goal <", limb, "> was in collision, trying again"
+
         if len(ikSolutions)==0:
             print "No collision free IK solution"
             return []
-        sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolutions])
+
+        print "< IK Summary >"
+        for i in range(len(goals)):
+            if numTrials != 0:
+                print "Goal: #", i, "; Attempted:", numTrials[i], "/", maxIters, "; Result:", numSolutions[i], "collision free solutions found"
+        print " "
+
+        # sort solutions by distance to initial config
+        for solution in ikSolutions:
+            sortedSolutions = sorted( [(vectorops.distanceSquared(solution[0],initialConfig), solution)] )
+
+        # s[0] contains the distance-sqaured values
+        # s[1] contains the ikSolution, which has [0]: config and [1]: index
         return [s[1] for s in sortedSolutions]
 
     def move_camera_to_bin(self,bin_name):
@@ -539,20 +612,29 @@ class PickingController:
 
         Otherwise, does not modify the low-level controller and returns False.
         """
-        world_offset = self.knowledge.bin_vantage_point(bin_name)
+        R_camera = [0,0,-1, 1,0,0, 0,1,0]
+        t_camera = knowledge.bin_vantage_point(bin_name)
 
-        #place +z in the +x axis, y in the +z axis, and x in the -y axis
-        left_goal = ik.objective(self.left_camera_link,R=[0,0,-1,1,0,0,0,1,0],t=world_offset)
-        right_goal = ik.objective(self.right_camera_link,R=[0,0,-1,1,0,0,0,1,0],t=world_offset)
+        # Setup ik objectives for both arms
+        # place +z in the +x axis, -y in the +z axis, and x in the -y axis
+        left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
+        right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
+
         qcmd = self.controller.getCommandedConfig()
         limbs = ['left','right']
-        sortedSolutions = self.get_ik_solutions([left_goal,right_goal],limbs,qcmd)
+
+        print "\nSolving for MOVE_CAMERA_TO_BIN"
+        sortedSolutions = self.get_ik_solutions([left_goal, right_goal], limbs, qcmd)
+
         if len(sortedSolutions)==0: return False;
-        #prototyping hack: move straight to target
+
+        # prototyping hack: move straight to target
         if SKIP_PATH_PLANNING:
             self.controller.setMilestone(sortedSolutions[0][0])
             self.active_limb = limbs[sortedSolutions[0][1]]
             return True
+
+        # else, if we want to path plan
         for solution in sortedSolutions:
             path = self.planner.plan(qcmd,solution[0])
             if path != None:
@@ -575,40 +657,74 @@ class PickingController:
         """
         self.waitForMove()
         self.controller.commandGripper(self.active_limb,[1])
-        grasps = self.knowledge.grasp_xforms(object)
+        grasps = knowledge.grasp_xforms(object)
         qmin,qmax = self.robot.getJointLimits()
 
-        #get the end of the commandGripper motion
+        # get the end of the commandGripper motion
         qcmd = self.controller.getCommandedConfig()
         self.robot.setConfig(qcmd)
         set_model_gripper_command(self.robot,self.active_limb,[1])
         qcmd = self.robot.getConfig()
 
-        #solve an ik solution to one of the grasps
+        # solve an ik solution to one of the grasps
         grasp_goals = []
         pregrasp_goals = []
         pregrasp_shift = [0,0,0.05]
         for (grasp,gxform) in grasps:
             if self.active_limb == 'left':
-                Tg = se3.mul(gxform,se3.inv(left_gripper_center_xform))
-                goal = ik.objective(self.left_gripper_link,R=Tg[0],t=Tg[1])
+                # pre-goal
                 Tpg = se3.mul(gxform,se3.inv((left_gripper_center_xform[0],vectorops.add(left_gripper_center_xform[1],pregrasp_shift))))
                 pregoal = ik.objective(self.left_gripper_link,R=Tpg[0],t=Tpg[1])
+
+                # goal (version 1)
+                Tg = se3.mul(gxform,se3.inv(left_gripper_center_xform))
+                goal = ik.objective(self.left_gripper_link,R=Tg[0],t=Tg[1])
+
+                # goal (version 2)
+                # g = gxform
+                # l, w = list(), list()
+                # l.append(left_gripper_center_xform[1])
+                # w.append(g[1])
+                # # align red-axis on gripper with red-axis on object
+                # l.append([left_gripper_center_xform[1][0], left_gripper_center_xform[1][1]+0.01, left_gripper_center_xform[1][2]])
+                # offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
+                # w.append( [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]] )
+                # goal  = ik.objective(self.left_gripper_link, local=[l[0],l[1]], world=[w[0],w[1]])
+
             else:
-                Tg = se3.mul(gxform,se3.inv(right_gripper_center_xform))
-                goal = ik.objective(self.right_gripper_link,R=Tg[0],t=Tg[1])
+                # pre-goal
                 Tpg = se3.mul(gxform,se3.inv((right_gripper_center_xform[0],vectorops.add(right_gripper_center_xform[1],pregrasp_shift))))
                 pregoal = ik.objective(self.right_gripper_link,R=Tpg[0],t=Tpg[1])
+
+                # goal (version 1)
+                Tg = se3.mul(gxform,se3.inv(right_gripper_center_xform))
+                goal = ik.objective(self.right_gripper_link,R=Tg[0],t=Tg[1])
+
+                # goal (version 2)
+                # g = gxform
+                # l, w = list(), list()
+                # l.append(right_gripper_center_xform[1])
+                # w.append(g[1])
+                # # align red-axis on gripper with red-axis on object
+                # l.append([right_gripper_center_xform[1][0], right_gripper_center_xform[1][1]+0.01, right_gripper_center_xform[1][2]])
+                # offset = se3.apply((g[0], [0,0,0]), [0.01,0,0])
+                # w.append( [g[1][0]+offset[0], g[1][1]+offset[1], g[1][2]+offset[2]] )
+                # goal  = ik.objective(self.right_gripper_link, local=[l[0],l[1]], world=[w[0],w[1]])
+
             grasp_goals.append(goal)
             pregrasp_goals.append(pregoal)
-        sortedSolutions = self.get_ik_solutions(pregrasp_goals,[self.active_limb]*len(grasp_goals),qcmd)
-        if len(sortedSolutions)==0: return False
 
-        #prototyping hack: move straight to target
+        # solve for pre-grasp goals
+        print "\nSolving for PRE-GRASP"
+        sortedSolutionsPreGrasp = self.get_ik_solutions(pregrasp_goals,[self.active_limb]*len(grasp_goals),qcmd)
+        if len(sortedSolutionsPreGrasp)==0: return False
+
+        # solve for grasp goals
+        # prototyping hack: move straight to target
         if SKIP_PATH_PLANNING:
-            for pregrasp in sortedSolutions:
+            for pregrasp in sortedSolutionsPreGrasp:
                 graspIndex = pregrasp[1]
-                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],pregrasp[0],maxResults=1)
+                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],pregrasp[0],maxResults=3)
                 if len(gsolns)==0:
                     print "Couldn't find grasp config for pregrasp? Trying another"
                 else:
@@ -618,12 +734,15 @@ class PickingController:
                     return True
             print "Planning failed"
             return False
-        for solution in sortedSolutions:
+
+        # else, if we want to path plan
+        for solution in sortedSolutionsPreGrasp:
             path = self.planner.plan(qcmd,solution[0])
             graspIndex = solution[1]
             if path != None:
-                #now solve for grasp
-                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],path[-1],maxResults=1)
+                # now solve for grasp (path[-1] means last element in path)
+                print "\nSolving for GRASP"
+                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],path[-1],maxResults=3)
                 if len(gsolns)==0:
                     print "Couldn't find grasp config??"
                 else:
@@ -652,18 +771,25 @@ class PickingController:
         else:
             gripperlink = self.right_gripper_link
         qcur = self.robot.getConfig()
+
+        # apply R_gripperLink to the vertical direction vector
         vertical_in_gripper_frame = so3.apply(so3.inv(gripperlink.getTransform()[0]),vertical)
         centerpos = se3.mul(gripperlink.getTransform(),left_gripper_center_xform)[1]
         move_target = vectorops.add(centerpos,moveVector)
-        movegoal = ik.objective(gripperlink,local=[left_gripper_center_xform[1],vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame)],world=[move_target,vectorops.add(move_target,vertical)])
+        movegoal = ik.objective(gripperlink,
+                                local=[left_gripper_center_xform[1],vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame)],
+                                world=[move_target,vectorops.add(move_target,vertical)])
 
         sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=1)
         if len(sortedSolutions) == 0:
             print "No upright-movement config found"
             return False
+
+        # sortedSolutions[0][0] -> configuration from the first solution (sorted by distance)
         self.robot.setConfig(sortedSolutions[0][0])
         return True
 
+    # TODO
     def move_to_order_bin(self,object):
         """Sets the robot's configuration so the gripper is over the order bin
 
@@ -674,12 +800,13 @@ class PickingController:
         """
 
         qcmd = self.controller.getCommandedConfig()
-        left_target = se3.apply(order_bin_xform,[0.0,0.2,order_bin_bounds[1][2]+0.1])
-        right_target = se3.apply(order_bin_xform,[0.0,-0.2,order_bin_bounds[1][2]+0.1])
-        #retraction goal -- maintain vertical world axis
+        left_target = se3.apply(order_bin_xform,[0.0,  0.2, order_bin_bounds[1][2]+0.1])
+        right_target = se3.apply(order_bin_xform,[0.0,-0.2, order_bin_bounds[1][2]+0.1])
+
+        # retraction goal -- maintain vertical world axis
         liftVector = [0,0,0.04]
         retractVector = [-0.2,0,0]
-        self.planner.rebuild_dynamic_objects()
+        # self.planner.rebuild_dynamic_objects()
         self.robot.setConfig(qcmd)
         if self.move_gripper_upright(self.active_limb,liftVector):
             self.controller.setMilestone(self.robot.getConfig())
@@ -707,7 +834,7 @@ class PickingController:
                 return True
         print "Planning failed"
         return False
-
+    # TODO
     def sendPath(self,path):
         self.controller.setMilestone(path[0])
         for q in path[1:]:
@@ -763,7 +890,7 @@ def draw_oriented_wire_box(xform,bmin,bmax):
 # this function is called on a thread
 def run_controller(controller,command_queue):
     # simply reveals the shelf xform
-    run_perception_on_shelf(controller.knowledge)
+    run_perception_on_shelf(knowledge)
     while True:
         c = command_queue.get()
         if c != None:
@@ -877,14 +1004,14 @@ class MyGLViewer(GLRealtimeProgram):
         if self.draw_bins:
             glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0,1])
             for b in apc.bin_bounds.values():
-                draw_oriented_box(self.picking_controller.knowledge.shelf_xform,b[0],b[1])
+                draw_oriented_box(knowledge.shelf_xform,b[0],b[1])
             for b in apc.bin_names:
-                c = self.picking_controller.knowledge.bin_front_center(b)
+                c = knowledge.bin_front_center(b)
                 if c:
                     glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0.5,1])
                     r = 0.01
                     gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
-                c = self.picking_controller.knowledge.bin_vantage_point(b)
+                c = knowledge.bin_vantage_point(b)
                 if c:
                     glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[0.5,1,0.5,1])
                     r = 0.01
@@ -894,10 +1021,18 @@ class MyGLViewer(GLRealtimeProgram):
         for i in ground_truth_items:
             if i.xform == None:
                 continue
+
+            # if i.bin_name == 'order_bin':
+            #     continue
+
             if i.bin_name == 'order_bin':
+            # draw in wireframe
+                glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,1,1])
+                draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
                 continue
+
             #if perceived, draw in solid color
-            if self.picking_controller.knowledge.bin_contents[i.bin_name]!=None and i in self.picking_controller.knowledge.bin_contents[i.bin_name]:
+            if knowledge.bin_contents[i.bin_name]!=None and i in knowledge.bin_contents[i.bin_name]:
                 glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0.5,0,1])
                 draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
             else:
@@ -908,7 +1043,7 @@ class MyGLViewer(GLRealtimeProgram):
                 glEnable(GL_LIGHTING)
             if self.draw_grasps:
                 #draw grasps, if available
-                g = self.picking_controller.knowledge.grasp_xforms(i)
+                g = knowledge.grasp_xforms(i)
                 if g:
                     for grasp,xform in g:
                         gldraw.xform_widget(xform,0.05,0.005,fancy=False)
@@ -1034,6 +1169,9 @@ if __name__ == "__main__":
     starts the OpenGL visualizer."""
     world = load_apc_world()
     init_ground_truth()
+
+    # Instantiate global knowledge base
+    knowledge = KnowledgeBase()
 
     # TODO
     if NO_SIMULATION_COLLISIONS:

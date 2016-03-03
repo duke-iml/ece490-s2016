@@ -146,11 +146,13 @@ class LimbPlanner:
             if o1[1].collides(o2[1]):
                 #print "Collision between",o1[0].getName(),o2[0].getName()
                 return False
+
         for obj in self.dynamic_objects:
             assert obj.info.geometry != None
             for link in collindices:
                 if self.robot.link(link).geometry().collides(obj.info.geometry):
-                    print "Collision between link",self.robot.link(link).getName()," and dynamic object"
+                    # NOTE: Uncomment this line to show collision warnings
+                    # print "Collision between link",self.robot.link(link).getName()," and dynamic object"
                     return False
         return True
 
@@ -249,15 +251,15 @@ class LimbPlanner:
         for l in order:
             diff = sum((a-b)**2 for a,b in zip(limbstart[l],limbgoal[l]))
             if diff > 1e-8:
-                print "Planning for limb",l
+                print "< Planning for limb",l,">"
                 print "  Euclidean distance:",math.sqrt(diff)
                 self.robot.setConfig(curconfig)
                 #do the limb planning
                 limbpath = self.plan_limb(l,limbstart[l],limbgoal[l])
                 if limbpath == False:
-                    print "  Failed to plan for limb",l
+                    print "  Failed to plan for limb",l,"\n"
                     return None
-                print "   Planned successfully for limb",l
+                print "   Planned successfully for limb",l, "\n"
                 #concatenate whole body path
                 for qlimb in limbpath[1:]:
                     q = path[-1][:]

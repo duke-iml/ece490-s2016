@@ -609,13 +609,10 @@ def restart_program():
     python = sys.executable
     os.execl(python, python, * sys.argv)
 
-if __name__ == "__main__":
+def load_apc_world():
     world = robotsim.WorldModel()
     # or,
     # from klampt import *; world = WorldModel()
-
-    # Instantiate global knowledge base
-    knowledge = KnowledgeBase()
 
     # Load the robot model
     # 1) full Baxter model
@@ -623,7 +620,7 @@ if __name__ == "__main__":
     # world.loadElement(os.path.join(model_dir,"baxter.rob"))
     # 2) simplified Baxter model
     print "\n<Loading simplified Baxter model...>"
-    world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
 
     # Load the shelves
     # NOTE: world.loadRigidObject(~) works too because the shelf model is a rigid object
@@ -645,6 +642,20 @@ if __name__ == "__main__":
     T = world.rigidObject(0).getTransform()              # shelf model's xform
     world.rigidObject(0).setTransform(*se3.mul(Trel,T))  # combine the two xforms
 
+    # Orient bin boxes correctly w.r.t. the shelf
+    global ground_truth_shelf_xform
+    ground_truth_shelf_xform = world.rigidObject(0).getTransform()
+    R = so3.mul(apc.Xto_Z,ground_truth_shelf_xform[0])
+    ground_truth_shelf_xform = (R, [1.2,0,0])
+
+    return world
+
+if __name__ == "__main__":
+    world = load_apc_world()
+
+    # Instantiate global knowledge base
+    knowledge = KnowledgeBase()
+
     # Up until this point, the baxter model is extending its arms
     # Load the resting configuration from klampt_models/baxter_rest.config
     f = open(model_dir+'baxter_rest.config','r')
@@ -652,10 +663,6 @@ if __name__ == "__main__":
     f.close()
     world.robot(0).setConfig(baxter_rest_config)
 
-    # Orient bin boxes correctly w.r.t. the shelf
-    ground_truth_shelf_xform = world.rigidObject(0).getTransform()
-    R = so3.mul(apc.Xto_Z,ground_truth_shelf_xform[0])
-    ground_truth_shelf_xform = (R, [1.2,0,0])
 
     init_ground_truth()
 
