@@ -23,7 +23,7 @@ from Queue import Queue
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 1
+NO_SIMULATION_COLLISIONS = 0
 #Turn this on to help fast prototyping of later stages
 FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
@@ -940,6 +940,10 @@ class MyGLViewer(GLRealtimeProgram):
     """
     def __init__(self,simworld,planworld):
         GLRealtimeProgram.__init__(self,"My GL program")
+        # self.camera.dist = 3.0
+        # #x field of view in degrees
+        # self.fov =120
+
         self.simworld = simworld
         self.planworld = planworld
         self.sim = Simulator(simworld)
@@ -1144,7 +1148,27 @@ def spawn_objects_from_ground_truth(world):
     according to their sizes / mass properties"""
 
     print "Initializing world objects"
-    for item in ground_truth_items:
+    # for item in ground_truth_items:
+    #     obj = world.makeRigidObject(item.info.name)
+    #     bmin,bmax = item.info.bmin,item.info.bmax
+    #     center = vectorops.div(vectorops.add(bmin,bmax),2.0)
+    #     m = obj.getMass()
+    #     m.setMass(item.info.mass)
+    #     m.setCom([0,0,0])
+    #     m.setInertia(vectorops.mul([bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2]],item.info.mass/12.0))
+    #     obj.setMass(m)
+    #     c = obj.getContactParameters()
+    #     c.kFriction = 0.6
+    #     c.kRestitution = 0.1;
+    #     c.kStiffness = 100000
+    #     c.kDamping = 100000
+    #     obj.setContactParameters(c)
+    #     simgeometry = obj.geometry()
+    #     load_item_geometry(item,simgeometry)
+    #     obj.setTransform(item.xform[0],item.xform[1])
+    # return
+    for i in range(len(ground_truth_items)):
+        item = ground_truth_items[i]
         obj = world.makeRigidObject(item.info.name)
         bmin,bmax = item.info.bmin,item.info.bmax
         center = vectorops.div(vectorops.add(bmin,bmax),2.0)
@@ -1161,7 +1185,14 @@ def spawn_objects_from_ground_truth(world):
         obj.setContactParameters(c)
         simgeometry = obj.geometry()
         load_item_geometry(item,simgeometry)
-        obj.setTransform(item.xform[0],item.xform[1])
+
+        # obj.setTransform(item.xform[0],item.xform[1])
+        if i==1:
+            obj.setTransform(so3.identity(), [ 2, 2, 2])
+        elif i==2:
+            obj.setTransform(so3.identity(), [-2,-2, 2])
+        else:
+            obj.setTransform(so3.identity(), [ 2,-2, 2])
     return
 
 if __name__ == "__main__":
@@ -1178,6 +1209,7 @@ if __name__ == "__main__":
         # simworld = load_baxter_only_world()
         simworld = load_apc_world()
     else:
+        # simworld = load_baxter_only_world()
         simworld = load_apc_world()
         spawn_objects_from_ground_truth(simworld)
 
