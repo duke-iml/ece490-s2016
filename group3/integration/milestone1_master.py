@@ -27,6 +27,7 @@ class MyGLViewer(GLNavigationProgram):
         glBegin(GL_LINE_LOOP)
         glVertex3f(0, 0, 0)
         glVertex3f(1, 0, 0)
+        glVertex3f(0, 1, 0)
         glEnd()
 
         #show gripper and camera frames
@@ -74,13 +75,18 @@ class Milestone1Master:
         return False
 
     def start(self):
-        motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath="../../common/")
-        motion.robot.startup()
+        #motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath="../../common/")
+        #motion.robot.startup()
 
-        self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
-        self.right_arm_ik([.5, -.25, 1])
-        destination = self.robotModel.getConfig()
-        motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+        print self.robotModel.link('right_wrist').getTransform()
+        self.robotModel.setConfig([0.] * 54)
+        print se3.apply(self.robotModel.link('right_wrist').getTransform(), [1, 0, 0])
+        # We expect .4, -.6, 1.0
+
+        # self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
+        # self.right_arm_ik([.5, -.25, 1])
+        # destination = self.robotModel.getConfig()
+        # motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
         #motion.robot.right_limb.configToKlampt(qX,qklampt)
 
         #pc_processor = PCProcessor()
