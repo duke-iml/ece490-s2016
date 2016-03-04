@@ -44,10 +44,10 @@ class LimbCSpace (CSpace):
 
     def feasible(self,q):
         if not CSpace.feasible(self,q):
-            #print "LimbCSpace.feasible: Configuration is out of bounds"
+            # print "LimbCSpace.feasible: Configuration is out of bounds"
             return False
         if not self.planner.check_limb_collision_free(self.limb,q):
-            #print "LimbCSpace.feasible: Configuration is in collision"
+            # print "LimbCSpace.feasible: Configuration is in collision"
             return False
         return True
 
@@ -173,11 +173,11 @@ class LimbPlanner:
         objectGeom.setCurrentTransform(*Tobj)
         for t in xrange(self.world.numTerrains()):
             if self.world.terrain(t).geometry().collides(objectGeom):
-                print "Held object-shelf collision"
+                # print "Held object-shelf collision"
                 return False
         for o in self.dynamic_objects:
             if o.info.geometry.collides(objectGeom):
-                print "Held object-object collision"
+                # print "Held object-object collision"
                 return False
         return True
 
@@ -202,7 +202,7 @@ class LimbPlanner:
         self.robot.setConfig(q)
         return self.check_collision_free(limb)
 
-    def plan_limb(self,limb,limbstart,limbgoal):
+    def plan_limb(self,limb,limbstart,limbgoal, printer=True):
         """Returns a 7-DOF milestone path for the given limb to move from the
         start to the goal, or False if planning failed"""
         self.rebuild_dynamic_objects()
@@ -216,6 +216,13 @@ class LimbPlanner:
         MotionPlan.setOptions(connectionThreshold=5.0)
         MotionPlan.setOptions(shortcut=1)
         plan = MotionPlan(cspace,'sbl')
+
+        # MotionPlan.setOptions(type='rrt*')
+        # MotionPlan.setOptions(type="prm",knn=10,connectionThreshold=0.1,shortcut=True)
+        # MotionPlan.setOptions(type='fmm*')
+
+        plan = MotionPlan(cspace)
+
         plan.setEndpoints(limbstart,limbgoal)
         maxPlanIters = 200
         maxSmoothIters = 10
@@ -223,7 +230,8 @@ class LimbPlanner:
             plan.planMore(1)
             path = plan.getPath()
             if path != None:
-                print "  Found a path on iteration",iters
+                if printer:
+                    print "  Found a path on iteration",iters
                 if len(path) > 2:
                     print "  Smoothing..."
                     plan.planMore(min(maxPlanIters-iters,maxSmoothIters))
@@ -233,10 +241,11 @@ class LimbPlanner:
                 return path
         cspace.close()
         plan.close()
-        print "  No path found"
+        if printer:
+            print "  No path found"
         return False
 
-    def plan(self,start,goal,order=['left','right']):
+    def plan(self,start,goal,order=['left','right'],printer=True):
         """Plans a motion for the robot to move from configuration start
         to configuration goal.  By default, moves the left arm first,
         then the right.  To move the right first, set the 'order' argument
@@ -251,15 +260,18 @@ class LimbPlanner:
         for l in order:
             diff = sum((a-b)**2 for a,b in zip(limbstart[l],limbgoal[l]))
             if diff > 1e-8:
-                print "< Planning for limb",l,">"
-                print "  Euclidean distance:",math.sqrt(diff)
+                if printer:
+                    print "< Planning for limb",l,">"
+                    print "  Euclidean distance:",math.sqrt(diff)
                 self.robot.setConfig(curconfig)
                 #do the limb planning
-                limbpath = self.plan_limb(l,limbstart[l],limbgoal[l])
+                limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer)
                 if limbpath == False:
-                    print "  Failed to plan for limb",l,"\n"
+                    if printer:
+                        print "  Failed to plan for limb",l,"\n"
                     return None
-                print "   Planned successfully for limb",l, "\n"
+                if printer:
+                    print "   Planned successfully for limb",l, "\n"
                 #concatenate whole body path
                 for qlimb in limbpath[1:]:
                     q = path[-1][:]
@@ -283,6 +295,14 @@ class LimbPlanner:
         MotionPlan.setOptions(connectionThreshold=5.0)
         MotionPlan.setOptions(shortcut=1)
         plan = MotionPlan(cspace,'sbl')
+
+        # MotionPlan.setOptions(type='rrt*')
+        # MotionPlan.setOptions(type="prm",knn=10,connectionThreshold=0.1,shortcut=True)
+        # MotionPlan.setOptions(type='fmm*')
+
+
+        plan = MotionPlan(cspace)
+
         plan.setEndpoints(limbstart,limbgoal)
         maxPlanIters = 200
         maxSmoothIters = 10
@@ -290,7 +310,7 @@ class LimbPlanner:
             plan.planMore(1)
             path = plan.getPath()
             if path != None:
-                print "  Found a path on iteration",iters
+                print "  Found a path on iteration",iters,'/',maxPlanIters
                 if len(path) > 2:
                     print "  Smoothing..."
                     plan.planMore(min(maxPlanIters-iters,maxSmoothIters))

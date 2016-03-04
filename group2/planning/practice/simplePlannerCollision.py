@@ -2,7 +2,6 @@
 
 # TODO: Pickup object in bin A ??
 # TODO: Right hand having hard time picking up object in bin E
-# TODO: Collision detector (pull from Klampt)
 # TODO: multi-thread, plan/execute two arms together?
 
 from klampt import robotsim
@@ -57,23 +56,48 @@ global knowledge
 #                           # apc.ItemInBin(apc.small_item,'bin_A'),
 #                           apc.ItemInBin(apc.tall_item,'bin_A'),
 #                           apc.ItemInBin(apc.med_item,'bin_E')]
+#     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,math.pi/6)
+#     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
+#     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
+#     for item in ground_truth_items:
+#         item.info.geometry = load_item_geometry(item)
+
+# def init_ground_truth():
+#     global ground_truth_items
+#     ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_B'),
+#                           apc.ItemInBin(apc.small_item,'bin_D'),
+#                           apc.ItemInBin(apc.med_item,'bin_H')]
 #     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,0.0)
-#     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,0.0)
+#     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
 #     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
 #     for item in ground_truth_items:
 #         item.info.geometry = load_item_geometry(item)
 
 def init_ground_truth():
     global ground_truth_items
-    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_B'),
-                          apc.ItemInBin(apc.small_item,'bin_D'),
-                          apc.ItemInBin(apc.med_item,'bin_H')]
-    ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,0.0)
-    ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
-    ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
+    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_A'),
+                          apc.ItemInBin(apc.med_item,'bin_B'),
+                          apc.ItemInBin(apc.tall_item,'bin_C'),
+                          apc.ItemInBin(apc.med_item,'bin_D'),
+                          apc.ItemInBin(apc.tall_item,'bin_E'),
+                          apc.ItemInBin(apc.med_item,'bin_F'),
+                          apc.ItemInBin(apc.tall_item,'bin_G'),
+                          apc.ItemInBin(apc.med_item,'bin_H'),
+                          apc.ItemInBin(apc.tall_item,'bin_I'),
+                          apc.ItemInBin(apc.med_item,'bin_J'),
+                          apc.ItemInBin(apc.tall_item,'bin_K'),
+                          apc.ItemInBin(apc.med_item,'bin_L')]
+    for i in range(len(ground_truth_items)):
+        ux = random.uniform(0.25,0.45)
+        uy = random.uniform(0,0.3)
+        if ground_truth_items[i].info.name == 'med_item':
+            # theta = random.uniform(math.pi/4, 3*math.pi/4)
+            theta = math.pi/2
+        else:
+            theta = random.uniform(-math.pi/6, math.pi/6)
+        ground_truth_items[i].set_in_bin_xform(ground_truth_shelf_xform, ux, uy, theta)
     for item in ground_truth_items:
         item.info.geometry = load_item_geometry(item)
-
 
 def load_item_geometry(item,geometry_ptr = None):
     """Loads the geometry of the given item and returns it.  If geometry_ptr
@@ -547,7 +571,7 @@ class PickingController:
             self.robot.setConfig(q)
         return
 
-    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None):
+    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=True):
         """Given a list of goals and their associated limbs, returns a list
         of (q,index) pairs, where q is an IK solution for goals[index].
         The results are sorted by distance from initialConfig.
@@ -604,11 +628,12 @@ class PickingController:
             print "No collision free IK solution"
             return []
 
-        print "< IK Summary >"
-        for i in range(len(goals)):
-            if numTrials != 0:
-                print "Goal: #", i, "; Attempted:", numTrials[i], "/", maxIters, "; Result:", numColFreeSolutions[i], "/", numSolutions[i], "col. free. solutions"
-        print " "
+        if printer:
+            print "< IK Summary >"
+            for i in range(len(goals)):
+                if numTrials != 0:
+                    print "Goal: #", i, "; Attempted:", numTrials[i], "/", maxIters, "; Result:", numColFreeSolutions[i], "/", numSolutions[i], "col. free. solutions"
+            print " "
 
         # sort solutions by distance to initial config
         sortedSolutions = []
@@ -696,7 +721,7 @@ class PickingController:
         # solve an ik solution to one of the grasps
         grasp_goals = []
         pregrasp_goals = []
-        pregrasp_shift = [0,0,0.05]
+        pregrasp_shift = [0,0,0.08]
         for (grasp,gxform) in grasps:
             if self.active_limb == 'left':
                 # pre-goal
@@ -744,7 +769,7 @@ class PickingController:
 
         # solve for pre-grasp goals
         print "\nSolving for PRE-GRASP"
-        sortedSolutionsPreGrasp = self.get_ik_solutions(pregrasp_goals,[self.active_limb]*len(grasp_goals),qcmd)
+        sortedSolutionsPreGrasp = self.get_ik_solutions(pregrasp_goals,[self.active_limb]*len(grasp_goals),qcmd, maxResults=10, maxIters=1000)
         if len(sortedSolutionsPreGrasp)==0: return False
 
         # solve for grasp goals
@@ -754,7 +779,7 @@ class PickingController:
                 graspIndex = pregrasp[1]
                 print "\nSolving for GRASP (no path planning)"
                 # initialize config to pregrasp[0]
-                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],pregrasp[0],maxResults=1)
+                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],pregrasp[0],maxResults=10, maxIters=100)
                 if len(gsolns)==0:
                     print "Couldn't find grasp config for pregrasp? Trying another"
                 else:
@@ -766,23 +791,28 @@ class PickingController:
             return False
 
         # else, if we want to path plan
+        preGraspInd = 0
         for solution in sortedSolutionsPreGrasp:
+            preGraspInd += 1
+            print "Path Planning for GRASP using PRE-GRASP #", preGraspInd
             path = self.planner.plan(qcmd,solution[0])
             graspIndex = solution[1]
             if path != None:
                 # now solve for grasp (path[-1] means last element in path)
-                print "\nSolving for GRASP"
+                print "IK Solving for GRASP using PRE-GRASP #", preGraspInd
                 # initialize config to last configuration in path
-                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],path[-1],maxResults=1)
-                if len(gsolns)==0:
-                    print "Couldn't find grasp config??"
-                else:
+                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],path[-1],maxResults=10, maxIters=100)
+                if len(gsolns)!=0:
                     self.waitForMove()
                     self.sendPath(path+[gsolns[0][0]])
                     self.active_grasp = grasps[graspIndex][0]
                     return True
+                else:
+                    print "NO IK SOLUTION for GRASP using PRE-GRASP #", preGraspInd
+
         print "Planning failed"
         return False
+        # sort all successful grasps from all gregrasps?
 
     def move_to_ungrasp_object(self,object):
         """Sets the robot's configuration so the gripper ungrasps the object.
@@ -845,7 +875,7 @@ class PickingController:
         #                         R = gripperlink.getTransform()[0], t=vectorops.add(gripperlink.getTransform()[1], moveVector))
 
 
-        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=100, maxIters = 1000)
+        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=10, maxIters = 100)
         if len(sortedSolutions) == 0:
             print "No upright-movement config found"
             return False
@@ -854,8 +884,6 @@ class PickingController:
         self.robot.setConfig(sortedSolutions[0][0])
         return True
 
-
-    # TODO
     def move_to_order_bin(self,object):
         """Sets the robot's configuration so the gripper is over the order bin
 
@@ -865,13 +893,28 @@ class PickingController:
         Otherwise, does not modify the low-level controller and returns False.
         """
 
+        # # find distance between current gripper-location and bin_vantage_point
+        # t_camera = knowledge.bin_vantage_point(object.bin_name)
+        # if self.active_limb == 'left':
+        #     gripperlink = self.left_gripper_link
+        # else:
+        #     gripperlink = self.right_gripper_link
+        # centerpos = se3.mul(gripperlink.getTransform(), left_gripper_center_xform)[1]
+        # targetpos = [centerpos[0], centerpos[1], t_camera[2]]
+
+        # print t_camera
+        # print centerpos
+        # # print targetpos
+        # retractVector = [-(targetpos[2]-centerpos[2]),0,0]
+
+
         qcmd = self.controller.getCommandedConfig()
         left_target = se3.apply(order_bin_xform,[0.0,  0.2, order_bin_bounds[1][2]+0.1])
         right_target = se3.apply(order_bin_xform,[0.0,-0.2, order_bin_bounds[1][2]+0.1])
 
         # retraction goal -- maintain vertical world axis
         liftVector = [0,0,0.015]
-        retractVector = [-0.3,0,0]
+        retractVector = [-0.1,0,0]
         self.planner.rebuild_dynamic_objects()
         self.robot.setConfig(qcmd)
         if self.move_gripper_upright(self.active_limb,liftVector):
@@ -883,13 +926,14 @@ class PickingController:
         # if self.move_gripper_retract(self.active_limb,retractVector):
         #     self.controller.setMilestone(self.robot.getConfig())
         #     self.waitForMove()
-        numSteps = 6
+
+        numSteps = 5
         retractVector = vectorops.div(retractVector, numSteps)
         for i in range(numSteps):
             if self.move_gripper_retract(self.active_limb,retractVector):
                 self.controller.setMilestone(self.robot.getConfig())
                 self.waitForMove()
-            print "Moved to retract goal (", i,"/",numSteps,")"
+            print "Moved to retract goal (", i+1,"/",numSteps,")"
         retractConfig = self.robot.getConfig()
 
         if self.active_limb == 'left':
@@ -903,7 +947,7 @@ class PickingController:
         while(sortedSolutions == []):
             print "solving move to order bin..."
             # sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=0.1)
-            sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=1e-3, maxIters=1000, maxResults = 100)
+            sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=1e-2, maxIters=1000, maxResults = 100)
 
         if len(sortedSolutions) == 0:
             print "Failed to find placement config"
@@ -1202,7 +1246,7 @@ def load_apc_world():
     world.robot(0).setConfig(world.robot(0).getConfig())
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
-    reorient = ([1,0,0,0,0,1,0,-1,0],[0,0,0.01])
+    reorient = ([1,0,0,0,0,1,0,-1,0],[0,-0.15,0.1])
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,0])
     T = reorient
     world.terrain(0).geometry().transform(*se3.mul(Trel,T))
