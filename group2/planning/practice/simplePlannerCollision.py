@@ -811,7 +811,7 @@ class PickingController:
                                 local=[left_gripper_center_xform[1],vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame)],
                                 world=[move_target,vectorops.add(move_target,vertical)])
 
-        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=1, maxIters = 1000)
+        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=100, maxIters = 100)
         if len(sortedSolutions) == 0:
             print "No upright-movement config found"
             return False
@@ -819,6 +819,41 @@ class PickingController:
         # sortedSolutions[0][0] -> configuration from the first solution (sorted by distance)
         self.robot.setConfig(sortedSolutions[0][0])
         return True
+
+    def move_gripper_retract(self,limb,moveVector,collisionchecker = None):
+        vertical = [0,0,0.1]
+        horizontal = [0,0.1,0]
+        if self.active_limb == 'left':
+            gripperlink = self.left_gripper_link
+        else:
+            gripperlink = self.right_gripper_link
+        qcur = self.robot.getConfig()
+
+        # apply R_gripperLink to the vertical direction vector
+        vertical_in_gripper_frame = so3.apply(so3.inv(gripperlink.getTransform()[0]),vertical)
+        horizontal_in_gripper_frame = so3.apply(so3.inv(gripperlink.getTransform()[0]),horizontal)
+        centerpos = se3.mul(gripperlink.getTransform(), left_gripper_center_xform)[1]
+        move_target = vectorops.add(centerpos,moveVector)
+        movegoal = ik.objective(gripperlink,
+                                local=[left_gripper_center_xform[1],
+                                       vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame),
+                                       vectorops.add(left_gripper_center_xform[1],horizontal_in_gripper_frame)],
+                                world=[move_target,
+                                       vectorops.add(move_target,vertical),
+                                       vectorops.add(move_target,horizontal)])
+        # movegoal = ik.objective(gripperlink,
+        #                         R = gripperlink.getTransform()[0], t=vectorops.add(gripperlink.getTransform()[1], moveVector))
+
+
+        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=100, maxIters = 1000)
+        if len(sortedSolutions) == 0:
+            print "No upright-movement config found"
+            return False
+
+        # sortedSolutions[0][0] -> configuration from the first solution (sorted by distance)
+        self.robot.setConfig(sortedSolutions[0][0])
+        return True
+
 
     # TODO
     def move_to_order_bin(self,object):
@@ -835,19 +870,26 @@ class PickingController:
         right_target = se3.apply(order_bin_xform,[0.0,-0.2, order_bin_bounds[1][2]+0.1])
 
         # retraction goal -- maintain vertical world axis
-        liftVector = [0,0,0.04]
-        retractVector = [-0.2,0,0]
+        liftVector = [0,0,0.015]
+        retractVector = [-0.3,0,0]
         self.planner.rebuild_dynamic_objects()
         self.robot.setConfig(qcmd)
         if self.move_gripper_upright(self.active_limb,liftVector):
             self.controller.setMilestone(self.robot.getConfig())
+            self.waitForMove()
             print "Moved to lift goal"
-            self.waitForMove()
         collisionchecker = lambda x:self.planner.check_collision_free_with_object(x,object.info.geometry,self.active_grasp)
-        if self.move_gripper_upright(self.active_limb,retractVector,collisionchecker):
-            self.controller.setMilestone(self.robot.getConfig())
-            print "Moved to retract goal"
-            self.waitForMove()
+
+        # if self.move_gripper_retract(self.active_limb,retractVector):
+        #     self.controller.setMilestone(self.robot.getConfig())
+        #     self.waitForMove()
+        numSteps = 6
+        retractVector = vectorops.div(retractVector, numSteps)
+        for i in range(numSteps):
+            if self.move_gripper_retract(self.active_limb,retractVector):
+                self.controller.setMilestone(self.robot.getConfig())
+                self.waitForMove()
+            print "Moved to retract goal (", i,"/",numSteps,")"
         retractConfig = self.robot.getConfig()
 
         if self.active_limb == 'left':
@@ -860,7 +902,8 @@ class PickingController:
         sortedSolutions = []
         while(sortedSolutions == []):
             print "solving move to order bin..."
-            sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=0.1)
+            # sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=0.1)
+            sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=1e-3, maxIters=1000, maxResults = 100)
 
         if len(sortedSolutions) == 0:
             print "Failed to find placement config"
