@@ -16,9 +16,9 @@ from Queue import Queue
 #configuration variables
 #Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 #Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 0
+NO_SIMULATION_COLLISIONS = 1
 #Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 0
+FAKE_SIMULATION = 1
 
 SKIP_PATH_PLANNING = 0
 
