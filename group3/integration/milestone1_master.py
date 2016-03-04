@@ -2,59 +2,34 @@ import sys
 sys.path.insert(0, "..")
 sys.path.insert(0, "../../common")
 
-from Motion import motion
 import rospy
+import random
 from klampt import *
 from klampt.glprogram import *
 from klampt import vectorops,so3,se3,gldraw,ik,loader
+from planning.MyGLViewer import MyGLViewer
 from util.constants import *
+from Motion import motion
 from perception.pc import PCProcessor
-import random
 
 baxter_rest_config = [0.0]*54
-
-
-class MyGLViewer(GLNavigationProgram):
-    """Visualization of robot"""
-    def __init__(self,world):
-        GLNavigationProgram.__init__(self,"My GL program")
-        self.world = world
-        self.draw_gripper_and_camera = True
-
-    def display(self):
-        self.world.drawGL()
-
-        glBegin(GL_LINE_LOOP)
-        glVertex3f(0, 0, 0)
-        glVertex3f(1, 0, 0)
-        glVertex3f(0, 1, 0)
-        glEnd()
-
-        #show gripper and camera frames
-        if self.draw_gripper_and_camera:
-            left_camera_link = self.world.robot(0).link(LEFT_CAMERA_LINK_NAME)
-            right_camera_link = self.world.robot(0).link(RIGHT_CAMERA_LINK_NAME)
-            left_gripper_link = self.world.robot(0).link(LEFT_GRIPPER_LINK_NAME)
-            right_gripper_link = self.world.robot(0).link(RIGHT_GRIPPER_LINK_NAME)
-            gldraw.xform_widget(left_camera_link.getTransform(),0.1,0.01)
-            gldraw.xform_widget(right_camera_link.getTransform(),0.1,0.01)
-            gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),LEFT_GRIPPER_CENTER_XFORM),0.05,0.005)
-            gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),RIGHT_GRIPPER_CENTER_XFORM),0.05,0.005)
 
 class Milestone1Master:
     def __init__(self, world):
         self.world = world
         self.robotModel = world.robot(0)
         self.config = self.robotModel.getConfig()
-        self.left_camera_link = self.robotModel.link(LEFT_CAMERA_LINK_NAME)
         self.right_camera_link = self.robotModel.link(RIGHT_CAMERA_LINK_NAME)
-        self.left_gripper_link = self.robotModel.link(LEFT_GRIPPER_LINK_NAME)
         self.right_gripper_link = self.robotModel.link(RIGHT_GRIPPER_LINK_NAME)
         self.left_arm_links = [self.robotModel.link(i) for i in LEFT_ARM_LINK_NAMES]
         self.right_arm_links = [self.robotModel.link(i) for i in RIGHT_ARM_LINK_NAMES]
         id_to_index = dict([(self.robotModel.link(i).getID(),i) for i in range(self.robotModel.numLinks())])
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
+
+    def load_real_robot_state(self):
+        """Makes the robot model match the real robot"""
+        self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
 
     def right_arm_ik(self, right_target):
         """Solves IK to move the right arm to the specified
@@ -68,33 +43,27 @@ class Milestone1Master:
             #goal = ik.objective(self.right_gripper_link,local=[vectorops.sub(right_gripper_center_xform[1],[0,0,0.1]),right_gripper_center_xform[1]],world=[vectorops.add(target,[0,0,0.1]),target])
             goal = ik.objective(self.right_gripper_link,local=RIGHT_GRIPPER_CENTER_XFORM[1],world=right_target)
             if ik.solve(goal,tol=0.1):
-                #self.config = self.robotModel.getConfig()
                 return True
-            else:
-                print "IK failed"
+        print "right_arm_ik failed for ", right_target
         return False
 
     def start(self):
-        #motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath="../../common/")
-        #motion.robot.startup()
+        motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath="../../common/")
+        motion.robot.startup()
 
-        print self.robotModel.link('right_wrist').getTransform()
-        self.robotModel.setConfig([0.] * 54)
-        print se3.apply(self.robotModel.link('right_wrist').getTransform(), [1, 0, 0])
-        # We expect .4, -.6, 1.0
-
-        # self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
+        # print se3.apply(self.robotModel.link('right_wrist').getTransform(), [1, 0, 0])
         # self.right_arm_ik([.5, -.25, 1])
         # destination = self.robotModel.getConfig()
         # motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
-        #motion.robot.right_limb.configToKlampt(qX,qklampt)
 
         #pc_processor = PCProcessor()
         #rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback)
         #rospy.spin()
 
-        # print "Moving Left limb to 0"
-        # limb_left.move_to_joint_positions(Q_LEFT_ZEROS)
+        print "Moving Left limb to 0"
+        motion.robot.left_mq.setLinear(3, [0.0] * 7)
+
+        self.load_real_robot_state()
 
         # print "Moving right limb to 0"
         # limb_right.move_to_joint_positions(Q_RIGHT_ZEROS)
@@ -114,11 +83,8 @@ class Milestone1Master:
 
         # print "Scanning spatula"
         # limb_right.move_to_joint_positions(Q_SCAN_SPATULA)
-        
 
-if __name__ == '__main__':
-    print "Starting Milestone1Master"
-    
+def setupWorld():
     world = WorldModel()
     #print "Loading full Baxter model (be patient, this will take a minute)..."
     #world.loadElement(os.path.join(model_dir,"baxter.rob"))
@@ -139,16 +105,15 @@ if __name__ == '__main__':
     T = world.rigidObject(0).getTransform()
     world.rigidObject(0).setTransform(*se3.mul(Trel,T))
 
-    global baxter_rest_config
-    f = open(KLAMPT_MODELS_DIR+'baxter_rest.config','r')
-    baxter_rest_config = loader.readVector(f.readline())
-    f.close()
-    world.robot(0).setConfig(baxter_rest_config)
-    
-    # Initialize master
+    return world
+
+if __name__ == '__main__':
+    world = setupWorld()
+
+    # Start master controller
     master = Milestone1Master(world)
     master.start()
 
-    #run the visualizer
+    # Start visualizer for world model
     visualizer = MyGLViewer(world)
     visualizer.run()
