@@ -4,6 +4,8 @@ sys.path.insert(0, "../../common")
 
 import rospy
 import random
+import time
+import thread
 from klampt import *
 from klampt.glprogram import *
 from klampt import vectorops,so3,se3,gldraw,ik,loader
@@ -18,6 +20,7 @@ class Milestone1Master:
     def __init__(self, world):
         self.world = world
         self.robotModel = world.robot(0)
+        self.state = 'START'
         self.config = self.robotModel.getConfig()
         self.right_camera_link = self.robotModel.link(RIGHT_CAMERA_LINK_NAME)
         self.right_gripper_link = self.robotModel.link(RIGHT_GRIPPER_LINK_NAME)
@@ -50,7 +53,41 @@ class Milestone1Master:
     def start(self):
         motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath="../../common/")
         motion.robot.startup()
+        self.loop()
 
+    def loop(self):
+        try:
+            while True:
+                print self.state
+                self.load_real_robot_state()
+
+                if self.state == 'START':
+                    print "Moving left limb to 0"
+                    motion.robot.left_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
+                    self.state = 'MOVING_LEFT_TO_0'
+                if self.state == 'MOVING_LEFT_TO_0':
+                    if not motion.robot.left_mq.moving():
+                        print "Moving right limb to 0"
+                        motion.robot.right_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
+                        self.state = 'MOVING_RIGHT_TO_0'
+                if self.state == 'MOVING_RIGHT_TO_0':
+                    if not motion.robot.right_mq.moving():
+                        motion.robot.right_mq.setLinear(3, Q_SCAN_BIN)
+                        self.state = 'MOVING_TO_SCAN_BIN'
+                if self.state == 'MOVING_TO_SCAN_BIN':
+                    motion.robot.left_mq.setLinear(3, Q_SPATULA_AT_BIN)
+                    self.state = 'MOVING_SPATULA_TO_BIN'
+                if self.state == 'MOVING_SPATULA_TO_BIN':
+                    if not motion.robot.left_mq.moving() and not motion.robot.right_mq.moving():
+                        self.state = 'SCANNING_BIN'
+                if self.state == 'SCANNING_BIN':
+                    print "Hi Chenyu"
+
+                time.sleep(1)
+        except KeyboardInterrupt:
+            motion.robot.stopMotion()
+
+        # Code snippets for the future
         # print se3.apply(self.robotModel.link('right_wrist').getTransform(), [1, 0, 0])
         # self.right_arm_ik([.5, -.25, 1])
         # destination = self.robotModel.getConfig()
@@ -59,30 +96,6 @@ class Milestone1Master:
         #pc_processor = PCProcessor()
         #rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback)
         #rospy.spin()
-
-        print "Moving Left limb to 0"
-        motion.robot.left_mq.setLinear(3, [0.0] * 7)
-
-        self.load_real_robot_state()
-
-        # print "Moving right limb to 0"
-        # limb_right.move_to_joint_positions(Q_RIGHT_ZEROS)
-
-        # print "Scanning bin for point cloud"
-        # limb_right.move_to_joint_positions(Q_SCAN_BIN)
-        # cloud = "hi"
-        # cloud = pc_processor.subtractShelf(cloud)
-        # centroid = pc_processor.getCentroid(cloud)
-
-        # print "Moving to centroid of cloud"
-        # Calculate IK for cloud centroid
-        # Move to the IK solution
-
-        # print "Moving spatula to bin"
-        # limb_left.move_to_joint_positions(Q_SPATULA_AT_BIN)
-
-        # print "Scanning spatula"
-        # limb_right.move_to_joint_positions(Q_SCAN_SPATULA)
 
 def setupWorld():
     world = WorldModel()
@@ -107,13 +120,15 @@ def setupWorld():
 
     return world
 
+def visualizerThreadFunction():
+    visualizer = MyGLViewer(world)
+    visualizer.run()
+
 if __name__ == '__main__':
     world = setupWorld()
+
+    thread.start_new_thread(visualizerThreadFunction, ())
 
     # Start master controller
     master = Milestone1Master(world)
     master.start()
-
-    # Start visualizer for world model
-    visualizer = MyGLViewer(world)
-    visualizer.run()
