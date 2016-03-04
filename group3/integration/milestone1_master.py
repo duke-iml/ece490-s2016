@@ -13,6 +13,9 @@ from planning.MyGLViewer import MyGLViewer
 from util.constants import *
 from Motion import motion
 from perception.pc import PCProcessor
+from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import Image
+import sensor_msgs.point_cloud2 as pc2
 
 baxter_rest_config = [0.0]*54
 
@@ -20,8 +23,9 @@ class Milestone1Master:
     def __init__(self, world):
         self.world = world
         self.robotModel = world.robot(0)
-        self.state = 'START'
+        self.state = INITIAL_STATE
         self.config = self.robotModel.getConfig()
+        self.keep_subscribing = True
         self.right_camera_link = self.robotModel.link(RIGHT_CAMERA_LINK_NAME)
         self.right_gripper_link = self.robotModel.link(RIGHT_GRIPPER_LINK_NAME)
         self.left_arm_links = [self.robotModel.link(i) for i in LEFT_ARM_LINK_NAMES]
@@ -51,8 +55,9 @@ class Milestone1Master:
         return False
 
     def start(self):
-        motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath="../../common/")
+        motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath=LIBPATH)
         motion.robot.startup()
+        rospy.init_node("listener", anonymous=True)
         self.loop()
 
     def loop(self):
@@ -81,7 +86,9 @@ class Milestone1Master:
                     if not motion.robot.left_mq.moving() and not motion.robot.right_mq.moving():
                         self.state = 'SCANNING_BIN'
                 if self.state == 'SCANNING_BIN':
-                    print "Hi Chenyu"
+                    cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
+                    pc_processor = PCProcessor()
+                    cloud = pc_processor.subtractShelf(cloud)
 
                 time.sleep(1)
         except KeyboardInterrupt:
@@ -92,10 +99,6 @@ class Milestone1Master:
         # self.right_arm_ik([.5, -.25, 1])
         # destination = self.robotModel.getConfig()
         # motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
-
-        #pc_processor = PCProcessor()
-        #rospy.Subscriber("/camera/rgb/image_raw", Image, self.callback)
-        #rospy.spin()
 
 def setupWorld():
     world = WorldModel()
