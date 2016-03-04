@@ -18,12 +18,12 @@ import random
 import copy
 from threading import Thread,Lock
 from Queue import Queue
-
+from operator import itemgetter
 
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 0
+NO_SIMULATION_COLLISIONS = 1
 #Turn this on to help fast prototyping of later stages
 FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
@@ -51,16 +51,29 @@ global knowledge
 
 # a list of actual items -- this is only used for the fake perception module, and your
 # code should not use these items directly
+# def init_ground_truth():
+#     global ground_truth_items
+#     ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_C'),
+#                           # apc.ItemInBin(apc.small_item,'bin_A'),
+#                           apc.ItemInBin(apc.tall_item,'bin_A'),
+#                           apc.ItemInBin(apc.med_item,'bin_E')]
+#     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,0.0)
+#     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,0.0)
+#     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
+#     for item in ground_truth_items:
+#         item.info.geometry = load_item_geometry(item)
+
 def init_ground_truth():
     global ground_truth_items
-    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_C'),
-                          apc.ItemInBin(apc.small_item,'bin_A'),
-                          apc.ItemInBin(apc.med_item,'bin_E')]
+    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_B'),
+                          apc.ItemInBin(apc.small_item,'bin_D'),
+                          apc.ItemInBin(apc.med_item,'bin_H')]
     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,0.0)
     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
     for item in ground_truth_items:
         item.info.geometry = load_item_geometry(item)
+
 
 def load_item_geometry(item,geometry_ptr = None):
     """Loads the geometry of the given item and returns it.  If geometry_ptr
@@ -534,7 +547,7 @@ class PickingController:
             self.robot.setConfig(q)
         return
 
-    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=100,tol=1e-3,validity_checker=None):
+    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None):
         """Given a list of goals and their associated limbs, returns a list
         of (q,index) pairs, where q is an IK solution for goals[index].
         The results are sorted by distance from initialConfig.
@@ -561,6 +574,7 @@ class PickingController:
         numTrials = [0]*len(goals)
         ikSolutions = []
         numSolutions = [0]*len(goals)
+        numColFreeSolutions = [0]*len(goals)
 
         for i in range(maxIters):
             index = random.randint(0,len(goals)-1) # choose which ik goals to solve
@@ -573,11 +587,13 @@ class PickingController:
                 self.robot.setConfig(initialConfig)
             # else, initialize with a random q, incrementally perturbing more from inital config
             else:
-                self.randomize_limb_position(limb,center=initialConfig,range=0.1*(numTrials[index]-1))
+                # self.randomize_limb_position(limb,center=initialConfig,range=0.1*(numTrials[index]-1))
+                self.randomize_limb_position(limb,center=initialConfig,range=None)
 
             if ik.solve(goal,tol=tol):
                 numSolutions[index] += 1
                 if validity_checker(limb):
+                    numColFreeSolutions[index] += 1
                     ikSolutions.append((self.robot.getConfig(),index))
                     if len(ikSolutions) >= maxResults: break
                     # print "IK solution for goal <", limb, "> was found"
@@ -591,12 +607,20 @@ class PickingController:
         print "< IK Summary >"
         for i in range(len(goals)):
             if numTrials != 0:
-                print "Goal: #", i, "; Attempted:", numTrials[i], "/", maxIters, "; Result:", numSolutions[i], "collision free solutions found"
+                print "Goal: #", i, "; Attempted:", numTrials[i], "/", maxIters, "; Result:", numColFreeSolutions[i], "/", numSolutions[i], "col. free. solutions"
         print " "
 
         # sort solutions by distance to initial config
+        sortedSolutions = []
         for solution in ikSolutions:
-            sortedSolutions = sorted( [(vectorops.distanceSquared(solution[0],initialConfig), solution)] )
+            # this line was buggy: the sortedSolutions only had one entry after the sort !!
+            # sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolutions])
+            dist = vectorops.distanceSquared(solution[0],initialConfig)
+            config = solution[0]
+            ind = solution[1]
+            sortedSolutions.append( ((dist), (config, ind)) )
+
+        sortedSolutions = sorted(sortedSolutions, key=itemgetter(0))
 
         # s[0] contains the distance-sqaured values
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
@@ -624,7 +648,7 @@ class PickingController:
         limbs = ['left','right']
 
         print "\nSolving for MOVE_CAMERA_TO_BIN"
-        sortedSolutions = self.get_ik_solutions([left_goal, right_goal], limbs, qcmd)
+        sortedSolutions = self.get_ik_solutions([left_goal, right_goal], limbs, qcmd, maxResults=1000, maxIters=1000)
 
         if len(sortedSolutions)==0: return False;
 
@@ -635,7 +659,10 @@ class PickingController:
             return True
 
         # else, if we want to path plan
+        numSol = 0
         for solution in sortedSolutions:
+            numSol += 1
+            print numSol, "solutions planned out of", len(sortedSolutions)
             path = self.planner.plan(qcmd,solution[0])
             if path != None:
                 self.sendPath(path)
@@ -673,7 +700,8 @@ class PickingController:
         for (grasp,gxform) in grasps:
             if self.active_limb == 'left':
                 # pre-goal
-                Tpg = se3.mul(gxform,se3.inv((left_gripper_center_xform[0],vectorops.add(left_gripper_center_xform[1],pregrasp_shift))))
+                t_pregoal = vectorops.add(left_gripper_center_xform[1],pregrasp_shift)
+                Tpg = se3.mul(gxform,se3.inv((left_gripper_center_xform[0], t_pregoal)))
                 pregoal = ik.objective(self.left_gripper_link,R=Tpg[0],t=Tpg[1])
 
                 # goal (version 1)
@@ -724,7 +752,9 @@ class PickingController:
         if SKIP_PATH_PLANNING:
             for pregrasp in sortedSolutionsPreGrasp:
                 graspIndex = pregrasp[1]
-                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],pregrasp[0],maxResults=3)
+                print "\nSolving for GRASP (no path planning)"
+                # initialize config to pregrasp[0]
+                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],pregrasp[0],maxResults=1)
                 if len(gsolns)==0:
                     print "Couldn't find grasp config for pregrasp? Trying another"
                 else:
@@ -742,7 +772,8 @@ class PickingController:
             if path != None:
                 # now solve for grasp (path[-1] means last element in path)
                 print "\nSolving for GRASP"
-                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],path[-1],maxResults=3)
+                # initialize config to last configuration in path
+                gsolns = self.get_ik_solutions([grasp_goals[graspIndex]],[self.active_limb],path[-1],maxResults=1)
                 if len(gsolns)==0:
                     print "Couldn't find grasp config??"
                 else:
@@ -780,7 +811,7 @@ class PickingController:
                                 local=[left_gripper_center_xform[1],vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame)],
                                 world=[move_target,vectorops.add(move_target,vertical)])
 
-        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=1)
+        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=1, maxIters = 1000)
         if len(sortedSolutions) == 0:
             print "No upright-movement config found"
             return False
@@ -806,7 +837,7 @@ class PickingController:
         # retraction goal -- maintain vertical world axis
         liftVector = [0,0,0.04]
         retractVector = [-0.2,0,0]
-        # self.planner.rebuild_dynamic_objects()
+        self.planner.rebuild_dynamic_objects()
         self.robot.setConfig(qcmd)
         if self.move_gripper_upright(self.active_limb,liftVector):
             self.controller.setMilestone(self.robot.getConfig())
@@ -823,7 +854,14 @@ class PickingController:
             placegoal = ik.objective(self.left_gripper_link,local=left_gripper_center_xform[1],world=left_target)
         else:
             placegoal = ik.objective(self.right_gripper_link,local=right_gripper_center_xform[1],world=right_target)
-        sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=0.1)
+
+
+        # sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=0.1)
+        sortedSolutions = []
+        while(sortedSolutions == []):
+            print "solving move to order bin..."
+            sortedSolutions = self.get_ik_solutions([placegoal],[self.active_limb],retractConfig,tol=0.1)
+
         if len(sortedSolutions) == 0:
             print "Failed to find placement config"
         for solution in sortedSolutions:
@@ -941,8 +979,10 @@ class MyGLViewer(GLRealtimeProgram):
     def __init__(self,simworld,planworld):
         GLRealtimeProgram.__init__(self,"My GL program")
         # self.camera.dist = 3.0
-        # #x field of view in degrees
-        # self.fov =120
+        # # #x field of view in degrees
+        # self.fov = 60
+        # self.width *= 2
+        # self.height *= 2
 
         self.simworld = simworld
         self.planworld = planworld
@@ -1195,6 +1235,16 @@ def spawn_objects_from_ground_truth(world):
             obj.setTransform(so3.identity(), [ 2,-2, 2])
     return
 
+def myCameraSettings(visualizer):
+    visualizer.camera.tgt = [-1, -.5, -0.75]
+    visualizer.camera.rot = [0,0.5,0.9]
+    visualizer.camera.dist = 4
+    visualizer.fov = 60
+    visualizer.width *= 2
+    visualizer.height *= 2
+    return
+
+
 if __name__ == "__main__":
     """The main loop that loads the planning / simulation models and
     starts the OpenGL visualizer."""
@@ -1209,7 +1259,6 @@ if __name__ == "__main__":
         # simworld = load_baxter_only_world()
         simworld = load_apc_world()
     else:
-        # simworld = load_baxter_only_world()
         simworld = load_apc_world()
         spawn_objects_from_ground_truth(simworld)
 
@@ -1222,6 +1271,7 @@ if __name__ == "__main__":
 
     #run the visualizer
     visualizer = MyGLViewer(simworld,world)
+    myCameraSettings(visualizer)
     visualizer.run()
 
 
