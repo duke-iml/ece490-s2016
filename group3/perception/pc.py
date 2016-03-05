@@ -13,7 +13,7 @@ class PCProcessor:
     # Subtracts points probably belonging to the shelf
     # and returns the new cloud
     def subtractShelf(self, data):
-        STEP = 100 # Plot every STEPth point for speed, set to 1 to plot all
+        STEP = 1 # Plot every STEPth point for speed, set to 1 to plot all
 
         # Load cloud data
         xs = []
@@ -37,10 +37,15 @@ class PCProcessor:
         t = cKDTree(dobj)
         d, idx = t.query(dshel, k=20, eps=0, p=2, distance_upper_bound=0.1)
         print 'finish kdtree'
+        Points_To_Delete = []
         for i in range(0,len(idx)):
-            for j in range(0,19):
-                if d[i,j] <= 0.05:
-                    dobj[idx[i,j],:]  = [0,0,0]
+           for j in range(0,19):
+                if d[i,j] <= 0.03:
+                   Points_To_Delete.append(idx[i,j])
+        print len(dobj)            #dobj[idx[i,j],:]  = [0,0,0]
+        dobj = np.delete(dobj,Points_To_Delete,axis = 0)
+            
+        print len(dobj)
         print 'finish NN removal'
         dobj = dobj.transpose()
 

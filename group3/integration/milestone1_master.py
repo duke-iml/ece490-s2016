@@ -84,7 +84,10 @@ class Milestone1Master:
                     self.state = 'MOVING_SPATULA_TO_BIN'
                 if self.state == 'MOVING_SPATULA_TO_BIN':
                     if not motion.robot.left_mq.moving() and not motion.robot.right_mq.moving():
-                        self.state = 'SCANNING_BIN'
+                        self.state = 'WAITING_TO_SCAN_BIN'
+                if self.state == 'WAITING_TO_SCAN_BIN':
+                    time.sleep(4)
+                    self.state = 'SCANNING_BIN'
                 if self.state == 'SCANNING_BIN':
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     pc_processor = PCProcessor()
