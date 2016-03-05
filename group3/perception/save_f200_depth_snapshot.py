@@ -1,8 +1,12 @@
+# Reads a point cloud from ROS_TOPIC and then saves it to a numpy file
+
 import sys
 import rospy
 import numpy as np
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
+
+ROS_TOPIC = "/camera/depth/points"
 
 
 class SaveF200DepthSnapshot:
@@ -22,12 +26,12 @@ class SaveF200DepthSnapshot:
             print "Length: " + str(len(xs))
             if len(xs) > 0:
                 self.show = False
-                np.savez('my_pc', xs, ys, zs)
+                np.savez('test', xs, ys, zs)
                 print 'done saving, you can exit now'
 
     def listener(self):
         rospy.init_node("listener", anonymous=True)
-        rospy.Subscriber("/camera/depth/points", PointCloud2, self.callback)
+        rospy.Subscriber(ROS_TOPIC, PointCloud2, self.callback)
         rospy.spin()
 
 if __name__ == '__main__':
