@@ -3,10 +3,11 @@ from util.constants import *
 from klampt import gldraw
 
 class MyGLViewer(GLNavigationProgram):
-    def __init__(self,world):
+    def __init__(self, world, master):
         GLNavigationProgram.__init__(self,"double shine grab visualizer")
         self.world = world
-        self.draw_frames = True
+        self.draw_frames = False
+        self.master = master
 
     def display(self):
         self.world.drawGL()
@@ -20,3 +21,7 @@ class MyGLViewer(GLNavigationProgram):
             gldraw.xform_widget(right_camera_link.getTransform(),0.1,0.01)
             gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),LEFT_GRIPPER_CENTER_XFORM),0.05,0.005)
             gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),RIGHT_GRIPPER_CENTER_XFORM),0.05,0.005)
+
+        self.master.drawStuff()
+
+

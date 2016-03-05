@@ -34,6 +34,8 @@ class Milestone1Master:
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
+        self.temp = se3.identity()
+
     def load_real_robot_state(self):
         """Makes the robot model match the real robot"""
         self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
@@ -60,11 +62,18 @@ class Milestone1Master:
         rospy.init_node("listener", anonymous=True)
         self.loop()
 
+    def drawStuff(self):
+        gldraw.xform_widget(self.temp,0.1,0.01)
+
     def loop(self):
         try:
             while True:
                 print self.state
                 self.load_real_robot_state()
+
+                if self.state == 'CUSTOM_CODE':
+                    Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_XFORM)
+                    self.temp = Tcamera
 
                 if self.state == 'START':
                     print "Moving left limb to 0"
@@ -127,14 +136,12 @@ def setupWorld():
     return world
 
 def visualizerThreadFunction():
-    visualizer = MyGLViewer(world)
     visualizer.run()
 
 if __name__ == '__main__':
     world = setupWorld()
+    master = Milestone1Master(world)
+    visualizer = MyGLViewer(world, master)
 
     thread.start_new_thread(visualizerThreadFunction, ())
-
-    # Start master controller
-    master = Milestone1Master(world)
     master.start()

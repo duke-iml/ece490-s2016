@@ -1,6 +1,7 @@
+import math
 from klampt import vectorops,so3
 
-INITIAL_STATE = "SCANNING_BIN"
+INITIAL_STATE = "CUSTOM_CODE"
 
 
 # Q_SCAN_BIN = {'right_s0': 0.6519418341064454, 'right_s1': -0.008820389520263672, 'right_w0': -0.056373793890380865, 'right_w1': -1.1485681136169434, 'right_w2': 0.24620391617431642, 'right_e0': 1.342233187866211, 'right_e1': 1.5010001992309572}
@@ -28,5 +29,11 @@ RIGHT_ARM_LINK_NAMES = ['right_upper_shoulder','right_lower_shoulder','right_upp
 #local transformations (rotation, translation pairs) of the grasp center
 LEFT_GRIPPER_CENTER_XFORM = (so3.identity(),[0,-0.04,0.1])
 RIGHT_GRIPPER_CENTER_XFORM = (so3.identity(),[0,-0.04,0.1])
+
+# Transform from right_lower_forearm to F200
+RIGHT_F200_CAMERA_XFORM = (so3.rotation([0, 1, 0], math.pi / 2), [.15, -.1, 0])
+
+# Transform from right_wrist to end of pencil
+RIGHT_PENCIL_XFORM = (so3.identity(), [0, 0, 0])
 
 ROS_DEPTH_TOPIC = "/camera/depth/points"
