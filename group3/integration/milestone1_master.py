@@ -34,7 +34,7 @@ class Milestone1Master:
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
-        self.temp = se3.identity()
+        self.Tcamera = se3.identity()
 
     def load_real_robot_state(self):
         """Makes the robot model match the real robot"""
@@ -63,17 +63,17 @@ class Milestone1Master:
         self.loop()
 
     def drawStuff(self):
-        gldraw.xform_widget(self.temp,0.1,0.01)
+        gldraw.xform_widget(self.Tcamera,0.1,0.01)
 
     def loop(self):
         try:
             while True:
                 print self.state
                 self.load_real_robot_state()
+                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_XFORM)
 
                 if self.state == 'CUSTOM_CODE':
-                    Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_XFORM)
-                    self.temp = Tcamera
+                    pass
 
                 if self.state == 'START':
                     print "Moving left limb to 0"
@@ -101,6 +101,16 @@ class Milestone1Master:
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     pc_processor = PCProcessor()
                     cloud = pc_processor.subtractShelf(cloud)
+                    self.state = 'MOVING_TO_GRASP_OBJECT'
+                if self.state == 'MOVING_TO_GRASP_OBJECT':
+                    Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_XFORM)
+                    object_com_in_world = se3.apply(Tcamera, PCProcessor().getObjectCOM(None))
+                    if self.right_arm_ik(object_com_in_world):
+                        destination = self.robotModel.getConfig()
+                        motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+                    else:
+                        print "Couldn't move there"
+
 
                 time.sleep(1)
         except KeyboardInterrupt:
