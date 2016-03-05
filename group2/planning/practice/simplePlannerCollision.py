@@ -1,8 +1,7 @@
 #!/usr/bin/python
 
-# TODO: Pickup object in bin A ??
-# TODO: Right hand having hard time picking up object in bin E
-# TODO: multi-thread, plan/execute two arms together?
+# TODO: move to center pos (in front of baxter before reaching a bin)
+# TODO: Can't pick up small item
 
 from klampt import robotsim
 from klampt.glprogram import *
@@ -24,7 +23,7 @@ from operator import itemgetter
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
 NO_SIMULATION_COLLISIONS = 1
 #Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 0
+FAKE_SIMULATION = 1
 SKIP_PATH_PLANNING = 0
 
 # The path of the klampt_models directory
@@ -43,7 +42,10 @@ order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 # Order list. Can be parsed from JSON input
 global orderList
-orderList = ['med_item','tall_item']
+orderList = ['tall_item', 'med_item',  'tall_item',
+             'med_item',  'tall_item', 'med_item',
+             'tall_item', 'med_item',  'tall_item',
+             'med_item',  'tall_item', 'med_item']
 
 # Declare the knowledge base
 global knowledge
@@ -88,7 +90,7 @@ def init_ground_truth():
                           apc.ItemInBin(apc.tall_item,'bin_K'),
                           apc.ItemInBin(apc.med_item,'bin_L')]
     for i in range(len(ground_truth_items)):
-        ux = random.uniform(0.25,0.45)
+        ux = random.uniform(0.3,0.6)
         uy = random.uniform(0,0.3)
         if ground_truth_items[i].info.name == 'med_item':
             # theta = random.uniform(math.pi/4, 3*math.pi/4)
@@ -534,7 +536,9 @@ class PickingController:
                 # temporarily store held object because placeInOrderBinAction sets held object to None
                 obj = self.held_object
                 if self.placeInOrderBinAction():
-                    objectList.remove(obj.info.name)
+                    # don't want to remove obj from objList twice. It is already taken care of in drop_order_in_bin
+                    # objectList.remove(obj.info.name)
+                    print ""
                 else:
                     print "Error putting object into order bin"
                     return False
@@ -914,7 +918,7 @@ class PickingController:
 
         # retraction goal -- maintain vertical world axis
         liftVector = [0,0,0.015]
-        retractVector = [-0.1,0,0]
+        retractVector = [-0.2,0,0]
         self.planner.rebuild_dynamic_objects()
         self.robot.setConfig(qcmd)
         if self.move_gripper_upright(self.active_limb,liftVector):
@@ -1029,7 +1033,7 @@ def run_controller(controller,command_queue):
             elif c == 'p':
                 controller.placeInOrderBinAction()
             elif c == 'o':
-                controller.fulfillOrderAction(['med_item','small_item'])
+                controller.fulfillOrderAction(orderList)
             elif c == 'r':
                 restart_program()
             elif c=='q':
@@ -1177,7 +1181,7 @@ class MyGLViewer(GLRealtimeProgram):
                 g = knowledge.grasp_xforms(i)
                 if g:
                     for grasp,xform in g:
-                        gldraw.xform_widget(xform,0.05,0.005,fancy=False)
+                        gldraw.xform_widget(xform,0.02,0.002)
 
         # Draws the object held on gripper
         obj,limb,grasp = self.picking_controller.held_object,self.picking_controller.active_limb,self.picking_controller.active_grasp
@@ -1246,7 +1250,7 @@ def load_apc_world():
     world.robot(0).setConfig(world.robot(0).getConfig())
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
-    reorient = ([1,0,0,0,0,1,0,-1,0],[0,-0.15,0.1])
+    reorient = ([1,0,0,0,0,1,0,-1,0],[0,-0.05,0.1])
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,0])
     T = reorient
     world.terrain(0).geometry().transform(*se3.mul(Trel,T))
