@@ -13,7 +13,6 @@ class PCProcessor:
     # Subtracts points probably belonging to the shelf
     # and returns the new cloud
     def getObjectCOM(self, data):
-        return [0, 0, .5]
         STEP = 1 # Plot every STEPth point for speed, set to 1 to plot all
 
         # Load cloud data
@@ -41,7 +40,7 @@ class PCProcessor:
         Points_To_Delete = []
         for i in range(0,len(idx)):
            for j in range(0,19):
-                if d[i,j] <= 0.03:
+                if d[i,j] <= 0.1:
                    Points_To_Delete.append(idx[i,j])
         print len(cloud)            #cloud[idx[i,j],:]  = [0,0,0]
         cloud = np.delete(cloud,Points_To_Delete,axis = 0)
@@ -59,4 +58,4 @@ class PCProcessor:
         ax.set_zlabel('z')
         plt.show()
 
-        return com
+        return (cloud.transpose(), com)

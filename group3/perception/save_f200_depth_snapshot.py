@@ -26,7 +26,7 @@ class SaveF200DepthSnapshot:
             print "Length: " + str(len(xs))
             if len(xs) > 0:
                 self.show = False
-                np.savez('test', xs, ys, zs)
+                np.savez('shelf', xs, ys, zs)
                 print 'done saving, you can exit now'
 
     def listener(self):

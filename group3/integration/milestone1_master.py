@@ -9,6 +9,7 @@ import thread
 from klampt import *
 from klampt.glprogram import *
 from klampt import vectorops,so3,se3,gldraw,ik,loader
+from OpenGL.GL import *
 from planning.MyGLViewer import MyGLViewer
 from util.constants import *
 from Motion import motion
@@ -35,6 +36,8 @@ class Milestone1Master:
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
         self.Tcamera = se3.identity()
+        self.object_com = [0, 0, 0]
+        self.points = []
 
     def load_real_robot_state(self):
         """Makes the robot model match the real robot"""
@@ -63,14 +66,21 @@ class Milestone1Master:
         self.loop()
 
     def drawStuff(self):
-        gldraw.xform_widget(self.Tcamera,0.1,0.01)
+        # gldraw.xform_widget(self.Tcamera,0.1,0.01)
+        glPointSize(5.0)
+        glBegin(GL_POINTS)
+        for point in self.points[::100]:
+            transformed = se3.apply(self.Tcamera, point)
+            glVertex3f(transformed[0], transformed[1], transformed[2])
+        # glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
+        glEnd()
 
     def loop(self):
         try:
             while True:
                 print self.state
                 self.load_real_robot_state()
-                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_XFORM)
+                self.Tcamera = se3.mul(self.robotModel.link('right_lower_elbow').getTransform(), RIGHT_F200_CAMERA_XFORM)
 
                 if self.state == 'CUSTOM_CODE':
                     pass
@@ -86,7 +96,8 @@ class Milestone1Master:
                         self.state = 'MOVING_RIGHT_TO_0'
                 if self.state == 'MOVING_RIGHT_TO_0':
                     if not motion.robot.right_mq.moving():
-                        motion.robot.right_mq.setLinear(3, Q_SCAN_BIN)
+                        motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_1)
+                        motion.robot.right_mq.appendLinear(3, Q_SCAN_BIN)
                         self.state = 'MOVING_TO_SCAN_BIN'
                 if self.state == 'MOVING_TO_SCAN_BIN':
                     motion.robot.left_mq.setLinear(3, Q_SPATULA_AT_BIN)
@@ -95,17 +106,22 @@ class Milestone1Master:
                     if not motion.robot.left_mq.moving() and not motion.robot.right_mq.moving():
                         self.state = 'WAITING_TO_SCAN_BIN'
                 if self.state == 'WAITING_TO_SCAN_BIN':
-                    time.sleep(4)
+                    time.sleep(4) # TODO Convert this to be non-blocking
                     self.state = 'SCANNING_BIN'
                 if self.state == 'SCANNING_BIN':
-                    cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
-                    pc_processor = PCProcessor()
-                    cloud = pc_processor.subtractShelf(cloud)
-                    self.state = 'MOVING_TO_GRASP_OBJECT'
+                    cloud_is_good = False
+                    while not cloud_is_good:
+                        cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
+                        for point in pc2.read_points(cloud, skip_nans=True):
+                            cloud_is_good = True
+                            break
+                    self.points, self.object_com = PCProcessor().getObjectCOM(cloud)
+                    print len(self.points)
+                    # DANGER THESE ARE IN CAMERA FRAME
+                    # self.state = 'MOVING_TO_GRASP_OBJECT'
+                    self.state = 'DO_NOTHING'
                 if self.state == 'MOVING_TO_GRASP_OBJECT':
-                    Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_XFORM)
-                    object_com_in_world = se3.apply(Tcamera, PCProcessor().getObjectCOM(None))
-                    if self.right_arm_ik(object_com_in_world):
+                    if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
                         motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
                     else:
