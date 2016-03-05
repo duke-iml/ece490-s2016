@@ -118,8 +118,8 @@ class ItemInBin:
 # set up some items and some potential grasps
 # instantiate "tall_item" as an ItemInfo class
 tall_item = ItemInfo('tall_item')
-tall_item.bmin = [-0.03,-0.05,-0.1]
-tall_item.bmax = [0.03,0.05,0.1]
+tall_item.bmin = [-0.03,-0.05,-0.08]
+tall_item.bmax = [0.03,0.05,0.08]
 tall_item.geometryFile = 'box'
 
 # append these ItemGrasp objects to tall_item.grasps list
