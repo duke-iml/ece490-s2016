@@ -110,8 +110,8 @@ class ItemInBin:
 
 #set up some items and some potential grasps
 tall_item = ItemInfo('tall_item')
-tall_item.bmin = [-0.03,-0.05,-0.1]
-tall_item.bmax = [0.03,0.05,0.1]
+tall_item.bmin = [-0.03,-0.05,-0.05]
+tall_item.bmax = [0.03,0.05,0.05]
 tall_item.geometryFile = 'box'
 XtoY = so3.from_axis_angle(([0,0,1],math.pi*0.5))
 Xto_Y = so3.from_axis_angle(([0,0,1],-math.pi*0.5))
