@@ -1,6 +1,8 @@
 # ece490-s2016 (group2)
 
-Spatula_Klampt.STL is the original file. A copy of this file is in the planning/klampt_models directory. The robot model "baxter_with_spatula_col.rob" uses the copy, not this file. 
+Spatula_Klampt.STL is the original file. A copy of this file is in the planning/klampt_models directory. The robot model "baxter_with_basic_spatula_col.rob" uses the copy, not this file. 
+
+Spatula_Klampt_part1.STL and Spatula_Klampt_part2.STL are the original files. Copies are in the planning/klampt_models directory. The robot model "baxter_with_spatula_col.rob" uses the copy, not this file. 
 
 Sometimes, Klampt/RobotTest will throw an error importing an STL file (saying that the file is empty). Refer to the following link to fix this issue (https://libraries.io/github/blodow/realtime_urdf_filter). It seems like the error is machine-dependent. 
 
