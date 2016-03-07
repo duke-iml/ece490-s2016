@@ -21,9 +21,9 @@ from operator import itemgetter
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 1
+NO_SIMULATION_COLLISIONS = 0
 #Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 1
+FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
 
 # The path of the klampt_models directory
@@ -1238,8 +1238,8 @@ def load_apc_world():
     # print "Loading full Baxter model (be patient, this will take a minute)..."
     # world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
-    # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
-    world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
+    # world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
     print "Loading Kiva pod model..."
     world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
     print "Loading plane model..."
@@ -1318,13 +1318,13 @@ def spawn_objects_from_ground_truth(world):
         simgeometry = obj.geometry()
         load_item_geometry(item,simgeometry)
 
-        # obj.setTransform(item.xform[0],item.xform[1])
-        if i==1:
-            obj.setTransform(so3.identity(), [ 2, 2, 2])
-        elif i==2:
-            obj.setTransform(so3.identity(), [-2,-2, 2])
-        else:
-            obj.setTransform(so3.identity(), [ 2,-2, 2])
+        obj.setTransform(item.xform[0],item.xform[1])
+        #if i==1:
+        #    obj.setTransform(so3.identity(), [ 2, 2, 2])
+        #elif i==2:
+        #    obj.setTransform(so3.identity(), [-2,-2, 2])
+        #else:
+        #    obj.setTransform(so3.identity(), [ 2,-2, 2])
     return
 
 def myCameraSettings(visualizer):
@@ -1356,10 +1356,16 @@ if __name__ == "__main__":
 
     #load the resting configuration from klampt_models/baxter_rest.config
     # global baxter_rest_config
-    f = open(model_dir+'baxter_with_parallel_gripper_rest.config','r')
+    f = open(model_dir+'baxter_rest.config','r')
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
     simworld.robot(0).setConfig(baxter_rest_config)
+
+    # Add initial joint values to additional joints
+    n = world.robot(0).numLinks()
+    if len(baxter_rest_config) < n:
+        baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
+    world.robot(0).setConfig(baxter_rest_config)
 
     #run the visualizer
     visualizer = MyGLViewer(simworld,world)

@@ -521,7 +521,7 @@ class MyGLViewer(GLNavigationProgram):
 
     def display(self):
         # you may run auxiliary openGL calls, if you wish to visually debug
-        # self.world.robot(0).setConfig(self.controller.config)
+        self.world.robot(0).setConfig(self.controller.config)
         self.world.drawGL()
 
         # show bin boxes
@@ -630,7 +630,9 @@ if __name__ == "__main__":
     # world.loadElement(os.path.join(model_dir,"baxter.rob"))
     # 2) simplified Baxter model
     print "\n<Loading simplified Baxter model...>"
-    world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
+    # world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
+    # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
 
     # Load the shelves
     # NOTE: world.loadRigidObject(~) works too because the shelf model is a rigid object
@@ -657,6 +659,11 @@ if __name__ == "__main__":
     f = open(model_dir+'baxter_rest.config','r')
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
+
+    # Add initial joint values to additional joints
+    n = world.robot(0).numLinks()
+    if len(baxter_rest_config) < n:
+    	baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
     world.robot(0).setConfig(baxter_rest_config)
 
     # Orient bin boxes correctly w.r.t. the shelf
