@@ -56,20 +56,34 @@ class KnowledgeBase:
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
         self.shelf_xform = se3.identity()
-    
+
     def bin_front_center(self,bin_name):
         #you may want to implement this.  Returns the world position of the
         #front-center of the bin.  The visualizer will draw these points if
         #'draw_bins' is turned to True.
         #TODO:
-        return None
+        bin_bounds = apc.bin_bounds.get(bin_name)
+        bin_front_center_shelf = [0.5*(bin_bounds[0][0] + bin_bounds[1][0]),
+                                  0.5*(bin_bounds[0][1] + bin_bounds[1][1]),
+                                                          bin_bounds[1][2]]
+
+        bin_front_center_world = se3.apply(self.shelf_xform, bin_front_center_shelf)
+
+        return bin_front_center_world
 
     def bin_vantage_point(self,bin_name):
         #you may want to implement this.  Returns the world position of the
         #vantage point for viewing the bin.  The visualizer will draw these points if
         #'draw_bins' is turned to True.
         #TODO:
-        return None
+        bin_bounds = apc.bin_bounds.get(bin_name)
+        bin_vantage_point_shelf = [0.5*(bin_bounds[0][0] + bin_bounds[1][0]),
+                                   0.5*(bin_bounds[0][1] + bin_bounds[1][1]),
+                                                           bin_bounds[1][2]+0.1]
+        bin_vantage_point_world = se3.apply(self.shelf_xform, bin_vantage_point_shelf)
+
+        return bin_vantage_point_world
+
 
     def grasp_xforms(self,object):
         #you may want to implement this.  Returns a list of world transformations
@@ -154,7 +168,7 @@ class PickingController:
                 print "Invalid bin",b
                 return False
         return True
-        
+
     def graspAction(self):
         if self.current_bin == None:
             print "Not located at a bin"
@@ -189,7 +203,7 @@ class PickingController:
             else:
                 print "Ungrasp failed"
                 return False
-        
+
     def placeInOrderBinAction(self):
         if self.state != 'holding':
             print "Not holding an object"
@@ -206,6 +220,7 @@ class PickingController:
                 print "Move to order bin failed"
                 return False
 
+    # TODO: implement these four methods
     def fulfillOrderAction(self,objectList):
         """Given a list of objects to be put in the order bin, run
         until completed."""
@@ -221,6 +236,13 @@ class PickingController:
         Otherwise, does not change self.config and returns False.
         """
         #TODO: put my code here
+
+        # 1) choose an arm in PickingController.active_limb
+
+        # 2) calculate a configuration PickingController.config that moves
+        #    a camera to a vantage point that looks at the designated bin from 20cm away from the open
+        #    face of the bin
+
         #Hint:
         #goal = ik.objective(self.left_camera_link,R=[local-to-world rotation],t=[local-to-world translation])
         #if ik.solve(goal):
@@ -309,7 +331,7 @@ def draw_oriented_wire_box(xform,bmin,bmax):
 
 class MyGLViewer(GLNavigationProgram):
     """This class is used to interact with the world model in hw2.
-    
+
     Pressing 'a-l' runs the view_bin method which should set the robot to a
     configuration that places a hand camera such that it points inside the
     bin.
@@ -330,8 +352,8 @@ class MyGLViewer(GLNavigationProgram):
         self.controller = PickingController(world)
 
         #you can set these to true to draw the bins, grasps, and/or gripper/camera frames
-        self.draw_bins = False
-        self.draw_grasps = False
+        self.draw_bins = True
+        self.draw_grasps = True
         self.draw_gripper_and_camera = True
 
         #initialize the shelf xform for the visualizer and object
@@ -346,7 +368,7 @@ class MyGLViewer(GLNavigationProgram):
         self.world.robot(0).setConfig(self.controller.config)
         self.world.drawGL()
         global ground_truth_items
-        
+
         #show bin boxes
         if self.draw_bins:
             glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0,1])
@@ -355,7 +377,7 @@ class MyGLViewer(GLNavigationProgram):
             for b in apc.bin_names:
                 c = self.controller.knowledge.bin_front_center(b)
                 if c:
-                    glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0.5,1])                    
+                    glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0.5,1])
                     r = 0.01
                     gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
                 c = self.controller.knowledge.bin_vantage_point(b)
@@ -364,7 +386,7 @@ class MyGLViewer(GLNavigationProgram):
                     r = 0.01
                     gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
 
-        
+
         #show object state
         for i in ground_truth_items:
             if i.xform == None:
@@ -397,7 +419,7 @@ class MyGLViewer(GLNavigationProgram):
             gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),left_gripper_center_xform),0.05,0.005)
             gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),right_gripper_center_xform),0.05,0.005)
 
-        #draw order box 
+        #draw order box
         glDisable(GL_LIGHTING)
         glColor3f(1,0,0)
         draw_oriented_wire_box(order_bin_xform,order_bin_bounds[0],order_bin_bounds[1])
@@ -421,7 +443,7 @@ class MyGLViewer(GLNavigationProgram):
 
 def main():
     """The main loop that loads the models and starts the OpenGL visualizer"""
-    
+
     world = WorldModel()
     #uncomment these lines and comment out the next 2 if you want to use the
     #full Baxter model
@@ -433,13 +455,13 @@ def main():
     world.loadElement(os.path.join(model_dir,"kiva_pod/model.obj"))
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
-    
+
     #shift the Baxter up a bit (95cm)
     Rbase,tbase = world.robot(0).getLink(0).getParentTransform()
     world.robot(0).getLink(0).setParentTransform(Rbase,(0,0,0.95))
     world.robot(0).setConfig(world.robot(0).getConfig())
-    
-    #translate pod to be in front of the robot, and rotate the pod by 90 degrees 
+
+    #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.2,0,0])
     T = world.rigidObject(0).getTransform()
     world.rigidObject(0).setTransform(*se3.mul(Trel,T))
@@ -450,7 +472,7 @@ def main():
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
     world.robot(0).setConfig(baxter_rest_config)
-    
+
     #run the visualizer
     visualizer = MyGLViewer(world)
     visualizer.run()
