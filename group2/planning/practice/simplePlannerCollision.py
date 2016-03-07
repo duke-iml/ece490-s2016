@@ -1238,7 +1238,8 @@ def load_apc_world():
     # print "Loading full Baxter model (be patient, this will take a minute)..."
     # world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
-    world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
+    # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
     print "Loading Kiva pod model..."
     world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
     print "Loading plane model..."

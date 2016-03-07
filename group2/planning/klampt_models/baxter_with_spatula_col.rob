@@ -62,7 +62,7 @@ Tparent	1 0 0	0 1 0	0 0 1	0 0 0 \
 1 0 0	0 1 0	0 0 1	0.0947 0 0.817
 
 
-mount 22 "spatula_klampt.STL"     0 0.001 0 -0.001 0 0  0 0 0.001   0 0.175 0 as "spatula"
+mount 22 "spatula_klampt.stl"     0 0.001 0 -0.001 0 0  0 0 0.001   0 0.175 0 as "spatula"
 
 #uncomment these two lines and comment out the next two lines for free floating base
 
