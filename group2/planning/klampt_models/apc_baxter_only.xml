@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<world>
-  <robot name="Baxter" file="baxter_with_parallel_gripper_col.rob" translation="0 0 0.95"/>
-</world>

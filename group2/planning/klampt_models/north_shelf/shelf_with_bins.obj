@@ -1,8 +1,0 @@
-mesh "mesh/shelf_with_bins.stl"
-T 1 0 0 0 1 0 0 0 1      0 0 0.01
-mass 76.26
-inertia 47 0 0 0 47 0 0 0 13.075
-
-kRestitution 0
-kFriction 0.8
-
