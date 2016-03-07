@@ -33,6 +33,7 @@ def wait_task(task, done, timeout=30, delay=0.5):
     else:
         return True
 
+# TODO: Understand / Go through this MotionManager class. (Especially self._call method)
 class MotionManager:
     def __init__(self, knowledge_base, **params):
         self.knowledge_base = knowledge_base
@@ -54,14 +55,25 @@ class MotionManager:
             'MoveTrayToOrderBin'
         ]
 
-        # set up the interface
+        # set up the interface so that calling "MotionManager.methodName" like
+        # "MotionManager.moveToVantagePoint" or "self.manager.moveToVantagePoint" inside Master class
+        # invokes the "MotionManager._call(method, args ,kwargs)" function
         for method in methods:
+            # method contains a string of methodName
+
             # this outher wrapping function is necessary to capture the method variable
             def make_proxy(method):
+                # see here for *args and **kwargs
+                # http://stackoverflow.com/questions/3394835/args-and-kwargs
                 def proxy(*args, **kwargs):
                     return self._call(method, args, kwargs)
+
+                # returns the function handle "self._call(method, args, kwargs)"
                 return proxy
 
+            # equivalent to self.method = make_proxy(method)
+            #                           = self._call(method, *args, **kwargs)
+            # ie.) self.moveToVantagePoint = function_handle of self._call(method, args, kwargs)
             setattr(self, method, make_proxy(method))
 
     def start(self):
@@ -138,24 +150,37 @@ class MotionManager:
         return True
 
 
-
+    # TODO: NEED TO UNDERSTAND THIS FUNCTION
     def _call(self, method, args, kwargs):
         # check that the control server is running
         if not self._check_control():
             return False
 
-        # request a robot state update
-        task = self.control.update()
+        # < 1. request a robot state update >
+        task = self.control.update()  # = MotionManager.control.update() = ControlServer(KB).update() = ControlServer._call(None,None,None)
+
+        # wait for task to finish, or time-out, using task.done as the condition for determining whether the task is completed, and 10s as timeout
         wait_task(task, lambda: task.done, 10)
         if task.error:
             logger.warn('robot state updated failed... planning from old state')
 
-        # map to the plan name
+        # < 2. Invoke the planner to plan for a task (plan_method) >
+        # map to the plan name (capitalize the first letter of the method: ie. blah --> planBlah)
         plan_method = 'plan' + method[0].upper() + method[1:]
 
         # invoke the planner
+        # task = PlanningServer.planBlah(*args, **kwargs)
+        #      = JobServer.planBlah(*args, **kwargs)
+        #      = JobServer._call(planBlah, *args, **kwargs)
+        #      = create, run and return JobManager(factory=lambda: self.factory(self.init_args, method, args, kwargs),
+        #                                          count=self.parallelism)
+        #      = create, run, and return JobManager(factory = function handle of PlanningJob(knowledgeBase, method, args, kwargs),
+        #                                           count = self.parallelism)
+        # JobManager.run creates a Process(target = _handler) in the BaseJob class
         task = getattr(self.planner, plan_method)(*args, **kwargs)
+
         target_plan_count = 3
+        # let the planner do its job, count number of successes
         # the failed wait is only a problem if no plans were returned so ignore its return value
         wait_task(task, lambda: task.count_success() >= target_plan_count or task.all_done(), 600)
         if task.count_success() == 0:
@@ -225,7 +250,7 @@ class Master:
         except IOError:
             logger.info("Object dimensions unknown, try filling in Object Dimensions.csv")
             pass
-        
+
 
         for k in [ 'bin_vantage_points', 'vantage_point_xforms', 'withdraw_point_xforms', 'bin_bounds' ]:
             path = os.path.join(knowledge_base_dir, '{}.json'.format(k))
@@ -249,7 +274,7 @@ class Master:
         for i,orderitem in enumerate(self.order):
             if orderitem['item'] in translation_to_berkeley:
                 self.order[i]['item'] = translation_to_berkeley[orderitem['item']]
-    
+
         # TODO: sort order by priority
 
     def _move_initial(self):
@@ -311,7 +336,7 @@ class Master:
         if task.count_success() == 0:
             logger.warn('could not find {} from {}'.format(target_object, vantage_point))
             return False
-        
+
         # update knowledge_base with localized object transform, point cloud, and confusion matrix
         (object_xform, object_cloud, confusion_matrix) = task.get_success()[0].result
         self.knowledge_base.object_xforms[target_object] = object_xform
@@ -342,7 +367,7 @@ class Master:
         if not object_found:
             logger.error('failed to find {} from any vantage point'.format(target_object))
             return False
-        
+
         return True
 
     def _grasp_object(self):

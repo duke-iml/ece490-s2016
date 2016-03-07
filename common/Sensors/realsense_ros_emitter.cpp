@@ -301,7 +301,7 @@ bool Loop::ReadPC(AnyCollection& msg,File& datastream)
 int main(int argc,char** argv)
 {
   const char* addr = "tcp://192.168.1.128:3457";
-  const char* rostopic_prefix = "/realsense";
+  const char* rostopic_prefix = "realsense";
   if(argc <= 1) {
     printf("USAGE: RealSense_ROS_Emitter tcp://SERVER_IP_ADDR:PORT\n");
     printf("   Running on %s by default\n",addr);
