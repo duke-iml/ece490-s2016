@@ -13,7 +13,11 @@
 typedef int BOOL;
 #endif
 
+#ifdef __cplusplus
 #define APIENTRY extern "C"
+#else
+#define APIENTRY 
+#endif
 
 ///Limb indices
 enum { LEFT=0, RIGHT=1, BOTH=2 };
