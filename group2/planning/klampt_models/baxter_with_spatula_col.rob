@@ -62,7 +62,8 @@ Tparent	1 0 0	0 1 0	0 0 1	0 0 0 \
 1 0 0	0 1 0	0 0 1	0.0947 0 0.817
 
 
-mount 22 "spatula.rob"     1 0 0 0 1 0   0 0 1   0 0.175 0.11 as "spatula"
+mount 22 "spatula.rob"     1 0 0 0 1 0   0 0 1   0 0.105 0.11 as "spatula"
+mount 45 "rethink_electric_gripper.rob"  0 -1 0   1 0 0   0 0 1    0 0 0 as "right_gripper"
 
 #uncomment these two lines and comment out the next two lines for free floating base
 
@@ -134,7 +135,13 @@ noselfcollision	44 47	44 49
 noselfcollision	45 47	45 49
 noselfcollision	47 49
 
+#spatula
 noselfcollision 23 54   23 55
+
+#right gripper
+noselfcollision 43 56
+#noselfcollision 42 57  42 58  42 59  43 57  43 58  43 59  44 57  44 58  44 59  45 58  45 59
+
 
 #"left_X_visual" and "right_X_visual" links
 noselfcollision 15 31  16 31 17 31 18 31  19 30  19 31 21 30  22 30   35 51  36 51 37 51   38 51  39 50  39 51 41 50  42 50

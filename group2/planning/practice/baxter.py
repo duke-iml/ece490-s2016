@@ -41,3 +41,21 @@ def set_model_gripper_command(robot,limb,command):
         print "Opening right gripper to",value
         robot.getDriver(17).setValue(value*0.03)
         robot.getDriver(18).setValue(-value*0.03)
+
+def set_model_spatula_command(robot,limb,command):
+    """Given the Baxter RobotModel 'robot' at its current configuration,
+    this will set the configuration so the gripper on limb 'limb' is
+    placed at the gripper command values 'command'.
+
+    Currently handles rethink parallel jaw gripper commands, range [0] (closed)
+    to [1] (open).
+    """
+    value = command[0]
+    if limb=='left':
+        print "Opening left gripper to",value
+        robot.getDriver(15).setValue(value*0.03)
+        robot.getDriver(16).setValue(-value*0.03)
+    else:
+        print "Opening right gripper to",value
+        robot.getDriver(17).setValue(value*0.03)
+        robot.getDriver(18).setValue(-value*0.03)
