@@ -45,7 +45,7 @@ class ControlJob(BaseJob):
 
         # send the initial controller state
         self.child_pipe.send((None, RobotState(self.controller)))
-        
+
         while True:
             # get the call information
             try:
@@ -111,7 +111,7 @@ class ControlJob(BaseJob):
         if self.pipe.poll():
             self._process_result()
             self._done = True
-            
+
             # extract the robot state and update the knowledge base
             if not self.error:
                 (self._result, self.knowledge_base.robot_state) = self.result
@@ -192,13 +192,14 @@ class ControlServer:
             self.safe_close()
             return None
 
-        # reset all the flags
+        # reset all the flags (done/result/error flags in BaseJob class in jobs.py)
         self.job.clear()
 
         logger.debug('{} {} {}'.format(method, args, kwargs))
         try:
             # perform the call
             # need to send an updated copy of the knowledge base
+            #
             self.job.pipe.send((self.knowledge_base, method, args, kwargs))
         except Exception as e:
             # so the child process is in an undefined state now
@@ -214,4 +215,4 @@ class ControlServer:
     @property
     def running(self):
         return self.job is not None and self.job.alive
-        
+

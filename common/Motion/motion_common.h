@@ -16,6 +16,7 @@ void* controller_thread_func(void* vdata)
   {
     ScopedLock lock(data->mutex);
     data->t=data->last_t=0;
+    data->lastUpdateSystemStateTime=0;
     data->startup = false;
     data->running = true;
   }
@@ -24,14 +25,14 @@ void* controller_thread_func(void* vdata)
   // printf("Ebolabot Motion: Running low-level control loop\n");
   Timer mytimer;
   while(!data->kill && !data->failure) {
+    data->last_t = data->t;
+    data->t = mytimer.ElapsedTime();
     //process sensors
     if(!data->MyProcessSensors()) {
       data->failure = true;
       stopMotion();
       break;
     }
-
-    data->t = mytimer.ElapsedTime();
 
     //update motion queue control loop, if using
     data->MyAdvanceController();
@@ -43,8 +44,7 @@ void* controller_thread_func(void* vdata)
     data->MyUpdateSystemStateService();
 
     //how much should we sleep?
-    double dt = data->t - data->last_t;
-    data->last_t = data->t;
+    double dt = mytimer.ElapsedTime() - data->t;
 
     if(dt < 0.005)
       ThreadSleep(0.005);
@@ -173,6 +173,7 @@ BOOL sendShutdown()
   sigIntHandler.sa_sigaction = 0;
 
   sigaction(SIGINT, &sigIntHandler, NULL);
+  printf("Motion Module: sendShutdown completed.\n");
 
   return true;
 }
@@ -193,7 +194,31 @@ BOOL stopMotion()
   printf("stopMotion() called, sending 0 velocity commands...\n");
   sendMobileBaseVelocity(0,0,0);
   vector<double> zeros(numLimbDofs*2,0.0);
-  sendLimbVelocity(BOTH,&zeros[0]);
+  if(gData.robotState.leftLimb.controlMode == LimbState::VELOCITY || gData.robotState.leftLimb.controlMode == LimbState::EFFORT) {
+    sendLimbVelocity(LEFT,&zeros[0]);
+  }
+  else {
+    if(gData.robotState.leftLimb.commandedConfig.size() != 7) {
+      printf("Weird, no commanded config on left arm?\n");
+      sendLimbVelocity(LEFT,&zeros[0]);
+    }
+    else {
+      //notice a droop whenever switching to velocity control mode
+      sendLimbPosition(LEFT,&gData.robotState.leftLimb.commandedConfig[0]);
+    }
+  }
+  if(gData.robotState.rightLimb.controlMode == LimbState::VELOCITY || gData.robotState.rightLimb.controlMode == LimbState::EFFORT) {
+    sendLimbVelocity(RIGHT,&zeros[0]);
+  }
+  else {
+    if(gData.robotState.rightLimb.commandedConfig.size() != 7) {
+      printf("Weird, no commanded config on right arm?\n");
+      sendLimbVelocity(RIGHT,&zeros[0]);
+    }
+    else {
+      sendLimbPosition(RIGHT,&gData.robotState.rightLimb.commandedConfig[0]);
+    }
+  }
   double dx=0,dy=0,dtheta=0;
 
   double veltol = 0.01;
@@ -201,9 +226,9 @@ BOOL stopMotion()
   printf("Waiting for motion to actually stop..."); fflush(stdout);
   while(--count > 0) {
     if(isMobileBaseEnabled())
-      getMobileBaseVelocity(&dx,&dy,&dtheta);
+      getMobileBaseCommandedVelocity(&dx,&dy,&dtheta);
     if(fabs(dx) < veltol && fabs(dy) < veltol && fabs(dtheta) < veltol) {
-      getLimbVelocity(BOTH,&zeros[0]);
+      getLimbCommandedVelocity(BOTH,&zeros[0]);
       bool stopped = true;
       for(size_t i=0;i<zeros.size();i++)
 	if(fabs(zeros[i]) > veltol ) {
@@ -674,6 +699,7 @@ APIENTRY BOOL getEndEffectorSensedTransform(int limb,double* rotation,double* po
     return 0;
   if(index < 0) return 0;
   ScopedLock lock(gData.mutex);
+  ScopedLock lock2(gData.robotMutex);
   gData.GetKlamptSensedConfig(gData.robotModel->q);
   //ignore base
   for(size_t i=0;i<gData.baseKlamptIndices.size();i++) {
@@ -701,6 +727,7 @@ APIENTRY BOOL getEndEffectorSensedVelocity(int limb,double* angVel,double* vel)
     return 0;
   if(index < 0) return 0;
   ScopedLock lock(gData.mutex);
+  ScopedLock lock2(gData.robotMutex);
   gData.GetKlamptSensedConfig(gData.robotModel->q);
   gData.GetKlamptSensedVelocity(gData.robotModel->dq);
   //ignore base
@@ -731,6 +758,7 @@ APIENTRY BOOL getEndEffectorCommandedTransform(int limb,double* rotation,double*
     return 0;
   if(index < 0) return 0;
   ScopedLock lock(gData.mutex);
+  ScopedLock lock2(gData.robotMutex);
   gData.GetKlamptCommandedConfig(gData.robotModel->q);
   //ignore base
   for(size_t i=0;i<gData.baseKlamptIndices.size();i++)
@@ -756,6 +784,7 @@ APIENTRY BOOL getEndEffectorCommandedVelocity(int limb,double* angVel,double* ve
   else 
     return 0;
   ScopedLock lock(gData.mutex);
+  ScopedLock lock2(gData.robotMutex);
   gData.GetKlamptCommandedConfig(gData.robotModel->q);
   gData.GetKlamptCommandedVelocity(gData.robotModel->dq);
   //ignore base
@@ -803,7 +832,10 @@ APIENTRY BOOL sendEndEffectorMoveTo(int limb,const double* rotation,const double
   //set bounds
   Robot* robot = gData.robotModel;
   Vector qmin,qmax;
-  gData.GetKlamptCommandedConfig(qmin);
+  {
+    ScopedLock lock(gData.mutex);
+    gData.GetKlamptCommandedConfig(qmin);
+  }
   qmax = qmin;
   for(size_t i=0;i<indices.size();i++) {
     qmax[indices[i]] += maxJointDeviation;
