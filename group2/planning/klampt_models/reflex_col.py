@@ -50,15 +50,28 @@ def commandToConfig(command):
     global swivel_links,proximal_links,distal_links
     global numDofs
     finger1,finger2,finger3,preshape = command
-    proxmin,proxmax = -0.34,2.83
+    #proxmin,proxmax = -0.34,2.83
+    #KH:new calibration 5/24/15, doesn't go all the way up to closure
+    proxmin,proxmax = -0.34,2.4
     preshapemax = 1.5708
+    #nonlinear warp: power curve
     q = [0.0]*numDofs
     q[swivel_links[0]] = preshapemax*(1-preshape)
     q[swivel_links[1]] = -preshapemax*(1-preshape)
     fingers = [finger1,finger2,finger3]
     for i in range(3):
+        fingers[i] = max(fingers[i],0.0)**(1.4)
+    for i in range(3):
         q[proximal_links[i]] = proxmax+fingers[i]*(proxmin-proxmax)
-        q[distal_links[i]] = 0#fingers[i]*1.9
+        if fingers[i] > 0.8: #in tension
+            q[distal_links[i]] = 0.24
+        else:
+            #not in tension
+            curve = max(0.0,1.0- (fingers[i] - 0.8)/0.2)
+            q[distal_links[i]] = curve*0.24
+        if q[proximal_links[i]] < 0:
+            #KH: New calibration 5/24/15, anything under 0 goes to 0
+            q[proximal_links[i]] = 0
     return q
 
 def configToCommand(config):
@@ -66,10 +79,14 @@ def configToCommand(config):
     closest command that corresponds to this configuration.  Essentially
     the inverse of commandToConfig(). 
     """
-    proxmin,proxmax = -0.34,2.83
+    #proxmin,proxmax = -0.34,2.83
+    #KH:new calibration 5/24/15, doesn't go all the way up to closure
+    proxmin,proxmax = -0.34,2.4
     preshapemax = 1.5708
     preshape = 1-(config[swivel_links[0]]-config[swivel_links[1]])*0.5/preshapemax
     fingers = [(config[proximal_links[i]]-proxmax)/(proxmin-proxmax) for i in range(3)]
+    for i in range(3):
+        fingers[i] = fingers[i]**(1.0/1.4)
     return fingers+[preshape]
 
 class HandModel:
