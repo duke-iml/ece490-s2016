@@ -229,7 +229,8 @@ public:
 
 
 ///Subclasses will fill this in with your own low-level controller data.
-///Make sure to lock the mutex properly!
+///Make sure to lock the mutex properly when changing controller data!
+///Make sure to lock the robot mutex properly when changing the robot model!
 struct ControllerUpdateData
 {
   ControllerUpdateData()
@@ -243,6 +244,7 @@ struct ControllerUpdateData
   void GetKlamptSensedVelocity(Vector& dqklampt) const;
   void GetKlamptCommandedConfig(Vector& qklampt) const;
   void GetKlamptCommandedVelocity(Vector& dqklampt) const;
+  void GetKlamptTargetConfig(Vector& qklampt) const;
 
   //planner interface helpers
   void OnWorldChange();
@@ -279,7 +281,7 @@ struct ControllerUpdateData
   ///Subclass does not need to fill this out
   virtual void MyUpdateSystemStateService();
 
-  Mutex mutex;
+  Mutex mutex,robotMutex;
   string systemStateAddr;
   bool startup,failure,running,kill;
   RobotState robotState;
@@ -630,6 +632,42 @@ void ControllerUpdateData::GetKlamptCommandedConfig(Vector& qklampt) const
     rightGripperMap.CommandToConfig(&robotState.rightGripper.positionCommand[0],&qklampt[0]);
 }
 
+void ControllerUpdateData::GetKlamptTargetConfig(Vector& qklampt) const
+{
+  if(!robotModel) return;
+  qklampt = robotModel->q;
+  if(!robotState.leftLimb.commandedConfig.empty()) {
+    Config q = robotState.leftLimb.commandedConfig;
+    if(robotState.leftLimb.motionQueueActive)
+      q = robotState.leftLimb.motionQueue.Endpoint();
+    for(size_t i=0;i<leftKlamptIndices.size();i++)
+      if(leftKlamptIndices[i] >= 0)
+  qklampt[leftKlamptIndices[i]] = q[i];
+  }
+  if(!robotState.rightLimb.commandedConfig.empty()) {
+    Config q = robotState.rightLimb.commandedConfig;
+    if(robotState.rightLimb.motionQueueActive)
+      q = robotState.rightLimb.motionQueue.Endpoint();
+    for(size_t i=0;i<rightKlamptIndices.size();i++)
+      if(rightKlamptIndices[i] >= 0)
+  qklampt[rightKlamptIndices[i]] = q[i];
+  }
+  if(robotState.base.enabled) {
+    Vector odo(3);
+    robotState.base.GetOdometryTarget(odo);
+    for(size_t i=0;i<baseKlamptIndices.size();i++)
+      if(baseKlamptIndices[i] >= 0) 
+        qklampt[baseKlamptIndices[i]] = odo[i];
+  }
+  if(headPanKlamptIndex >= 0)
+    qklampt[headPanKlamptIndex] = robotState.head.panTarget;
+
+  if(!leftGripperMap.name.empty() && !robotState.leftGripper.positionCommand.empty())
+    leftGripperMap.CommandToConfig(&robotState.leftGripper.positionCommand[0],&qklampt[0]);
+  if(!rightGripperMap.name.empty() && !robotState.rightGripper.positionCommand.empty())
+    rightGripperMap.CommandToConfig(&robotState.rightGripper.positionCommand[0],&qklampt[0]);
+}
+
 
 void ControllerUpdateData::GetKlamptCommandedVelocity(Vector& dqklampt) const
 {
@@ -699,8 +737,11 @@ void LimbState::Advance(Real dt,ControllerUpdateData* controller)
     controller->GetKlamptCommandedConfig(qmin);
     for(size_t i=0;i<controller->baseKlamptIndices.size();i++)
       qmin[controller->baseKlamptIndices[i]]=0;
-    robot->UpdateConfig(qmin);
-    RigidTransform originalTransform = robot->links[ee_index].T_World;
+    {
+      ScopedLock lock(controller->robotMutex);
+      robot->UpdateConfig(qmin);
+      RigidTransform originalTransform = robot->links[ee_index].T_World;
+    }
     qmax = qmin;
     for(size_t i=0;i<indices.size();i++) {
       qmax[indices[i]] += robot->velMax[indices[i]]*dt;
@@ -735,15 +776,17 @@ void LimbState::Advance(Real dt,ControllerUpdateData* controller)
     if(res) {
       //cout<<"  Solved limb position: "<<qlimb<<endl;
       //update achievedTransform
-      for(int i=0;i<qlimb.n;i++) {
-        assert(qmin[indices[i]]<=qlimb[i] && qlimb[i]<=qmax[indices[i]]);
-        robot->q[indices[i]] = qlimb[i];
+      {
+        ScopedLock lock(controller->robotMutex);
+        for(int i=0;i<qlimb.n;i++) {
+          assert(qmin[indices[i]]<=qlimb[i] && qlimb[i]<=qmax[indices[i]]);
+          robot->q[indices[i]] = qlimb[i];
+        }
+        robot->UpdateSelectedFrames(ee_index);
+        achievedTransform.R = robot->links[ee_index].T_World.R;
+        achievedTransform.t = robot->links[ee_index].T_World*endEffectorOffset;
+        //cout<<"  Solved limb transform: "<<achievedTransform.t<<endl;
       }
-      robot->UpdateSelectedFrames(ee_index);
-      achievedTransform.R = robot->links[ee_index].T_World.R;
-      achievedTransform.t = robot->links[ee_index].T_World*endEffectorOffset;
-      //cout<<"  Solved limb transform: "<<achievedTransform.t<<endl;
-      
       Real distance;
       //adjust drive transform along screw to minimize distance to the achieved transform      
       Vector3 trel = achievedTransform.t - driveTransform.t;
@@ -857,15 +900,18 @@ void LimbState::Advance(Real dt,ControllerUpdateData* controller)
     //compute gravity vector g
     Robot* robot = controller->robotModel;
     const vector<int>& indices = (limb==LEFT? controller->leftKlamptIndices : controller->rightKlamptIndices);
-    for(size_t i=0;i<indices.size();i++) 
-      robot->q[indices[i]] = commandedConfig[i];
-    int ee_index = robot->LinkIndex((limb==LEFT?klampt_left_ee_name:klampt_right_ee_name));
-    robot->UpdateSelectedFrames(ee_index);
-    Vector G;
-    robot->GetGravityTorques(Vector3(0,0,-9.8),G);
     Vector g((int)indices.size());
-    for(size_t i=0;i<indices.size();i++) 
-      g[i] = G[indices[i]];
+    {
+      ScopedLock lock(controller->robotMutex);
+      for(size_t i=0;i<indices.size();i++) 
+        robot->q[indices[i]] = commandedConfig[i];
+      int ee_index = robot->LinkIndex((limb==LEFT?klampt_left_ee_name:klampt_right_ee_name));
+      robot->UpdateSelectedFrames(ee_index);
+      Vector G;
+      robot->GetGravityTorques(Vector3(0,0,-9.8),G);
+      for(size_t i=0;i<indices.size();i++) 
+        g[i] = G[indices[i]];
+    }
     
     //compute calibrated command
     calib->ToCommand(qsense_extrap,sensedVelocity,g,qdesired,x);
@@ -917,8 +963,12 @@ void ControllerUpdateData::MyAdvanceController()
 
 void ControllerUpdateData::MyUpdateSystemStateService()
 {
-  if(!systemStateService.IsOpen()) return;
-  if(t < lastUpdateSystemStateTime + 1.0/updateSystemStateRate) return;
+  if(!systemStateService.IsOpen()) {
+    return;
+  }
+  if(t < lastUpdateSystemStateTime + 1.0/updateSystemStateRate) 
+    //printf("Waiting for update %g < %g\n",t,lastUpdateSystemStateTime + 1.0/updateSystemStateRate);
+    return;
   lastUpdateSystemStateTime = t;
 
   //provide feedback to the state service about the time
@@ -1068,30 +1118,33 @@ void ControllerUpdateData::MyUpdateSystemStateService()
     command["type"] = string("change");
     command["path"] = string(".controller.left");
     AnyCollection data;
-    double tstart = queue->CurTime();
-    double tend = queue->TimeRemaining()+tstart;
-    data["traj_t_end"] = tend;
-    //read out the path?
-    Config q;
-    Real dt = 0.05;
-    int istart=(int)Ceil(tstart/dt);
-    int iend=(int)Ceil(tend/dt);
-    AnyCollection path;
-    vector<double> times;
-    for(int i=istart;i<iend;i++) {
-      Real t=i*dt;
-      times.push_back(t);
-      queue->Eval(t,q,false);
-      path[i-istart] = vector<double>(q);
-    }
-    q = queue->Endpoint();
-    path[iend-istart] = vector<double>(q);
-    times.push_back(tend);
-    /*
+    {
+      ScopedLock lock(mutex);
+      double tstart = queue->CurTime();
+      double tend = queue->TimeRemaining()+tstart;
+      data["traj_t_end"] = tend;
+      //read out the path?
+      Config q;
+      Real dt = 0.05;
+      int istart=(int)Ceil(tstart/dt);
+      int iend=(int)Ceil(tend/dt);
+      AnyCollection path;
+      vector<double> times;
+      for(int i=istart;i<iend;i++) {
+        Real t=i*dt;
+        times.push_back(t);
+        queue->Eval(t,q,false);
+        path[i-istart] = vector<double>(q);
+      }
+      q = queue->Endpoint();
+      path[iend-istart] = vector<double>(q);
+      times.push_back(tend);
+      /*
       data["traj"]["milestones"] = path;
       data["traj"]["times"] = times;
-    */
-    data["traj_q_end"] = vector<double>(q);
+      */
+      data["traj_q_end"] = vector<double>(q);
+    }
     command["data"] = data;
     bool res=SSPP::Send(systemStateService,command);
     Assert(res);
@@ -1111,30 +1164,33 @@ void ControllerUpdateData::MyUpdateSystemStateService()
     command["type"] = string("change");
     command["path"] = string(".controller.right");
     AnyCollection data;
-    double tstart = queue->CurTime();
-    double tend = queue->TimeRemaining()+tstart;
-    data["traj_t_end"] = tend;
-    //read out the path?
-    Config q;
-    Real dt = 0.05;
-    int istart=(int)Ceil(tstart/dt);
-    int iend=(int)Ceil(tend/dt);
-    AnyCollection path;
-    vector<double> times;
-    for(int i=istart;i<iend;i++) {
-      Real t=i*dt;
-      times.push_back(t);
-      queue->Eval(t,q,false);
-      path[i-istart] = vector<double>(q);
+    {
+      ScopedLock lock(mutex);
+      double tstart = queue->CurTime();
+      double tend = queue->TimeRemaining()+tstart;
+      data["traj_t_end"] = tend;
+      //read out the path?
+      Config q;
+      Real dt = 0.05;
+      int istart=(int)Ceil(tstart/dt);
+      int iend=(int)Ceil(tend/dt);
+      AnyCollection path;
+      vector<double> times;
+      for(int i=istart;i<iend;i++) {
+        Real t=i*dt;
+        times.push_back(t);
+        queue->Eval(t,q,false);
+        path[i-istart] = vector<double>(q);
+      }
+      q = queue->Endpoint();
+      path[iend-istart] = vector<double>(q);
+      times.push_back(tend);
+      /*
+        data["traj"]["milestones"] = path;
+        data["traj"]["times"] = times;
+      */
+      data["traj_q_end"] = vector<double>(q);
     }
-    q = queue->Endpoint();
-    path[iend-istart] = vector<double>(q);
-    times.push_back(tend);
-    /*
-      data["traj"]["milestones"] = path;
-      data["traj"]["times"] = times;
-    */
-    data["traj_q_end"] = vector<double>(q);
     command["data"] = data;
     bool res=SSPP::Send(systemStateService,command);
     Assert(res);
@@ -1151,6 +1207,7 @@ void ControllerUpdateData::MyUpdateSystemStateService()
 
   //provide feedback about the end effectors
   if(robotModel != NULL) {
+    ScopedLock lock(robotMutex);
     int ee[2] = {robotModel->LinkIndex(klampt_left_ee_name),robotModel->LinkIndex(klampt_right_ee_name)};
     AnyCollection data;
     data.resize(2);
@@ -1159,6 +1216,14 @@ void ControllerUpdateData::MyUpdateSystemStateService()
       robotModel->q[baseKlamptIndices[i]]=0;
     robotModel->UpdateFrames();
     Vector3 ofs[2] = {robotState.leftLimb.endEffectorOffset,robotState.rightLimb.endEffectorOffset};
+    for(int i=0;i<2;i++) {
+      AnyCollection tcp;
+      tcp.resize(3);
+      tcp[0] = ofs[i].x;
+      tcp[1] = ofs[i].y;
+      tcp[2] = ofs[i].z;
+      data[i]["toolCenterPoint"] = tcp;
+    }
     for(int i=0;i<2;i++) {
       AnyCollection xform;
       vector<double> R(9);
@@ -1185,13 +1250,53 @@ void ControllerUpdateData::MyUpdateSystemStateService()
       xform[1] = t;
       data[i]["xform"]["commanded"] = xform;
     }
-    //TODO: trajectory destination
+    //trajectory destinations
+    if(robotState.leftLimb.motionQueueActive) {
+      PolynomialMotionQueue* queue = &robotState.leftLimb.motionQueue;
+      Config q=queue->Endpoint();
+      for(size_t i=0;i<leftKlamptIndices.size();i++)
+        robotModel->q[leftKlamptIndices[i]] = q[i];
+      robotModel->UpdateSelectedFrames(ee[0]);
+      AnyCollection xform;
+      vector<double> R(9);
+      vector<double> t(3);
+      robotModel->links[ee[0]].T_World.R.get(&R[0]);
+      (robotModel->links[ee[0]].T_World*ofs[0]).get(&t[0]);
+      xform.resize(2);
+      xform[0] = R;
+      xform[1] = t;
+      data[0]["xform"]["destination"] = xform;
+    }
+    else
+      data[0]["xform"]["destination"] = data[0]["xform"]["commanded"];
+    if(robotState.rightLimb.motionQueueActive) {
+      PolynomialMotionQueue* queue = &robotState.rightLimb.motionQueue;
+      Config q=queue->Endpoint();
+      for(size_t i=0;i<rightKlamptIndices.size();i++)
+        robotModel->q[rightKlamptIndices[i]] = q[i];
+      robotModel->UpdateSelectedFrames(ee[1]);
+      AnyCollection xform;
+      vector<double> R(9);
+      vector<double> t(3);
+      robotModel->links[ee[1]].T_World.R.get(&R[0]);
+      (robotModel->links[ee[1]].T_World*ofs[0]).get(&t[0]);
+      xform.resize(2);
+      xform[0] = R;
+      xform[1] = t;
+      data[1]["xform"]["destination"] = xform;
+    }
+    else
+      data[1]["xform"]["destination"] = data[1]["xform"]["commanded"];
+
     AnyCollection command;
     command["type"] = string("set");
     command["path"] = string(".robot.endEffectors");
     command["data"] = data;
     bool res=SSPP::Send(systemStateService,command);
-    Assert(res);
+    if(!res) {
+      printf("Warning: could not send to system state service, state server may have crashed?\n");
+      printf("Socket open: %d\n",(int)systemStateService.IsOpen());
+    }
   }
 }
 
@@ -1459,6 +1564,7 @@ void ControllerUpdateData::SetLimbGovernor(int limb,int governor)
       robotState.leftLimb.motionQueueActive = false;
 
     if(governor == LimbState::EndEffectorDrive) {
+      ScopedLock lock(robotMutex);
       //begin drive mode
       double R[9];
       Vector3 t;
@@ -1497,6 +1603,7 @@ void ControllerUpdateData::SetLimbGovernor(int limb,int governor)
 
     if(governor == LimbState::EndEffectorDrive) {
       //begin drive mode
+      ScopedLock lock(robotMutex);
       double R[9];
       Vector3 t;
       GetKlamptCommandedConfig(robotModel->q);
@@ -1560,7 +1667,9 @@ bool ControllerUpdateData::SolveIK(int limb,const RigidTransform& T,const Vector
   Matrix J,Jlimb;
 
   if(doLock) mutex.lock();
-  GetKlamptCommandedConfig(robotModel->q);
+  robotMutex.lock();
+  //GetKlamptCommandedConfig(robotModel->q);
+  GetKlamptTargetConfig(robotModel->q);
   for(size_t i=0;i<baseKlamptIndices.size();i++)
     robotModel->q[baseKlamptIndices[i]] = 0;
   //GetKlamptCommandedVelocity(robotModel->dq);
@@ -1587,6 +1696,12 @@ bool ControllerUpdateData::SolveIK(int limb,const RigidTransform& T,const Vector
   //printf("Position scale %g, rotation scale %g\n",goalfunc->positionScale,goalfunc->rotationScale);
   function.functions.push_back(goalfunc);
   function.activeDofs.mapping = *limbIndices;
+
+  Vector x0(limbIndices->size()),err0(6);
+  function.GetState(x0);
+  function(x0,err0);
+  Real quality0 = err0.normSquared();
+
   Real tolerance = Min(1e-6,Min(positionTolerance,rotationTolerance)/Sqrt(3.0));
   int iters = 100;
   int verbose = 0;
@@ -1610,18 +1725,30 @@ bool ControllerUpdateData::SolveIK(int limb,const RigidTransform& T,const Vector
   }
   //bool res = ::SolveIK(function,tolerance,iters,verbose);
   KlamptToLimb(robotModel->q,limb,limbJointPositions);
-  //test
-  Vector3 perr,rerr;
-  goal.GetError(robotModel->links[index].T_World,perr,rerr);
-  if(perr.norm() < positionTolerance && rerr.norm() < rotationTolerance)
-    res = true;
-  else {
+
+  //now evaluate quality of the solve
+  function.GetState(x0);
+  function(x0,err0);
+  Real qualityAfter = err0.normSquared();
+  if(qualityAfter > quality0) {
+    printf("Solve failed: original configuration was better\n");
     res = false;
-    printf("Position error: %g, rotation error: %g not under tolerances %g, %g\n",perr.norm(),rerr.norm(),positionTolerance,rotationTolerance);
-    printf("Solve tolerance %g, result %d\n",tolerance,(int)res);
+  }
+  else {
+    //test
+    Vector3 perr,rerr;
+    goal.GetError(robotModel->links[index].T_World,perr,rerr);
+    if(perr.norm() < positionTolerance && rerr.norm() < rotationTolerance)
+      res = true;
+    else {
+      res = false;
+      printf("Position error: %g, rotation error: %g not under tolerances %g, %g\n",perr.norm(),rerr.norm(),positionTolerance,rotationTolerance);
+      printf("Solve tolerance %g, result %d\n",tolerance,(int)res);
+    }
   }
 
   if(doLock) mutex.unlock();
+  robotMutex.unlock();
   return res;
 }
 
@@ -1648,7 +1775,9 @@ bool ControllerUpdateData::SolveIK(int limb,const Vector3& pos,const Vector& qmi
   Matrix J,Jlimb;
 
   if(doLock) mutex.lock();
-  GetKlamptCommandedConfig(robotModel->q);
+  robotMutex.lock();
+  //GetKlamptCommandedConfig(robotModel->q);
+  GetKlamptTargetConfig(robotModel->q);
   for(size_t i=0;i<baseKlamptIndices.size();i++)
     robotModel->q[baseKlamptIndices[i]] = 0;
   //GetKlamptCommandedVelocity(robotModel->dq);
@@ -1658,6 +1787,11 @@ bool ControllerUpdateData::SolveIK(int limb,const Vector3& pos,const Vector& qmi
   goal.SetFreeRotation();
   goal.localPosition = offset;
   goal.SetFixedPosition(pos);
+
+  //evaluate start point
+  Vector3 perr,rerr;
+  goal.GetError(robotModel->links[index].T_World,perr,rerr);
+  Real quality0 = perr.normSquared();
   RobotIKFunction function(*robotModel);
   function.UseIK(goal);
   function.activeDofs.mapping = *limbIndices;
@@ -1674,17 +1808,24 @@ bool ControllerUpdateData::SolveIK(int limb,const Vector3& pos,const Vector& qmi
   //bool res = ::SolveIK(function,tolerance,iters,verbose);
   KlamptToLimb(robotModel->q,limb,limbJointPositions);
 
-  //test
-  Vector3 perr,rerr;
+  //now evaluate quality of the solve
   goal.GetError(robotModel->links[index].T_World,perr,rerr);
-  if(perr.norm() < positionTolerance)
-    res = true;
-  else {
+  Real qualityAfter = perr.normSquared();
+  if(qualityAfter > quality0) {
+    printf("Solve failed: original configuration was better\n");
     res = false;
-    printf("Position error: %g not under tolerance %g\n",perr.norm(),positionTolerance);
+  }
+  else {
+    if(perr.norm() < positionTolerance)
+      res = true;
+    else {
+      res = false;
+      printf("Position error: %g not under tolerance %g\n",perr.norm(),positionTolerance);
+    }
   }
 
   if(doLock) mutex.unlock();
+  robotMutex.unlock();
   return res;
 }
 
@@ -1711,6 +1852,7 @@ bool ControllerUpdateData::SolveIKVelocity(int limb,const Vector3& angVel,const 
   Matrix J,Jlimb;
 
   if(doLock) mutex.lock();
+  robotMutex.lock();
   GetKlamptCommandedConfig(robotModel->q);
   GetKlamptCommandedVelocity(robotModel->dq);
   for(size_t i=0;i<baseKlamptIndices.size();i++) {
@@ -1719,6 +1861,7 @@ bool ControllerUpdateData::SolveIKVelocity(int limb,const Vector3& angVel,const 
   }
   robotModel->UpdateSelectedFrames(index);
   robotModel->GetFullJacobian(offset,index,J);
+  robotMutex.unlock();
   if(doLock) mutex.unlock();
 
   Jlimb.resize(6,limbIndices->size());
@@ -1772,6 +1915,7 @@ bool ControllerUpdateData::SolveIKVelocity(int limb,const Vector3& vel,Vector& l
   Matrix J,Jlimb;
 
   if(doLock) mutex.lock();
+  robotMutex.lock();
   GetKlamptCommandedConfig(robotModel->q);
   GetKlamptCommandedVelocity(robotModel->dq);
   for(size_t i=0;i<baseKlamptIndices.size();i++) {
@@ -1781,6 +1925,7 @@ bool ControllerUpdateData::SolveIKVelocity(int limb,const Vector3& vel,Vector& l
   robotModel->UpdateSelectedFrames(index);
   robotModel->GetPositionJacobian(offset,index,J);
   if(doLock) mutex.unlock();
+  robotMutex.unlock();
 
   Jlimb.resize(3,limbIndices->size());
   for(int i=0;i<limbIndices->size();i++)
