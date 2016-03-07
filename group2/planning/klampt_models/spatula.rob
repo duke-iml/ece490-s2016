@@ -1,24 +1,43 @@
-links	"spatula"
+links "base" "tray"
 
-parents	-1
+#set the narrowest opening width here
+TParent 1 0 0   0 1 0   0 0 1    0 0 0 \
+        1 0 0   0 1 0   0 0 1    0 0 0 \
 
-axis	0 0 1
 
-jointtype	r
+parents -1 0
 
-Tparent	1 0 0	0 1 0	0 0 1	0 0 0
+jointtype p p
 
-qmin	0
-qmax	0
-geometry	"spatula_klampt.stl"
+axis 0 0 1    0 0 1
 
-mass	0
+#control the amount of movement here
+qmin 0 0.0036
+qmax 0 0.204
+velmax 0 0.2
+accmax 0 0.5
+torquemax 0 20
+
+geometry "spatula_klampt_part1.STL" "spatula_klampt_part2.STL"
+
+
+geomtransform  0       0 0.001 0 0          -0.001 0 0 0         0 0 0.001 0
+geomtransform  1       0 0.001 0 0.0326     -0.001 0 0 -0.0285   0 0 0.001 0
+
+mass 0.25 0.1
 automass
 
-torquemax	0
-velmax	0
+noselfcollision 0 1
 
-accmax	0
+joint weld 0
+joint normal 1
 
-joint normal 0
 
+driver normal 1
+
+
+servoP 500
+servoI 0
+servoD 0
+dryFriction 0.1
+viscousFriction 1
