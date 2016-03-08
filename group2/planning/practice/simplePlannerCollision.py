@@ -319,7 +319,7 @@ class FakeLowLevelController:
         self.lastCommandTime = time.time()
         self.lock.release()
 
-# TODO
+
 class PickingController:
     """Maintains the robot's knowledge base and internal state.  Most of
     your code will go here.  Members include:

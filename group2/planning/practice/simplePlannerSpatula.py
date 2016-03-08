@@ -661,6 +661,12 @@ if __name__ == "__main__":
     f.close()
     world.robot(0).setConfig(baxter_rest_config)
 
+    # Add initial joint values to additional joints
+    n = world.robot(0).numLinks()
+    if len(baxter_rest_config) < n:
+        baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
+    world.robot(0).setConfig(baxter_rest_config)
+
     # Orient bin boxes correctly w.r.t. the shelf
     ground_truth_shelf_xform = world.rigidObject(0).getTransform()
     R = so3.mul(apc.Xto_Z,ground_truth_shelf_xform[0])

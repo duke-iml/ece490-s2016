@@ -21,9 +21,9 @@ from operator import itemgetter
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 1
+NO_SIMULATION_COLLISIONS = 0
 #Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 1
+FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
 
 # The path of the klampt_models directory
@@ -157,7 +157,7 @@ class KnowledgeBase:
     def bin_vantage_point(self,bin_name):
         world_center = self.bin_front_center(bin_name)
         # Vantage point has 20cm offset from bin center
-        world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0,0.2])
+        world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.1,0.35])
         return vectorops.add(world_center,world_offset)
 
     def grasp_xforms(self,object):
@@ -319,7 +319,7 @@ class FakeLowLevelController:
         self.lastCommandTime = time.time()
         self.lock.release()
 
-# TODO
+
 class PickingController:
     """Maintains the robot's knowledge base and internal state.  Most of
     your code will go here.  Members include:
@@ -1238,6 +1238,7 @@ def load_apc_world():
     # print "Loading full Baxter model (be patient, this will take a minute)..."
     # world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
+    # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
     print "Loading Kiva pod model..."
     world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
@@ -1250,7 +1251,7 @@ def load_apc_world():
     world.robot(0).setConfig(world.robot(0).getConfig())
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
-    reorient = ([1,0,0,0,0,1,0,-0.75,0],[0,0.0,0.1])
+    reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,0])
     T = reorient
     world.terrain(0).geometry().transform(*se3.mul(Trel,T))
@@ -1266,7 +1267,7 @@ def load_baxter_only_world():
     """Produces a world with only the Baxter in it."""
     world = robotsim.WorldModel()
     print "Loading simplified Baxter model..."
-    world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
 
     #shift the Baxter up a bit (95cm)
     Rbase,tbase = world.robot(0).link(0).getParentTransform()
@@ -1322,12 +1323,12 @@ def spawn_objects_from_ground_truth(world):
         t = [t[0], t[1], t[2]+0.0075]
         obj.setTransform(item.xform[0],t)
 
-        # if i==1:
-        #     obj.setTransform(so3.identity(), [ 2, 2, 2])
-        # elif i==2:
-        #     obj.setTransform(so3.identity(), [-2,-2, 2])
-        # else:
-        #     obj.setTransform(so3.identity(), [ 2,-2, 2])
+        #if i==1:
+        #    obj.setTransform(so3.identity(), [ 2, 2, 2])
+        #elif i==2:
+        #    obj.setTransform(so3.identity(), [-2,-2, 2])
+        #else:
+        #    obj.setTransform(so3.identity(), [ 2,-2, 2])
     return
 
 def myCameraSettings(visualizer):
@@ -1359,10 +1360,16 @@ if __name__ == "__main__":
 
     #load the resting configuration from klampt_models/baxter_rest.config
     # global baxter_rest_config
-    f = open(model_dir+'baxter_with_parallel_gripper_rest.config','r')
+    f = open(model_dir+'baxter_rest.config','r')
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
     simworld.robot(0).setConfig(baxter_rest_config)
+
+    # Add initial joint values to additional joints
+    n = world.robot(0).numLinks()
+    if len(baxter_rest_config) < n:
+        baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
+    world.robot(0).setConfig(baxter_rest_config)
 
     #run the visualizer
     visualizer = MyGLViewer(simworld,world)
