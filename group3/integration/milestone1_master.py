@@ -36,6 +36,7 @@ class Milestone1Master:
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
         self.Tcamera = se3.identity()
+        self.Tvacuum = se3.identity()
         self.object_com = [0, 0, 0]
         self.points = []
 
@@ -53,7 +54,7 @@ class Milestone1Master:
             for j in self.right_arm_indices:
                 q[j] = random.uniform(qmin[j],qmax[j])
             #goal = ik.objective(self.right_gripper_link,local=[vectorops.sub(right_gripper_center_xform[1],[0,0,0.1]),right_gripper_center_xform[1]],world=[vectorops.add(target,[0,0,0.1]),target])
-            goal = ik.objective(self.right_gripper_link,local=RIGHT_GRIPPER_CENTER_XFORM[1],world=right_target)
+            goal = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
             if ik.solve(goal,tol=0.1):
                 return True
         print "right_arm_ik failed for ", right_target
@@ -66,7 +67,7 @@ class Milestone1Master:
         self.loop()
 
     def drawStuff(self):
-        # gldraw.xform_widget(self.Tcamera,0.1,0.01)
+        gldraw.xform_widget(self.Tvacuum,0.1,0.01)
         glPointSize(5.0)
         glBegin(GL_POINTS)
         for point in self.points[::100]:
@@ -80,10 +81,11 @@ class Milestone1Master:
             while True:
                 print self.state
                 self.load_real_robot_state()
-                self.Tcamera = se3.mul(self.robotModel.link('right_lower_elbow').getTransform(), RIGHT_F200_CAMERA_XFORM)
+                self.Tcamera = se3.mul(self.robotModel.link('right_lower_elbow').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
+                self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
                 if self.state == 'CUSTOM_CODE':
-                    pass
+                    print self.Tvacuum
 
                 if self.state == 'START':
                     print "Moving left limb to 0"
@@ -92,7 +94,8 @@ class Milestone1Master:
                 if self.state == 'MOVING_LEFT_TO_0':
                     if not motion.robot.left_mq.moving():
                         print "Moving right limb to 0"
-                        motion.robot.right_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
+                        motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_1)
+                        motion.robot.right_mq.appendLinear(3, [0, 0, 0, 0, 0, 0, 0])
                         self.state = 'MOVING_RIGHT_TO_0'
                 if self.state == 'MOVING_RIGHT_TO_0':
                     if not motion.robot.right_mq.moving():
@@ -104,7 +107,8 @@ class Milestone1Master:
                     self.state = 'MOVING_SPATULA_TO_BIN'
                 if self.state == 'MOVING_SPATULA_TO_BIN':
                     if not motion.robot.left_mq.moving() and not motion.robot.right_mq.moving():
-                        self.state = 'WAITING_TO_SCAN_BIN'
+                        #self.state = 'WAITING_TO_SCAN_BIN'
+                        self.state = 'MOVING_TO_GRASP_OBJECT'
                 if self.state == 'WAITING_TO_SCAN_BIN':
                     time.sleep(4) # TODO Convert this to be non-blocking
                     self.state = 'SCANNING_BIN'
@@ -121,9 +125,14 @@ class Milestone1Master:
                     # self.state = 'MOVING_TO_GRASP_OBJECT'
                     self.state = 'DO_NOTHING'
                 if self.state == 'MOVING_TO_GRASP_OBJECT':
+                    motion.robot.right_mq.appendLinear(3, [0.679553488256836, -1.1125195651428224, -0.054456317907714845, 1.96349540625, -0.9924855686279298, -0.9349612891479493, 0.0])
+                    #TODO remove
+                    self.object_com = [0.9843122087425558, -0.006518608357828026, 1.1462877367154443]
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
-                        motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+                        print destination
+                        time.sleep(5000)
+                        #motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
                     else:
                         print "Couldn't move there"
 
