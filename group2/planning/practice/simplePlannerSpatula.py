@@ -632,6 +632,7 @@ if __name__ == "__main__":
     print "\n<Loading simplified Baxter model...>"
     # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
+    # world.loadElement(os.path.join(model_dir,"baxter_with_reflex_gripper_col.rob"))
 
     # Load the shelves
     # NOTE: world.loadRigidObject(~) works too because the shelf model is a rigid object

@@ -1317,13 +1317,17 @@ def spawn_objects_from_ground_truth(world):
         simgeometry = obj.geometry()
         load_item_geometry(item,simgeometry)
 
-        # obj.setTransform(item.xform[0],item.xform[1])
-        if i==1:
-            obj.setTransform(so3.identity(), [ 2, 2, 2])
-        elif i==2:
-            obj.setTransform(so3.identity(), [-2,-2, 2])
-        else:
-            obj.setTransform(so3.identity(), [ 2,-2, 2])
+        # Spawn objects a little bit higher than bin floor
+        t = item.xform[1]
+        t = [t[0], t[1], t[2]+0.0075]
+        obj.setTransform(item.xform[0],t)
+
+        # if i==1:
+        #     obj.setTransform(so3.identity(), [ 2, 2, 2])
+        # elif i==2:
+        #     obj.setTransform(so3.identity(), [-2,-2, 2])
+        # else:
+        #     obj.setTransform(so3.identity(), [ 2,-2, 2])
     return
 
 def myCameraSettings(visualizer):
