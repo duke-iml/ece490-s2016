@@ -13,7 +13,7 @@ from OpenGL.GL import *
 from planning.MyGLViewer import MyGLViewer
 from util.constants import *
 from Motion import motion
-from perception.pc import PCProcessor
+from perception import perception
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
 import sensor_msgs.point_cloud2 as pc2
@@ -26,9 +26,6 @@ class Milestone1Master:
         self.robotModel = world.robot(0)
         self.state = INITIAL_STATE
         self.config = self.robotModel.getConfig()
-        self.keep_subscribing = True
-        self.right_camera_link = self.robotModel.link(RIGHT_CAMERA_LINK_NAME)
-        self.right_gripper_link = self.robotModel.link(RIGHT_GRIPPER_LINK_NAME)
         self.left_arm_links = [self.robotModel.link(i) for i in LEFT_ARM_LINK_NAMES]
         self.right_arm_links = [self.robotModel.link(i) for i in RIGHT_ARM_LINK_NAMES]
         id_to_index = dict([(self.robotModel.link(i).getID(),i) for i in range(self.robotModel.numLinks())])
@@ -87,65 +84,54 @@ class Milestone1Master:
                 if self.state == 'CUSTOM_CODE':
                     print self.Tvacuum
 
-                if self.state == 'START':
-                    print "Moving left limb to 0"
+                elif self.state == 'START':
                     motion.robot.left_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
                     self.state = 'MOVING_LEFT_TO_0'
-                if self.state == 'MOVING_LEFT_TO_0':
+                elif self.state == 'MOVING_LEFT_TO_0':
                     if not motion.robot.left_mq.moving():
-                        print "Moving right limb to 0"
                         motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_1)
                         motion.robot.right_mq.appendLinear(3, [0, 0, 0, 0, 0, 0, 0])
                         self.state = 'MOVING_RIGHT_TO_0'
-                if self.state == 'MOVING_RIGHT_TO_0':
+                elif self.state == 'MOVING_RIGHT_TO_0':
                     if not motion.robot.right_mq.moving():
                         motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_1)
                         motion.robot.right_mq.appendLinear(3, Q_SCAN_BIN)
                         self.state = 'MOVING_TO_SCAN_BIN'
-                if self.state == 'MOVING_TO_SCAN_BIN':
-                    motion.robot.left_mq.setLinear(3, Q_SPATULA_AT_BIN)
-                    self.state = 'MOVING_SPATULA_TO_BIN'
-                if self.state == 'MOVING_SPATULA_TO_BIN':
-                    if not motion.robot.left_mq.moving() and not motion.robot.right_mq.moving():
-                        #self.state = 'WAITING_TO_SCAN_BIN'
+                elif self.state == 'MOVING_TO_SCAN_BIN':
+                    if not motion.robot.right_mq.moving():
+                        self.wait_start_time = time.time()
+                        self.state = 'WAITING_TO_SCAN_BIN'
+                elif self.state == 'WAITING_TO_SCAN_BIN':
+                    if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
+                        self.state = 'FAKE_SCANNING_BIN'
+                elif self.state == 'SCANNING_BIN':
+                    cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
+                    if perception.isCloudValid(cloud):
+                        # These are in the camera frame
+                        self.points, self.object_com = perception.getObjectCOM(cloud)
                         self.state = 'MOVING_TO_GRASP_OBJECT'
-                if self.state == 'WAITING_TO_SCAN_BIN':
-                    time.sleep(4) # TODO Convert this to be non-blocking
-                    self.state = 'SCANNING_BIN'
-                if self.state == 'SCANNING_BIN':
-                    cloud_is_good = False
-                    while not cloud_is_good:
-                        cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
-                        for point in pc2.read_points(cloud, skip_nans=True):
-                            cloud_is_good = True
-                            break
-                    self.points, self.object_com = PCProcessor().getObjectCOM(cloud)
-                    print len(self.points)
-                    # DANGER THESE ARE IN CAMERA FRAME
-                    # self.state = 'MOVING_TO_GRASP_OBJECT'
-                    self.state = 'DO_NOTHING'
-                if self.state == 'MOVING_TO_GRASP_OBJECT':
-                    motion.robot.right_mq.appendLinear(3, [0.679553488256836, -1.1125195651428224, -0.054456317907714845, 1.96349540625, -0.9924855686279298, -0.9349612891479493, 0.0])
-                    #TODO remove
+                    else:
+                        print "Got an invalid cloud, trying again"
+                elif self.state == 'FAKE_SCANNING_BIN':
                     self.object_com = [0.9843122087425558, -0.006518608357828026, 1.1462877367154443]
+                    self.points = [self.object_com]
+                    self.state = 'MOVING_TO_GRASP_OBJECT'
+                elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
-                        print destination
-                        time.sleep(5000)
-                        #motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+                        motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
                     else:
                         print "Couldn't move there"
+                elif self.state == 'DONE':
+                    pass
+                else:
+                    print "Unknown state"
 
 
                 time.sleep(1)
         except KeyboardInterrupt:
             motion.robot.stopMotion()
-
-        # Code snippets for the future
-        # print se3.apply(self.robotModel.link('right_wrist').getTransform(), [1, 0, 0])
-        # self.right_arm_ik([.5, -.25, 1])
-        # destination = self.robotModel.getConfig()
-        # motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+            sys.exit(0)
 
 def setupWorld():
     world = WorldModel()
