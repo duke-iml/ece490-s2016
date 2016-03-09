@@ -52,7 +52,7 @@ class Milestone1Master:
                 q[j] = random.uniform(qmin[j],qmax[j])
             #goal = ik.objective(self.right_gripper_link,local=[vectorops.sub(right_gripper_center_xform[1],[0,0,0.1]),right_gripper_center_xform[1]],world=[vectorops.add(target,[0,0,0.1]),target])
             goal = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
-            if ik.solve(goal,tol=0.1):
+            if ik.solve(goal,tol=0.0001):
                 return True
         print "right_arm_ik failed for ", right_target
         return False
@@ -82,7 +82,7 @@ class Milestone1Master:
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
                 if self.state == 'CUSTOM_CODE':
-                    print self.Tvacuum
+                    print se3.apply(self.Tvacuum, [0, 0, 0])
 
                 elif self.state == 'START':
                     motion.robot.left_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
@@ -113,17 +113,23 @@ class Milestone1Master:
                     else:
                         print "Got an invalid cloud, trying again"
                 elif self.state == 'FAKE_SCANNING_BIN':
-                    self.object_com = [0.9843122087425558, -0.006518608357828026, 1.1462877367154443]
+                    self.object_com = [1.16, -0.04, 1.17]
                     self.points = [self.object_com]
+                    #q_cmd = [0.728640873413086, -0.8540438026794435, 0.22587867075805665, 1.7330147931335451, -0.29644178692016604, -0.7086991231933594, 0.06327670742797852]
+                    #motion.robot.right_mq.setLinear(3, q_cmd)
                     self.state = 'MOVING_TO_GRASP_OBJECT'
-                elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
                         motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+                        self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print "Couldn't move there"
+                elif self.state == 'MOVING_TO_GRASP_OBJECT':
+                    if not motion.robot.right_mq.moving():
+                        self.state = 'DONE'
                 elif self.state == 'DONE':
-                    pass
+                    print "desired COM: ", self.object_com
+                    print "actual vacuum point: ", se3.apply(self.Tvacuum, [0, 0, 0])
                 else:
                     print "Unknown state"
 
