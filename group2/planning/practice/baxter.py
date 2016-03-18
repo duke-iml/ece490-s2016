@@ -20,8 +20,13 @@ left_arm_link_names = ['left_upper_shoulder','left_lower_shoulder','left_upper_e
 right_arm_link_names = ['right_upper_shoulder','right_lower_shoulder','right_upper_elbow','right_lower_elbow','right_upper_forearm','right_lower_forearm','right_wrist']
 
 #local transformations (rotation, translation pairs) of the grasp center
-left_gripper_center_xform = (so3.from_axis_angle(((0,0,1),math.pi*0.5)),[0,0.0,0.11])
+
+# gripper
+# left_gripper_center_xform = (so3.from_axis_angle(((0,0,1),math.pi*0.5)),[0,0.0,0.11])
 right_gripper_center_xform = (so3.from_axis_angle(((0,0,1),math.pi*0.5)),[0,0.0,0.11])
+
+#spatula
+left_gripper_center_xform = (so3.from_axis_angle(((0,0,1),math.pi*0.5)),[0.025,0,0.31])
 
 
 def set_model_gripper_command(robot,limb,command):
@@ -35,12 +40,11 @@ def set_model_gripper_command(robot,limb,command):
     value = command[0]
     if limb=='left':
         print "Opening left gripper to",value
-        robot.getDriver(15).setValue(value*0.03)
-        robot.getDriver(16).setValue(-value*0.03)
+        robot.driver(15).setValue(value*0.2)
     else:
         print "Opening right gripper to",value
-        robot.getDriver(17).setValue(value*0.03)
-        robot.getDriver(18).setValue(-value*0.03)
+        robot.driver(16).setValue(value*0.03)
+        robot.driver(17).setValue(-value*0.03)
 
 def set_model_spatula_command(robot,limb,command):
     """Given the Baxter RobotModel 'robot' at its current configuration,
