@@ -9,6 +9,7 @@
 #          check with the object or the shelf? Does the collision checker check shelf model?
 #
 #       3) Why is the simulated (Green) and actual (Gray) trajectory different?
+#       4) Sometimes the collision detection doesn't work well (spatula bangs into shelf)
 
 from klampt import robotsim
 from klampt.glprogram import *
