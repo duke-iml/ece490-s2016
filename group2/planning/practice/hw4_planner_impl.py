@@ -47,8 +47,8 @@ class LimbCSpace (CSpace):
             # print "LimbCSpace.feasible: Configuration is out of bounds"
             return False
         if not self.planner.check_limb_collision_free(self.limb,q):
-            # print "LimbCSpace.feasible: Configuration is in collision"
-            return False
+                # print "LimbCSpace.feasible: Configuration is in collision"
+                return False
         return True
 
 class TransferCSpace (CSpace):
@@ -207,12 +207,14 @@ class LimbPlanner:
         start to the goal, or False if planning failed"""
         self.rebuild_dynamic_objects()
         cspace = LimbCSpace(self,limb)
+
         if not cspace.feasible(limbstart):
             print "  Start configuration is infeasible!"
             return False
         if not cspace.feasible(limbgoal):
             print "  Goal configuration is infeasible!"
             return False
+
         MotionPlan.setOptions(connectionThreshold=5.0)
         MotionPlan.setOptions(shortcut=1)
         plan = MotionPlan(cspace,'sbl')
