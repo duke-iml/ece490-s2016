@@ -22,9 +22,9 @@ geometry "spatula_klampt_part1.STL" "spatula_klampt_part2.STL"
 
 
 geomtransform  0       0 0.0006 0 0          -0.0006 0 0 0         0 0 0.0006 0
-geomtransform  1       0 0.0006 0 0.0326     -0.0006 0 0 -0.016   0 0 0.0006 0
+geomtransform  1       0 0.0006 0 0.0200     -0.0006 0 0 -0.016   0 0 0.0006 0
 
-mass 0.1 0.1
+mass 0.91 0.91
 automass
 
 noselfcollision 0 1

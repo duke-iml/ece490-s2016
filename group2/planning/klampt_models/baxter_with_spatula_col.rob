@@ -62,7 +62,7 @@ Tparent	1 0 0	0 1 0	0 0 1	0 0 0 \
 1 0 0	0 1 0	0 0 1	0.0947 0 0.817
 
 
-mount 22 "spatula.rob"     1 0 0 0 1 0   0 0 1   0 0.105 0.11 as "spatula"
+mount 22 "spatula.rob"     1.25 0 0  0 1.25 0   0 0 1.25   0 0.14 0.11 as "spatula"
 mount 45 "rethink_electric_gripper.rob"  0 -1 0   1 0 0   0 0 1    0 0 0 as "right_gripper"
 
 #uncomment these two lines and comment out the next two lines for free floating base
