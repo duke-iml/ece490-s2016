@@ -7,7 +7,8 @@
 #       2) Need to turn off collision detection during tilt_wrist because the planner
 #          thinks the configuration is infeasible (collision checks). Is this collision
 #          check with the object or the shelf? Does the collision checker check shelf model?
-
+#
+#       3) Why is the simulated (Green) and actual (Gray) trajectory different?
 
 from klampt import robotsim
 from klampt.glprogram import *
@@ -27,7 +28,7 @@ from operator import itemgetter
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 1
+NO_SIMULATION_COLLISIONS = 0
 #Turn this on to help fast prototyping of later stages
 FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
@@ -83,7 +84,8 @@ global knowledge
 
 def init_ground_truth():
     global ground_truth_items
-    ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_A'),
+    ground_truth_items = [
+                          # apc.ItemInBin(apc.tall_item,'bin_A'),
                           apc.ItemInBin(apc.med_item,'bin_B'),
                           apc.ItemInBin(apc.tall_item,'bin_C'),
                           apc.ItemInBin(apc.med_item,'bin_D'),
@@ -508,11 +510,11 @@ class PickingController:
 
         # tilted angle view for spatula
         if direction == 'down':
-            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*1))
+            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*10))
             world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.025,0.335])
 
         elif direction == 'up':
-            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*1))
+            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*10))
             world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.03,0.335])
 
         t_camera = vectorops.add(world_center,world_offset)
@@ -551,6 +553,14 @@ class PickingController:
         print "Failed to plan path"
         return False
 
+    def spatula(self):
+        self.waitForMove()
+
+        self.controller.commandGripper('left', [1])
+        self.waitForMove()
+
+        self.controller.commandGripper('left', [0])
+        self.waitForMove()
 
 
 
@@ -1155,6 +1165,8 @@ def run_controller(controller,command_queue):
                 controller.fulfillOrderAction(orderList)
             elif c == 's':
                 controller.scoopAction()
+            elif c == 't':
+                controller.spatula()
             elif c == 'r':
                 restart_program()
             elif c=='q':
@@ -1431,25 +1443,23 @@ def spawn_objects_from_ground_truth(world):
         m.setInertia(vectorops.mul([bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2]],item.info.mass/12.0))
         obj.setMass(m)
         c = obj.getContactParameters()
-        c.kFriction = 0.6
-        c.kRestitution = 0.1;
-        c.kStiffness = 100000
-        c.kDamping = 100000
+        # c.kFriction = 0.6
+        # c.kRestitution = 0.1;
+        # c.kStiffness = 100000
+        # c.kDamping = 100000
+        c.kFriction = 0.1
+        c.kRestitution = 0.001;
+        c.kStiffness = 1000000
+        c.kDamping = 10
         obj.setContactParameters(c)
         simgeometry = obj.geometry()
         load_item_geometry(item,simgeometry)
 
         # Spawn objects a little bit higher than bin floor
         t = item.xform[1]
-        t = [t[0], t[1], t[2]+0.0075]
+        t = [t[0], t[1], t[2]+0.0175]
         obj.setTransform(item.xform[0],t)
 
-        #if i==1:
-        #    obj.setTransform(so3.identity(), [ 2, 2, 2])
-        #elif i==2:
-        #    obj.setTransform(so3.identity(), [-2,-2, 2])
-        #else:
-        #    obj.setTransform(so3.identity(), [ 2,-2, 2])
     return
 
 def myCameraSettings(visualizer):
