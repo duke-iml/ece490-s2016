@@ -1,5 +1,0 @@
-TODO:
-- fix hw4_impl.py error
-
-DONE:
-- added git aliases (git tree, git ll)
