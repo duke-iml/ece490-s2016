@@ -1,7 +1,13 @@
 #!/usr/bin/python
 
-# TODO: move to center pos (in front of baxter before reaching a bin)
-# TODO: Can't pick up small item
+# TODO: 1) Spatula doesn't push the object. It seems like the spatula gets stuck (?)
+#          before reaching the object. Sometimes this doesn't happen the first time the
+#          spatula is actuated.
+#
+#       2) Need to turn off collision detection during tilt_wrist because the planner
+#          thinks the configuration is infeasible (collision checks). Is this collision
+#          check with the object or the shelf? Does the collision checker check shelf model?
+
 
 from klampt import robotsim
 from klampt.glprogram import *
@@ -21,7 +27,7 @@ from operator import itemgetter
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 0
+NO_SIMULATION_COLLISIONS = 1
 #Turn this on to help fast prototyping of later stages
 FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
@@ -91,7 +97,7 @@ def init_ground_truth():
                           apc.ItemInBin(apc.med_item,'bin_L')]
     for i in range(len(ground_truth_items)):
         ux = random.uniform(0.3,0.6)
-        uy = random.uniform(0,0.3)
+        uy = random.uniform(0.1,0.3)
         if ground_truth_items[i].info.name == 'med_item':
             # theta = random.uniform(math.pi/4, 3*math.pi/4)
             theta = math.pi/2
@@ -150,14 +156,18 @@ class KnowledgeBase:
 
     def bin_front_center(self,bin_name):
         bmin,bmax = apc.bin_bounds[bin_name]
-        local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
+        # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
+        local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmax[2]]
+
         world_center = se3.apply(ground_truth_shelf_xform, local_center)
         return world_center
 
     def bin_vantage_point(self,bin_name):
         world_center = self.bin_front_center(bin_name)
         # Vantage point has 20cm offset from bin center
-        world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.1,0.35])
+        # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.1,0.35])
+        world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.03,0.4])
+
         return vectorops.add(world_center,world_offset)
 
     def grasp_xforms(self,object):
@@ -436,6 +446,115 @@ class PickingController:
                 print "Grasp failed"
                 return False
 
+    def scoopAction(self):
+        self.waitForMove()
+
+        if self.current_bin == None:
+            print "Not located at a bin"
+            return False
+        elif self.state != 'ready':
+            print "Already holding an object, can't grasp another"
+            return False
+        elif len(knowledge.bin_contents[self.current_bin])==0:
+            print "The current bin is empty"
+            return False
+        else:
+            # TODO
+            # tilt wrist down
+            self.tilt_wrist('down')
+            self.waitForMove()
+
+            # push spatula base
+            self.controller.commandGripper('left', [1])
+            self.waitForMove()
+
+            # tilt wrist up
+            self.tilt_wrist('up')
+            self.waitForMove()
+
+            # pull spatula base
+            self.controller.commandGripper('left', [0])
+            self.waitForMove()
+
+            # self.held_object = knowledge.bin_contents[self.current_bin].pop()
+            # self.state = 'holding'
+            # print "Holding object",self.held_object.info.name,"in hand",self.active_limb
+            return True
+
+            # if self.move_to_scoop_object(knowledge.bin_contents[self.current_bin][0]):
+            #     self.waitForMove()
+
+            #     # now move the spatula base
+            #     self.controller.commandGripper('left', self.active_grasp.gripper_close_command)
+            #     self.waitForMove()
+
+
+            #     self.held_object = knowledge.bin_contents[self.current_bin].pop()
+            #     self.state = 'holding'
+            #     print "Holding object",self.held_object.info.name,"in hand",self.active_limb
+            #     return True
+            # else:
+            #     print "Grasp failed"
+            #     return False
+
+    def tilt_wrist(self,direction):
+        """Tilt the robot's wrist before and after actuating the spatula
+        so that the objects are picked up.
+        """
+        self.waitForMove()
+
+        bin_name = self.current_bin
+        world_center = knowledge.bin_front_center(bin_name)
+
+        # tilted angle view for spatula
+        if direction == 'down':
+            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*1))
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.025,0.335])
+
+        elif direction == 'up':
+            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*1))
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.03,0.335])
+
+        t_camera = vectorops.add(world_center,world_offset)
+
+
+
+        # Setup ik objectives for both arms
+        # place +z in the +x axis, -y in the +z axis, and x in the -y axis
+        left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
+        # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
+
+        qcmd = self.controller.getCommandedConfig()
+        limbs = ['left']
+
+        print "\nSolving for TILT_WRIST"
+        sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=1000, maxIters=1000)
+
+        if len(sortedSolutions)==0: return False;
+
+        # prototyping hack: move straight to target
+        if SKIP_PATH_PLANNING:
+            self.controller.setMilestone(sortedSolutions[0][0])
+            self.active_limb = limbs[sortedSolutions[0][1]]
+            return True
+
+        # else, if we want to path plan
+        numSol = 0
+        for solution in sortedSolutions:
+            numSol += 1
+            print numSol, "solutions planned out of", len(sortedSolutions)
+            path = self.planner.plan(qcmd,solution[0])
+            if path != None:
+                self.sendPath(path)
+                self.active_limb = limbs[solution[1]]
+                return True
+        print "Failed to plan path"
+        return False
+
+
+
+
+
     def ungraspAction(self):
         self.waitForMove()
 
@@ -671,13 +790,13 @@ class PickingController:
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
-        right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
+        # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
 
         qcmd = self.controller.getCommandedConfig()
-        limbs = ['left','right']
+        limbs = ['left']
 
         print "\nSolving for MOVE_CAMERA_TO_BIN"
-        sortedSolutions = self.get_ik_solutions([left_goal, right_goal], limbs, qcmd, maxResults=1000, maxIters=1000)
+        sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=1000, maxIters=1000)
 
         if len(sortedSolutions)==0: return False;
 
@@ -1034,6 +1153,8 @@ def run_controller(controller,command_queue):
                 controller.placeInOrderBinAction()
             elif c == 'o':
                 controller.fulfillOrderAction(orderList)
+            elif c == 's':
+                controller.scoopAction()
             elif c == 'r':
                 restart_program()
             elif c=='q':
@@ -1106,7 +1227,7 @@ class MyGLViewer(GLRealtimeProgram):
             if self.simworld.numRigidObjects() >= len(ground_truth_items):
                 ofs = self.simworld.numRigidObjects()-len(ground_truth_items)
                 for i,item in enumerate(ground_truth_items):
-                    T = self.sim.getBody(self.simworld.rigidObject(ofs+i)).getTransform()
+                    T = self.sim.body(self.simworld.rigidObject(ofs+i)).getTransform()
                     item.xform = T
             glutPostRedisplay()
 
@@ -1220,7 +1341,7 @@ class MyGLViewer(GLRealtimeProgram):
 
     def keyboardfunc(self,c,x,y):
         c = c.lower()
-        if c=='s':
+        if c=='m':
             self.simulate = not self.simulate
             print "Simulating:",self.simulate
         else:
@@ -1247,7 +1368,7 @@ def load_apc_world():
 
     #shift the Baxter up a bit (95cm)
     Rbase,tbase = world.robot(0).link(0).getParentTransform()
-    world.robot(0).link(0).setParentTransform(Rbase,(0,0,0.95))
+    world.robot(0).link(0).setParentTransform(Rbase,(0,-0.25,0.95))
     world.robot(0).setConfig(world.robot(0).getConfig())
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
