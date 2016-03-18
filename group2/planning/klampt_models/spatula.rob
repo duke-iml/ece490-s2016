@@ -14,9 +14,9 @@ axis 0 0 1    0 0 1
 #control the amount of movement here
 qmin 0 0.0036
 qmax 0 0.204
-velmax 0 0.2
-accmax 0 0.5
-torquemax 0 20
+velmax 0 2
+accmax 0 5
+torquemax 0 inf
 
 geometry "spatula_klampt_part1.STL" "spatula_klampt_part2.STL"
 
@@ -36,8 +36,8 @@ joint normal 1
 driver normal 1
 
 
-servoP 500
-servoI 0
+servoP 5000
+servoI 100
 servoD 0
 dryFriction 0.1
 viscousFriction 1
