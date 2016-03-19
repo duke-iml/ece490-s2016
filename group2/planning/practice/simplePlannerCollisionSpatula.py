@@ -518,7 +518,7 @@ class PickingController:
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
 
                 self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
-                                            [random.uniform(-0.07,0.07) ,0.04, random.uniform(-0.05, -0.25)]]
+                                            [random.uniform(-0.07,0.07) , 0.005+(self.held_object.info.bmax[1]-self.held_object.info.bmin[1])/2 , random.uniform(-0.05, -0.25)]]
 
                 self.stateLeft = 'holding'
                 print "Holding object",self.held_object.info.name,"in spatula"
@@ -600,7 +600,9 @@ class PickingController:
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
-            if len(sortedSolutions)==0: return False;
+            if len(sortedSolutions)==0:
+                # return False
+                continue
 
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
@@ -614,7 +616,9 @@ class PickingController:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 path = self.planner.plan(qcmd,solution[0])
-                if path != None:
+                if path == 1 or path == 2 or path == False:
+                    break
+                elif path != None:
                     self.sendPath(path)
                     self.active_limb = limbs[solution[1]]
                     return True
@@ -652,7 +656,9 @@ class PickingController:
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
-            if len(sortedSolutions)==0: return False;
+            if len(sortedSolutions)==0:
+                # return False
+                continue
 
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
@@ -667,7 +673,9 @@ class PickingController:
                     numSol += 1
                     print numSol, "solutions planned out of", len(sortedSolutions)
                     path = self.planner.plan(qcmd,solution[0])
-                    if path != None:
+                    if path == 1 or path == 2 or path == False:
+                        break
+                    elif path != None:
                         self.sendPath(path)
                         self.active_limb = limbs[solution[1]]
                         return True
@@ -677,43 +685,51 @@ class PickingController:
     def move_gripper_to_center(self):
         self.waitForMove()
 
-        R_wrist = so3.rotation([1,0,0], math.pi)
-        t_wrist = knowledge.bin_vertical_point()
+        if self.stateLeft == 'holding':
+            R_wrist = so3.rotation([1,0,0], math.pi)
+            t_wrist = knowledge.bin_vertical_point()
 
-        # Setup ik objectives for both arms
-        # place +z in the +x axis, -y in the +z axis, and x in the -y axis
-        right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
-        # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
+            # Setup ik objectives for both arms
+            # place +z in the +x axis, -y in the +z axis, and x in the -y axis
+            right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
+            # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
 
-        qcmd = self.controller.getCommandedConfig()
-        limbs = ['right']
+            qcmd = self.controller.getCommandedConfig()
+            limbs = ['right']
 
-        print "\nSolving for MOVE_SPATULA_TO_CENTER (Right Hand)"
+            print "\nSolving for MOVE_GRIPPER_TO_CENTER (Right Hand)"
 
-        for i in range(100):
-            sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
+            for i in range(100):
+                sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
-            if len(sortedSolutions)==0: return False;
+                if len(sortedSolutions)==0:
+                    # return False
+                    continue
 
-            # prototyping hack: move straight to target
-            if SKIP_PATH_PLANNING:
-                self.controller.setMilestone(sortedSolutions[0][0])
-                self.active_limb = limbs[sortedSolutions[0][1]]
-                return True
+                # prototyping hack: move straight to target
+                if SKIP_PATH_PLANNING:
+                    self.controller.setMilestone(sortedSolutions[0][0])
+                    self.active_limb = limbs[sortedSolutions[0][1]]
+                    return True
 
-            # else, if we want to path plan
-            else:
-                numSol = 0
-                for solution in sortedSolutions:
-                    numSol += 1
-                    print numSol, "solutions planned out of", len(sortedSolutions)
-                    path = self.planner.plan(qcmd,solution[0])
-                    if path != None:
-                        self.sendPath(path)
-                        self.active_limb = limbs[solution[1]]
-                        return True
-        print "Failed to plan path"
-        return False
+                # else, if we want to path plan
+                else:
+                    numSol = 0
+                    for solution in sortedSolutions:
+                        numSol += 1
+                        print numSol, "solutions planned out of", len(sortedSolutions)
+                        path = self.planner.plan(qcmd,solution[0])
+                        if path == 1 or path == 2 or path == False:
+                            break
+                        elif path != None:
+                            self.sendPath(path)
+                            self.active_limb = limbs[solution[1]]
+                            return True
+            print "Failed to plan path"
+            return False
+        else:
+            print "no item in spatula"
+            return False
 
     def ungraspAction(self):
         self.waitForMove()
@@ -925,9 +941,9 @@ class PickingController:
                 # else:
                     # print "IK solution for goal <", limb, "> was in collision, trying again"
 
-        if len(ikSolutions)==0:
-            print "No collision free IK solution"
-            return []
+        # if len(ikSolutions)==0:
+        #     print "No collision free IK solution"
+        #     return []
 
         if printer:
             print "< IK Summary >"
@@ -978,7 +994,9 @@ class PickingController:
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
-            if len(sortedSolutions)==0: return False;
+            if len(sortedSolutions)==0:
+                # return False
+                continue
 
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
@@ -992,7 +1010,9 @@ class PickingController:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 path = self.planner.plan(qcmd,solution[0])
-                if path != None:
+                if path == 1 or path == 2 or path == False:
+                    break
+                elif path != None:
                     self.sendPath(path)
                     self.active_limb = limbs[solution[1]]
                     return True
@@ -1040,7 +1060,9 @@ class PickingController:
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
-            if len(sortedSolutions)==0: return False;
+            if len(sortedSolutions)==0:
+                # return False
+                continue
 
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
@@ -1055,7 +1077,9 @@ class PickingController:
                     numSol += 1
                     print numSol, "solutions planned out of", len(sortedSolutions)
                     path = self.planner.plan(qcmd,solution[0])
-                    if path != None:
+                    if path == 1 or path == 2 or path == False:
+                        break
+                    elif path != None:
                         self.sendPath(path)
                         self.active_limb = limbs[solution[1]]
                         return True
@@ -1161,16 +1185,21 @@ class PickingController:
 
         sortedSolutions = []
 
-        print "solving move to order bin..."
+        print "solving MOVE_TO_ORDER_BIN ..."
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([placegoal],['right'],qcmd,tol=1e-2, maxIters=100, maxResults = 100)
 
             # if len(sortedSolutions) == 0:
             #     print "Failed to find placement config"
+            if len(sortedSolutions)==0:
+                # return False
+                continue
 
             for solution in sortedSolutions:
                 path = self.planner.plan(qcmd,solution[0])
-                if path != None:
+                if path == 1 or path == 2 or path == False:
+                    break
+                elif path != None:
                     self.waitForMove()
                     self.sendPath(path)
                     return True
@@ -1445,7 +1474,8 @@ class MyGLViewer(GLRealtimeProgram):
             elif self.picking_controller.stateRight == 'holding':
                 gripper_xform = self.simworld.robot(0).link(right_gripper_link_name).getTransform()
                 # objxform = se3.mul(gripper_xform,se3.mul(left_gripper_center_xform,se3.inv(grasp.grasp_xform)))
-                objxform = se3.mul(gripper_xform,se3.mul(left_gripper_center_xform,se3.inv(se3.identity())))
+                # objxform = se3.mul(gripper_xform,se3.mul(left_gripper_center_xform,se3.inv(se3.identity())))
+                objxform = se3.mul(gripper_xform,left_gripper_center_xform)
 
             glDisable(GL_LIGHTING)
             glColor3f(1,1,1)
