@@ -756,7 +756,6 @@ class PickingController:
                 self.controller.commandGripper(self.active_limb,[1])
                 self.waitForMove()
 
-                self.stateLeft = 'ready'
 
                 knowledge.order_bin_contents.append(self.held_object)
                 self.active_limb = 'left'
@@ -765,6 +764,7 @@ class PickingController:
                 self.held_object.bin_name = 'order_bin'
                 self.drop_in_order_bin(self.held_object)
                 self.stateRight = 'ready'
+                self.stateLeft = 'ready'
                 print "Successfully placed",self.held_object.info.name,"into order bin"
 
                 self.held_object = None
@@ -849,6 +849,8 @@ class PickingController:
             q = self.controller.getCommandedConfig()
         else:
             q = baxter_rest_config[:]
+        # q = baxter_rest_config[:]
+
 
         if range == None:
             if limb == 'left':
@@ -910,8 +912,8 @@ class PickingController:
                 self.robot.setConfig(initialConfig)
             # else, initialize with a random q, incrementally perturbing more from inital config
             else:
-                # self.randomize_limb_position(limb,center=initialConfig,range=0.1*(numTrials[index]-1))
-                self.randomize_limb_position(limb,center=initialConfig,range=None)
+                self.randomize_limb_position(limb,center=initialConfig,range=0.05*(numTrials[index]-1))
+                # self.randomize_limb_position(limb,center=initialConfig,range=None)
 
             if ik.solve(goal,tol=tol):
                 numSolutions[index] += 1
@@ -1142,9 +1144,20 @@ class PickingController:
         qcmd = self.controller.getCommandedConfig()
         target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.1])
 
+        R_obj = object.randRt[0]
+        t_obj = object.randRt[1]
 
-        placegoal = ik.objective(self.right_gripper_link,local=right_gripper_center_xform[1],world=target)
-        # placegoal = ik.objective(self.right_gripper_link, R = so3.rotation([0,0,1], math.pi/2), t = target)
+        # object xform relative to world frame
+        objxform = se3.mul( self.left_gripper_link.getTransform() ,
+                            # object xform relative to gripper link =
+                            # gripper center xform relative to gripper link (X) obj xform relative to gripper center
+                            se3.mul(left_gripper_center_xform,
+                                    # object xform relative to gripper center xform
+                                    [so3.mul(R_obj, so3.rotation([1,0,0],math.pi/2)), t_obj] ))
+
+        Rt = se3.mul(objxform ,se3.inv(right_gripper_center_xform))
+
+        placegoal = ik.objective(self.right_gripper_link,R=Rt[0],t=target)
 
         sortedSolutions = []
 
@@ -1234,7 +1247,18 @@ def run_controller(controller,command_queue):
             elif c == 'p':
                 controller.placeInOrderBinAction()
             elif c == 'o':
-                controller.fulfillOrderAction(orderList)
+                # controller.fulfillOrderAction(orderList)
+
+                binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
+                for i in range(len(binList)):
+                    controller.viewBinAction('bin_'+binList[i])
+                    controller.scoopAction()
+                    controller.move_spatula_to_center()
+                    controller.move_gripper_to_center()
+                    controller.graspAction()
+                    controller.placeInOrderBinAction()
+
+
             elif c == 's':
                 controller.scoopAction()
             elif c == 'y':
@@ -1294,7 +1318,7 @@ class MyGLViewer(GLRealtimeProgram):
         # self.sim.simulate(0)
 
         #you can set these to true to draw the bins, grasps, and/or gripper/camera frames
-        self.draw_bins = True
+        self.draw_bins = False
         self.draw_grasps = True
         self.draw_gripper_and_camera = True
 
@@ -1340,7 +1364,7 @@ class MyGLViewer(GLRealtimeProgram):
         # only 1 robot in this case, but still use for-loop for generality
         for i in xrange(self.simworld.numRobots()):
             r = self.simworld.robot(i)
-            #q = self.sim.controller(i).getCommandedConfig()
+            # q = self.sim.controller(i).getCommandedConfig()
             q = self.low_level_controller.getCommandedConfig()
             r.setConfig(q)
             r.drawGL(False)
