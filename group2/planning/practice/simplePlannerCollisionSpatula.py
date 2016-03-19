@@ -21,8 +21,6 @@
 #       4) Sometimes the collision detection doesn't work well (spatula bangs into shelf; gripper goes through spatula)
 #
 #       5) Fixing end-effector orientation throughout trajectory?
-#
-#       6) Keep end effector upright when moving to order bin with the object
 
 from klampt import robotsim
 from klampt.glprogram import *
