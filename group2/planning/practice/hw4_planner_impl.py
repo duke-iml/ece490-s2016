@@ -210,10 +210,10 @@ class LimbPlanner:
 
         if not cspace.feasible(limbstart):
             print "  Start configuration is infeasible!"
-            return False
+            return 1
         if not cspace.feasible(limbgoal):
             print "  Goal configuration is infeasible!"
-            return False
+            return 2
 
         MotionPlan.setOptions(connectionThreshold=5.0)
         MotionPlan.setOptions(shortcut=1)
@@ -268,10 +268,10 @@ class LimbPlanner:
                 self.robot.setConfig(curconfig)
                 #do the limb planning
                 limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer)
-                if limbpath == False:
+                if limbpath == 1 or limbpath == 2 or limbpath == False:
                     if printer:
                         print "  Failed to plan for limb",l,"\n"
-                    return None
+                    return limbpath
                 if printer:
                     print "   Planned successfully for limb",l, "\n"
                 #concatenate whole body path
