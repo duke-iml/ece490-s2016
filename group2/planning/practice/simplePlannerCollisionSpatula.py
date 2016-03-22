@@ -21,13 +21,16 @@
 #       4) Sometimes the collision detection doesn't work well (spatula bangs into shelf; gripper goes through spatula)
 #
 #       5) Fixing end-effector orientation throughout trajectory?
+#
+#       6) fix 2 points of spatula edge to shelf during wrist tilt
 
 from klampt import robotsim
 from klampt.glprogram import *
 from klampt import vectorops, se3, so3, loader, gldraw, ik
 from klampt.robotsim import Geometry3D
 from baxter import *
-from hw4_planner_impl import *
+# from hw4_planner_impl import *
+from hw4_planner_impl_edit import *
 import apc
 import os
 import math
@@ -40,15 +43,15 @@ from operator import itemgetter
 # configuration variables
 # Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
 # Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 1
+NO_SIMULATION_COLLISIONS = 0
 #Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 1
+FAKE_SIMULATION = 0
 SKIP_PATH_PLANNING = 0
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
 
-# global variable for baxter's resting configuration
+# global variable for baxter's restinag configuration
 # baxter_rest_config = [0.0]*54  # no need to declare as this because we load from file in main()
 global baxter_rest_config
 
@@ -1599,6 +1602,7 @@ def spawn_objects_from_ground_truth(world):
         t = item.xform[1]
         t = [t[0], t[1], t[2]+0.0175]
         obj.setTransform(item.xform[0],t)
+
 
     return
 
