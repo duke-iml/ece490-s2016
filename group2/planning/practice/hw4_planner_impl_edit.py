@@ -18,9 +18,11 @@ class RobotCSpaceTest (RobotCSpace):
 
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
         if limb=='left':
-            self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
+            # self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
+            self.limb_indices = left_arm_geometry_indices + left_hand_geometry_indices
         else:
-            self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
+            # self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
+            self.limb_indices = right_arm_geometry_indices + right_hand_geometry_indices
         qmin,qmax = self.robot.getJointLimits()
         self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
         self.eps = 1e-1
@@ -62,9 +64,11 @@ class LimbCSpace (CSpace):
         self.robot = self.planner.robot
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
         if limb=='left':
-            self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
+            # self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
+            self.limb_indices = left_arm_geometry_indices + left_hand_geometry_indices
         else:
-            self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
+            # self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
+            self.limb_indices = right_arm_geometry_indices + right_hand_geometry_indices
         qmin,qmax = self.robot.getJointLimits()
         self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
         self.eps = 1e-1
@@ -90,8 +94,10 @@ class TransferCSpace (CSpace):
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
         if limb=='left':
             self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
+            self.limb_indices = left_arm_geometry_indices + left_hand_geometry_indices
         else:
             self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
+            self.limb_indices = right_arm_geometry_indices + right_hand_geometry_indices
         qmin,qmax = self.robot.getJointLimits()
         self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
         self.eps = 1e-1
@@ -246,15 +252,18 @@ class LimbPlanner:
             return 2
 
 
-        MotionPlan.setOptions(connectionThreshold=5.0)
-        MotionPlan.setOptions(shortcut=1)
+        # MotionPlan.setOptions(connectionThreshold=5.0)
+        # MotionPlan.setOptions(shortcut=1)
         # plan = MotionPlan(cspace,'sbl')
 
         # MotionPlan.setOptions(type='rrt*')
         # MotionPlan.setOptions(type="prm",knn=10,connectionThreshold=0.1,shortcut=True)
         # MotionPlan.setOptions(type='fmm*')
 
-        plan = MotionPlan(cspace)
+        plan = MotionPlan(cspace, type='fmm*')
+
+
+        # plan = MotionPlan(cspace)
 
         plan.setEndpoints(limbstart,limbgoal)
         maxPlanIters = 200
