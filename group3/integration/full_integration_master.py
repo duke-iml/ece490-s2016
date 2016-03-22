@@ -5,6 +5,7 @@ sys.path.insert(0, "../../common")
 import rospy
 import random
 import time
+import serial
 import thread
 from klampt import *
 from klampt.glprogram import *
@@ -20,7 +21,7 @@ import sensor_msgs.point_cloud2 as pc2
 
 baxter_rest_config = [0.0]*54
 
-class Milestone1Master:
+class FullIntegrationMaster:
     def __init__(self, world):
         self.world = world
         self.robotModel = world.robot(0)
@@ -37,6 +38,16 @@ class Milestone1Master:
         self.object_com = [0, 0, 0]
         self.points = []
 
+        # Set up serial
+        if REAL_VACUUM:
+            self.serial = serial.Serial()
+            self.serial.port = "/dev/ttyACM0"
+            self.serial.baudrate = 9600
+            self.serial.open()
+            if self.serial.isOpen():
+                self.serial.write("hello")
+                response = self.serial.read(self.serial.inWaiting())
+
     def load_real_robot_state(self):
         """Makes the robot model match the real robot"""
         self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
@@ -50,7 +61,6 @@ class Milestone1Master:
             q = baxter_rest_config[:]
             for j in self.right_arm_indices:
                 q[j] = random.uniform(qmin[j],qmax[j])
-            #goal = ik.objective(self.right_gripper_link,local=[vectorops.sub(right_gripper_center_xform[1],[0,0,0.1]),right_gripper_center_xform[1]],world=[vectorops.add(target,[0,0,0.1]),target])
             goal = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
             if ik.solve(goal,tol=0.0001):
                 return True
@@ -73,10 +83,23 @@ class Milestone1Master:
         # glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
         glEnd()
 
+    def turnOnVacuum(self):
+        if REAL_VACUUM:
+            self.serial.write('H')
+        else:
+            print "Fake vacuum is on"
+
+    def turnOffVacuum(self):
+        if REAL_VACUUM:
+            self.serial.write('L')
+        else:
+            print "Fake vacuum is off"
+
     def loop(self):
         try:
             while True:
                 print self.state
+
                 self.load_real_robot_state()
                 self.Tcamera = se3.mul(self.robotModel.link('right_lower_elbow').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
@@ -89,13 +112,9 @@ class Milestone1Master:
                     self.state = 'MOVING_LEFT_TO_0'
                 elif self.state == 'MOVING_LEFT_TO_0':
                     if not motion.robot.left_mq.moving():
-                        motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_1)
-                        motion.robot.right_mq.appendLinear(3, [0, 0, 0, 0, 0, 0, 0])
-                        self.state = 'MOVING_RIGHT_TO_0'
-                elif self.state == 'MOVING_RIGHT_TO_0':
-                    if not motion.robot.right_mq.moving():
-                        motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_1)
-                        motion.robot.right_mq.appendLinear(3, Q_SCAN_BIN)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
                         self.state = 'MOVING_TO_SCAN_BIN'
                 elif self.state == 'MOVING_TO_SCAN_BIN':
                     if not motion.robot.right_mq.moving():
@@ -103,13 +122,16 @@ class Milestone1Master:
                         self.state = 'WAITING_TO_SCAN_BIN'
                 elif self.state == 'WAITING_TO_SCAN_BIN':
                     if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
-                        motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_2)
-                        self.state = 'FAKE_SCANNING_BIN'
+                        self.state = 'SCANNING_BIN' if REAL_PERCEPTION else 'FAKE_SCANNING_BIN'
                 elif self.state == 'SCANNING_BIN':
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     if perception.isCloudValid(cloud):
                         # These are in the camera frame
                         self.points, self.object_com = perception.getObjectCOM(cloud)
+                        if self.right_arm_ik(self.object_com):
+                            destination = self.robotModel.getConfig()
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, [destination[v] for v in self.right_arm_indices])
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print "Got an invalid cloud, trying again"
@@ -119,21 +141,31 @@ class Milestone1Master:
                     self.state = 'MOVING_TO_GRASP_OBJECT'
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
-                        motion.robot.right_mq.appendLinear(3, [destination[v] for v in self.right_arm_indices])
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, [destination[v] for v in self.right_arm_indices])
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print "Couldn't move there"
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
+                        self.turnOnVacuum()
                         self.state = 'GRASPING_OBJECT'
-                        print "Turn on the vacuum now"
                 elif self.state == 'GRASPING_OBJECT':
-                    time.sleep(5)
-                    self.state = 'MOVING_BACK'
-                elif self.state == 'MOVING_BACK':
-                    motion.robot.right_mq.setLinear(2, Q_INTERMEDIATE_2)
+                    self.wait_start_time = time.time()
+                    self.state = 'WAITING_TO_GRASP_OBJECT'
+                elif self.state == 'WAITING_TO_GRASP_OBJECT':
+                    if time.time() - self.wait_start_time > GRASP_WAIT_TIME:
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
+                        self.state = 'MOVING_TO_STOW_OBJECT'
+                elif self.state == 'MOVING_TO_STOW_OBJECT':
+                    if not motion.robot.right_mq.moving():
+                        self.state = 'STOWING_OBJECT'
+                elif self.state == 'STOWING_OBJECT':
+                        self.turnOffVacuum()
+                        self.state = 'DONE'
                 elif self.state == 'DONE':
-                    print "desired COM: ", self.object_com
                     print "actual vacuum point: ", se3.apply(self.Tvacuum, [0, 0, 0])
                 else:
                     print "Unknown state"
@@ -172,7 +204,7 @@ def visualizerThreadFunction():
 
 if __name__ == '__main__':
     world = setupWorld()
-    master = Milestone1Master(world)
+    master = FullIntegrationMaster(world)
     visualizer = MyGLViewer(world, master)
 
     thread.start_new_thread(visualizerThreadFunction, ())
