@@ -103,6 +103,7 @@ class Milestone1Master:
                         self.state = 'WAITING_TO_SCAN_BIN'
                 elif self.state == 'WAITING_TO_SCAN_BIN':
                     if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
+                        motion.robot.right_mq.appendLinear(3, Q_INTERMEDIATE_2)
                         self.state = 'FAKE_SCANNING_BIN'
                 elif self.state == 'SCANNING_BIN':
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
@@ -113,20 +114,24 @@ class Milestone1Master:
                     else:
                         print "Got an invalid cloud, trying again"
                 elif self.state == 'FAKE_SCANNING_BIN':
-                    self.object_com = [1.16, -0.04, 1.17]
+                    self.object_com = [1.174, -0.097, 1.151]
                     self.points = [self.object_com]
-                    #q_cmd = [0.728640873413086, -0.8540438026794435, 0.22587867075805665, 1.7330147931335451, -0.29644178692016604, -0.7086991231933594, 0.06327670742797852]
-                    #motion.robot.right_mq.setLinear(3, q_cmd)
                     self.state = 'MOVING_TO_GRASP_OBJECT'
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
-                        motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+                        motion.robot.right_mq.appendLinear(3, [destination[v] for v in self.right_arm_indices])
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print "Couldn't move there"
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
-                        self.state = 'DONE'
+                        self.state = 'GRASPING_OBJECT'
+                        print "Turn on the vacuum now"
+                elif self.state == 'GRASPING_OBJECT':
+                    time.sleep(5)
+                    self.state = 'MOVING_BACK'
+                elif self.state == 'MOVING_BACK':
+                    motion.robot.right_mq.setLinear(2, Q_INTERMEDIATE_2)
                 elif self.state == 'DONE':
                     print "desired COM: ", self.object_com
                     print "actual vacuum point: ", se3.apply(self.Tvacuum, [0, 0, 0])

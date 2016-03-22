@@ -16,6 +16,7 @@ class TestF200Rgb:
             print rows, cols, channels
             cv2.imshow("Image window", cv_image)
             cv2.waitKey(500)
+            cv2.imwrite("object.png",cv_image)
             self.show = False
 
     def listener(self):
