@@ -12,8 +12,8 @@ right_gripper_link_name = 'right_gripper'
 
 left_arm_geometry_indices = [15,16,17,18,19,21,22,23,30,31]
 right_arm_geometry_indices = [35,36,37,38,39,41,42,43,50,51]
-left_hand_geometry_indices = [54,55,56]
-right_hand_geometry_indices = [57,58,59]
+left_hand_geometry_indices = [54,55]
+right_hand_geometry_indices = [56,57,58]
 
 #indices of the left and right arms in the Baxter robot file
 left_arm_link_names = ['left_upper_shoulder','left_lower_shoulder','left_upper_elbow','left_lower_elbow','left_upper_forearm','left_lower_forearm','left_wrist']
