@@ -154,6 +154,11 @@ class LimbPlanner:
 
         self.dynamic_objects = []
 
+        # NOTE: added from lab3e.py
+        self.roadmap = ([],[])
+        self.limb_indices = []
+
+
     def set_limb_config(self,limb,limbconfig,q):
         """Helper: Sets the 7-DOF configuration of the given limb in
         q.  Other DOFs are not touched."""
@@ -195,8 +200,8 @@ class LimbPlanner:
                 return False
 
         for obj in self.dynamic_objects:
-            print "checking collision with objects"
-            print obj.info.geometry
+            # print "checking collision with objects"
+            # print obj.info.geometry
             assert obj.info.geometry != None
             for link in collindices:
                 if self.robot.link(link).geometry().collides(obj.info.geometry):
@@ -208,12 +213,20 @@ class LimbPlanner:
         # print self.knowledge.shelf.geometry()
         # print self.robot.link(55).geometry().distance(self.knowledge.shelf.geometry())
         for link in collindices:
+            if self.world.terrain(0).geometry().collides(self.robot.link(link).geometry()):
+                return False
             # self.robot.link(link).geometry().setCollisionMargin(0.001)
             # self.knowledge.shelf.geometry().setCollisionMargin(0.001)
-            if self.robot.link(link).geometry().collides(self.knowledge.shelf.geometry()):
-                # NOTE: Uncomment this line to show collision warnings
-                # print "Collision between link",self.robot.link(link).getName()," and shelf"
-                return False
+
+
+            # self.knowledge.shelf.geometry().setCurrentTransform(so3.rotation([1,0,0],math.pi/2), [1,-1,-1])
+            # if self.knowledge.shelf != []:
+            #     if self.robot.link(link).geometry().collides(self.knowledge.shelf.geometry()):
+            #         # NOTE: Uncomment this line to show collision warnings
+            #         # print "Collision between link",self.robot.link(link).getName()," and shelf"
+            #         return False
+
+
 
         return True
 
@@ -255,10 +268,6 @@ class LimbPlanner:
                 assert item.info.geometry != None
                 item.info.geometry.setCurrentTransform(*item.xform)
                 self.dynamic_objects.append(item)
-
-        # NOTE:
-        # self.dynamic_objects.append(self.knowledge.shelf)
-
         return
 
     def check_limb_collision_free(self,limb,limbconfig):
@@ -288,23 +297,51 @@ class LimbPlanner:
 
         # MotionPlan.setOptions(connectionThreshold=5.0)
         # MotionPlan.setOptions(shortcut=1)
-        plan = MotionPlan(cspace,'sbl')
+        # plan = MotionPlan(cspace,'sbl')
 
         # MotionPlan.setOptions(type='rrt*')
         # MotionPlan.setOptions(type="prm",knn=10,connectionThreshold=0.1,shortcut=True)
         # MotionPlan.setOptions(type='fmm*')
 
         # MotionPlan.setOptions(bidirectional = 1)
-        # plan = MotionPlan(cspace, type='rrt')
+
+        # MotionPlan.setOptions(type="sbl", perturbationRadius = 0.5, connectionThreshold=2.0, bidirectional = True)
+        # MotionPlan.setOptions(type="rrt",perturbationRadius=0.1,bidirectional=True)
+        MotionPlan.setOptions(type="rrt", perturbationRadius = 0.25, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
+        # MotionPlan.setOptions(type="prm",knn=1,connectionThreshold=0.01)
+        # plan = MotionPlan(cspace, type='sbl')
+
+        plan = MotionPlan(cspace)
 
 
-        # plan = MotionPlan(cspace)
+
+        # NOTE: added from lab3e.py
+        # self.roadmap = ([],[])
+
+
+
+
+
+
 
         plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 200
+        maxPlanIters = 20
         maxSmoothIters = 10
         for iters in xrange(maxPlanIters):
-            plan.planMore(1)
+            print iters
+            plan.planMore(100)
+
+            if limb=='left':
+                self.limb_indices = self.left_arm_indices
+            else:
+                self.limb_indices = self.right_arm_indices
+
+            self.roadmap = plan.getRoadmap()
+            V,E =self.roadmap
+            print len(V),"feasible milestones sampled,",len(E),"edges connected"
+
+
+
             path = plan.getPath()
             if path != None:
                 if printer:

@@ -293,7 +293,8 @@ class LowLevelController:
         Otherwise, the end velocity will be zero."""
         self.lock.acquire()
         if endvelocity == None: self.controller.addMilestone(destination)
-        else: self.controller.addMilestone(destination,endvelocity)
+        # else: self.controller.addMilestone(destination,endvelocity)
+        else: self.controller.addMilestoneLinear(destination,endvelocity)
         self.lock.release()
     def isMoving(self):
         return self.controller.remainingTime()>0
@@ -1002,7 +1003,7 @@ class PickingController:
 
         print "\nSolving for MOVE_CAMERA_TO_BIN"
 
-        for i in range(100):
+        for i in range(1):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
@@ -1205,20 +1206,30 @@ class PickingController:
             if len(sortedSolutions)==0:
                 # return False
                 continue
+            # prototyping hack: move straight to target
+            if SKIP_PATH_PLANNING:
+                self.controller.setMilestone(sortedSolutions[0][0])
+                self.active_limb = [sortedSolutions[0][1]]
+                return True
 
-            for solution in sortedSolutions:
-                path = self.planner.plan(qcmd,solution[0])
-                if path == 1 or path == 2 or path == False:
-                    break
-                elif path != None:
-                    self.waitForMove()
-                    self.sendPath(path)
-                    return True
+            # else, if we want to path plan
+            else:
+                numSol = 0
+                for solution in sortedSolutions:
+                    numSol+=1
+                    path = self.planner.plan(qcmd,solution[0])
+                    if path == 1 or path == 2 or path == False:
+                        break
+                    elif path != None:
+                        self.waitForMove()
+                        self.sendPath(path)
+                        return True
         print "Planning failed"
         return False
 
     # TODO: understand this function
     def sendPath(self,path):
+        print len(path), "Milestones in path"
         self.controller.setMilestone(path[0])
         for q in path[1:]:
             self.controller.appendMilestone(q)
@@ -1370,9 +1381,11 @@ class MyGLViewer(GLRealtimeProgram):
         else:
             self.low_level_controller =     LowLevelController(simworld.robot(0),self.sim.controller(0))
         self.command_queue = Queue()
-        self.picking_controller = PickingController(planworld,self.low_level_controller)
+        self.picking_controller = PickingController(world,self.low_level_controller)
         self.picking_thread = Thread(target=run_controller,args=(self.picking_controller,self.command_queue))
         self.picking_thread.start()
+
+
 
     # where is this function called? somewhere in GLRealtimeProgram in glprogram
     def idle(self):
@@ -1522,6 +1535,41 @@ class MyGLViewer(GLRealtimeProgram):
         glColor3f(1,0,0)
         draw_oriented_wire_box(order_bin_xform,order_bin_bounds[0],order_bin_bounds[1])
         glEnable(GL_LIGHTING)
+
+
+        # draw milestones
+        glDisable(GL_LIGHTING)
+        V,E =self.picking_controller.planner.roadmap
+        positions = []
+
+        gldraw.xform_widget([so3.identity(), self.planworld.robot(0).link(23).getTransform()[1]], 0.1, 0.015, lighting=False, fancy=True)
+
+        for v in V:
+            qcmd = self.planworld.robot(0).getConfig()
+            for k in range(len(self.picking_controller.planner.limb_indices)):
+                qcmd[self.picking_controller.planner.limb_indices[k]] = v[k]
+
+            self.planworld.robot(0).setConfig(qcmd)
+
+            loc = self.planworld.robot(0).link(23).getTransform()[1]
+            # loc = self.planworld.robot(0).link(54).getTransform()[1]
+            positions.append(loc)
+
+            # remove this line later
+            gldraw.xform_widget([so3.identity(), loc], 0.03, 0.0045, lighting=False, fancy=True)
+
+        glColor3f(1,1,1)
+        glBegin(GL_LINES)
+        for (i,j) in E:
+            glVertex3f(*positions[i])
+            glVertex3f(*positions[j])
+        glEnd()
+        glEnable(GL_LIGHTING)
+
+
+        # print config
+        # print self.simworld.robot(0).getConfig()
+
         return
 
     def keyboardfunc(self,c,x,y):
@@ -1547,7 +1595,7 @@ def load_apc_world():
     # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
     print "Loading Kiva pod model..."
-    # world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
+    world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
 
@@ -1558,9 +1606,9 @@ def load_apc_world():
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
-    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,0])
+    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,-0.1])
     T = reorient
-    # world.terrain(0).geometry().transform(*se3.mul(Trel,T))
+    world.terrain(0).geometry().transform(*se3.mul(Trel,T))
 
     #initialize the shelf xform for the visualizer and object
     #xform initialization
@@ -1615,12 +1663,12 @@ def spawn_objects_from_ground_truth(world):
 
         # Spawn objects a little bit higher than bin floor
         t = item.xform[1]
-        t = [t[0], t[1], t[2]-0.085]
+        t = [t[0], t[1], t[2]+0.01]
         obj.setTransform(item.xform[0],t)
 
     return
 
-def spawn_shelf_boundingBox(world):
+def spawn_shelf(world):
     """For all ground_truth_items, spawns RigidObjects in the world
     according to their sizes / mass properties"""
 
@@ -1665,12 +1713,17 @@ if __name__ == "__main__":
         simWorld = load_apc_world()
     else:
         simWorld = load_apc_world()
-        spawn_shelf_boundingBox(simWorld)
+        # spawn_shelf(simWorld)
         spawn_objects_from_ground_truth(simWorld)
 
-    #load the resting configuration from klampt_models/baxter_rest.config
+        # NOTE: is this necessary?
+        # spawn_shelf(world)
+        # spawn_objects_from_ground_truth(world)
+
+    # load the resting configuration from klampt_models/baxter_rest.config
     # global baxter_rest_config
-    f = open(model_dir+'baxter_rest.config','r')
+    # f = open(model_dir+'baxter_rest.config','r')
+    f = open(model_dir+'baxter_spatula_rest.config','r')
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
     simWorld.robot(0).setConfig(baxter_rest_config)
