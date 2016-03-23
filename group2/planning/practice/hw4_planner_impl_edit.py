@@ -207,10 +207,6 @@ class LimbPlanner:
         # print "checking collision with shelf"
         # print self.knowledge.shelf.geometry()
         # print self.robot.link(55).geometry().distance(self.knowledge.shelf.geometry())
-
-        if self.knowledge.shelf.geometry().collides(self.knowledge.shelf.geometry()):
-            print "CHECK"
-
         for link in collindices:
             # self.robot.link(link).geometry().setCollisionMargin(0.001)
             # self.knowledge.shelf.geometry().setCollisionMargin(0.001)
