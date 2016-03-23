@@ -140,6 +140,7 @@ def load_item_geometry(item,geometry_ptr = None):
         center = vectorops.mul(vectorops.add(bmin,bmax),0.5)
         scale = [bmax[0]-bmin[0],0,0,0,bmax[1]-bmin[1],0,0,0,bmax[2]-bmin[2]]
         translate = vectorops.sub(bmin,center)
+
         geometry_ptr.transform(scale,translate)
         geometry_ptr.setCurrentTransform(item.xform[0],item.xform[1])
         return geometry_ptr
@@ -169,6 +170,14 @@ class KnowledgeBase:
     def __init__(self):
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
+
+        #
+        # item = apc.ItemInBin(apc.shelf, 'bin_SHELF')
+        # item.set_in_bin_xform(ground_truth_shelf_xform, 0,0,0)
+        # item.info.geometry = load_item_geometry(item)
+        # self.bin_contents['bin_SHELF'] = []
+        # self.bin_contents['bin_SHELF'].append(item)
+        self.shelf = []
 
     def bin_front_center(self,bin_name):
         bmin,bmax = apc.bin_bounds[bin_name]
@@ -988,6 +997,7 @@ class PickingController:
         # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
 
         qcmd = self.controller.getCommandedConfig()
+
         limbs = ['left']
 
         print "\nSolving for MOVE_CAMERA_TO_BIN"
@@ -1351,6 +1361,7 @@ class MyGLViewer(GLRealtimeProgram):
         self.draw_bins = False
         self.draw_grasps = True
         self.draw_gripper_and_camera = True
+        self.draw_shelf = False
 
         # initialize controllers, and starts a thread running "run_controller" with the
         # specified picking controller and command queue
@@ -1427,6 +1438,11 @@ class MyGLViewer(GLRealtimeProgram):
                 r = 0.01
                 gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
 
+        # show box for representing the shelf for collision detection
+        if self.draw_shelf:
+            for i in knowledge.bin_contents['bin_SHELF']:
+                glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0.5,0,1])
+                draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
 
         #show object state
         for i in ground_truth_items:
@@ -1531,7 +1547,7 @@ def load_apc_world():
     # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
     print "Loading Kiva pod model..."
-    world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
+    # world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
 
@@ -1544,8 +1560,7 @@ def load_apc_world():
     reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,0])
     T = reorient
-    world.terrain(0).geometry().transform(*se3.mul(Trel,T))
-    # print se3.mul(Trel,T)
+    # world.terrain(0).geometry().transform(*se3.mul(Trel,T))
 
     #initialize the shelf xform for the visualizer and object
     #xform initialization
@@ -1589,7 +1604,7 @@ def spawn_objects_from_ground_truth(world):
         # c.kRestitution = 0.1;
         # c.kStiffness = 100000
         # c.kDamping = 100000
-        c.kFriction = 0.1
+        c.kFriction = 10.1
         c.kRestitution = 0.001;
         c.kStiffness = 1000000
         c.kDamping = 10
@@ -1600,9 +1615,25 @@ def spawn_objects_from_ground_truth(world):
 
         # Spawn objects a little bit higher than bin floor
         t = item.xform[1]
-        t = [t[0], t[1], t[2]+0.0175]
+        t = [t[0], t[1], t[2]-0.085]
         obj.setTransform(item.xform[0],t)
 
+    return
+
+def spawn_shelf_boundingBox(world):
+    """For all ground_truth_items, spawns RigidObjects in the world
+    according to their sizes / mass properties"""
+
+    print "Initializing shelf obj"
+    # shelf = world.loadRigidObject(os.path.join(model_dir,"north_shelf/shelf_with_bins.obj"))
+    # knowledge.shelf = world.loadRigidObject(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
+    knowledge.shelf = world.loadRigidObject(os.path.join(model_dir,"kiva_pod/model.obj"))
+
+    reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
+    Trel = (so3.mul(so3.rotation((1,0,0),-math.pi/2), so3.rotation((0,1,0), math.pi/2)),[1.35,0,0.055])
+
+    T = reorient
+    knowledge.shelf.setTransform(*se3.mul(Trel,T))
 
     return
 
@@ -1634,6 +1665,7 @@ if __name__ == "__main__":
         simWorld = load_apc_world()
     else:
         simWorld = load_apc_world()
+        spawn_shelf_boundingBox(simWorld)
         spawn_objects_from_ground_truth(simWorld)
 
     #load the resting configuration from klampt_models/baxter_rest.config

@@ -65,6 +65,7 @@ class LimbCSpace (CSpace):
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
         if limb=='left':
             # self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
+            # self.limb_indices = self.limb_indices + [54,55]
             self.limb_indices = left_arm_geometry_indices + left_hand_geometry_indices
         else:
             # self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
@@ -75,8 +76,14 @@ class LimbCSpace (CSpace):
 
     def feasible(self,q):
         if not CSpace.feasible(self,q):
-            # print "LimbCSpace.feasible: Configuration is out of bounds"
+            print "LimbCSpace.feasible: Configuration is out of bounds"
             return False
+        # for i in range(len(q)):
+        #     # print "q", i, q[i], self.bound[i][0], self.bound[i][1]
+        #     if not ((q[i] >= self.bound[i][0]) and (q[i] <= self.bound[i][1])):
+        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (min:",self.bound[i][0],", max:", self.bound[i][1],")"
+        #         return False
+
         if not self.planner.check_limb_collision_free(self.limb,q):
                 # print "LimbCSpace.feasible: Configuration is in collision"
                 return False
@@ -137,8 +144,13 @@ class LimbPlanner:
         self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
-        self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
-        self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
+        # self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
+        # self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
+        # print "LEFT ARM INDICES", self.left_arm_indices
+
+        self.left_arm_indices = left_arm_geometry_indices + left_hand_geometry_indices
+        self.right_arm_indices = right_arm_geometry_indices + right_hand_geometry_indices
+        # print "LEFT ARM INDICES", self.left_arm_indices
 
         self.dynamic_objects = []
 
@@ -158,9 +170,11 @@ class LimbPlanner:
         a full-robot configuration q"""
         qlimb = [0.0]*len(self.left_arm_indices)
         if limb=='left':
+            qlimb = [0.0]*len(self.left_arm_indices)
             for (i,j) in enumerate(self.left_arm_indices):
                 qlimb[i] = q[j]
         else:
+            qlimb = [0.0]*len(self.right_arm_indices)
             for (i,j) in enumerate(self.right_arm_indices):
                 qlimb[i] = q[j]
         return qlimb
@@ -175,18 +189,36 @@ class LimbPlanner:
             collindices = set(right_arm_geometry_indices+right_hand_geometry_indices)
         armfilter = lambda x:isinstance(x,RobotModelLink) and (x.index in collindices)
         #check with objects in world model
-        for o1,o2 in self.collider.collisionTests(armfilter,lambda x:True):
+        for o1,o2 in self.collider.collisionTests(armfilter,lambda x:True):   # NOTE: what is bb_reject??
             if o1[1].collides(o2[1]):
                 # print "Collision between",o1[0].getName(),o2[0].getName()
                 return False
 
         for obj in self.dynamic_objects:
+            print "checking collision with objects"
+            print obj.info.geometry
             assert obj.info.geometry != None
             for link in collindices:
                 if self.robot.link(link).geometry().collides(obj.info.geometry):
                     # NOTE: Uncomment this line to show collision warnings
                     # print "Collision between link",self.robot.link(link).getName()," and dynamic object"
                     return False
+
+        # print "checking collision with shelf"
+        # print self.knowledge.shelf.geometry()
+        # print self.robot.link(55).geometry().distance(self.knowledge.shelf.geometry())
+
+        if self.knowledge.shelf.geometry().collides(self.knowledge.shelf.geometry()):
+            print "CHECK"
+
+        for link in collindices:
+            # self.robot.link(link).geometry().setCollisionMargin(0.001)
+            # self.knowledge.shelf.geometry().setCollisionMargin(0.001)
+            if self.robot.link(link).geometry().collides(self.knowledge.shelf.geometry()):
+                # NOTE: Uncomment this line to show collision warnings
+                # print "Collision between link",self.robot.link(link).getName()," and shelf"
+                return False
+
         return True
 
     def check_collision_free_with_object(self,limb,objectGeom,grasp):
@@ -222,9 +254,15 @@ class LimbPlanner:
                 #not sensed
                 continue
             for item in objList:
+                # print item.info.name
+                # print k, item.info.name, item.info.geometry
                 assert item.info.geometry != None
                 item.info.geometry.setCurrentTransform(*item.xform)
                 self.dynamic_objects.append(item)
+
+        # NOTE:
+        # self.dynamic_objects.append(self.knowledge.shelf)
+
         return
 
     def check_limb_collision_free(self,limb,limbconfig):
@@ -254,13 +292,14 @@ class LimbPlanner:
 
         # MotionPlan.setOptions(connectionThreshold=5.0)
         # MotionPlan.setOptions(shortcut=1)
-        # plan = MotionPlan(cspace,'sbl')
+        plan = MotionPlan(cspace,'sbl')
 
         # MotionPlan.setOptions(type='rrt*')
         # MotionPlan.setOptions(type="prm",knn=10,connectionThreshold=0.1,shortcut=True)
         # MotionPlan.setOptions(type='fmm*')
 
-        plan = MotionPlan(cspace, type='fmm*')
+        # MotionPlan.setOptions(bidirectional = 1)
+        # plan = MotionPlan(cspace, type='rrt')
 
 
         # plan = MotionPlan(cspace)

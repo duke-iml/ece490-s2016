@@ -5,7 +5,7 @@ from klampt import so3, se3
 import math
 
 # bin names
-bin_names = ['bin_'+c for c in ['A','B','C','D','E','F','G','H','I','J','K','L']]
+bin_names = ['bin_'+c for c in ['A','B','C','D','E','F','G','H','I','J','K','L','SHELF']]
 
 # shelf coordinates are centered at the bottom center of the shelf.
 # x: left to right
@@ -29,7 +29,9 @@ bin_bounds = {
     'bin_J' : ([-0.41,0.825,0],[-0.158,1.06,0.42]),
     'bin_K' : ([-0.149,0.825,0],[0.149,1.06,0.42]),
     'bin_L' : ([0.158,0.825,0],[0.41,1.06,0.42]),
+
     }
+
 # rotation matrices
 # NOTE: XtoZ ~ Zto_Y are flipped?
 XtoY = so3.from_axis_angle(([0,0,1],math.pi*0.5))
@@ -55,7 +57,7 @@ class ItemInfo:
       (with transforms specified in the local coordinates of the object)"""
     def __init__(self,name):
         self.name = name
-        self.mass = 0.1
+        self.mass = 1.1
         self.bmin = [-0.1,-0.1,-0.1]
         self.bmax = [0.1,0.1,0.1]
         self.geometryFile = None
@@ -118,6 +120,17 @@ class ItemInBin:
 
 # set up some items and some potential grasps
 # instantiate "tall_item" as an ItemInfo class
+# shelf = ItemInfo('SHELF_BOUNDING_BOX')
+# shelf.mass = 10
+# # shelf.bmin = [-0.435,0,-1.0]
+# # shelf.bmax = [0.435,0.01,1.0]
+# shelf.bmin = [-0.635,0,-1.0]
+# shelf.bmax = [0.635,0.01,1.0]
+
+# shelf.geometryFile = 'box'
+# shelf.grasps.append(ItemGrasp((Zto_Y,[0,0,0])))
+
+
 tall_item = ItemInfo('tall_item')
 tall_item.bmin = [-0.03,-0.05,-0.08]
 tall_item.bmax = [0.03,0.05,0.08]

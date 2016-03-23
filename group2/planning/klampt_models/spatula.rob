@@ -12,8 +12,8 @@ jointtype p p
 axis 0 0 1    0 0 1
 
 #control the amount of movement here
-qmin 0 0.0036
-qmax 0 0.204
+qmin 0 -0.0036
+qmax 0 0.2004
 velmax 0 2
 accmax 0 5
 torquemax 0 inf
