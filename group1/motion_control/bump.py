@@ -59,9 +59,9 @@ def run():
                 print "new:", config
                 iksolve(config, rWrist, pRobot.right_limb, pRobot.right_mq)
             else:
-                print "unknown command"
+                print "Unknown command"
         else:
-            print "unknown command"
+            print "Unknown command"
 
 def iksolve(config, kEE, pEE, mq):
     goal = ik.objective(kEE,local=(0,0,0), world=config)
