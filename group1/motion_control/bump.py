@@ -4,6 +4,7 @@ from klampt import RobotPoser, ik, se3
 import time
 from common.Motion import motion
 from ast import literal_eval as make_tuple
+from operator import add
 
 # motion.robot.left_limb = Limb(LEFT)
 # motion.robot.right_limb = Limb(RIGHT)
@@ -35,12 +36,13 @@ def run():
         command = raw_input("Command: ")
         l = pRobot.left_limb.sensedPosition()
         r = pRobot.right_limb.sensedPosition()
-        kRobot.setConfig(r)
+        q = pRobot.getKlamptSensedPosition()
+        kRobot.setConfig(q)
         if command == 'q':
             exit(0)
         elif command == 'c':
             print "right:", lWrist.getWorldPosition((0,0,0))
-            print "left:", kRobot.link("left_wrist").getWorldPosition((0,0,0))
+            print "left:", rWrist.getWorldPosition((0,0,0))
         elif command[0] == 'l':
             config = make_tuple(command[1:])
             iksolve(config, lWrist, pRobot.left_limb, pRobot.left_mq)
@@ -48,8 +50,19 @@ def run():
             config = make_tuple(command[1:])
             iksolve(config, rWrist, pRobot.right_limb, pRobot.right_mq)
         elif command[0] == 'b':
-            pass
-            
+            if command[1] =='r':
+                config = map(add, make_tuple(command[2:]), rWrist.getWorldPosition((0,0,0)))
+                print "new:", config
+                iksolve(config, rWrist, pRobot.right_limb, pRobot.right_mq)
+            elif command[1] =='l':
+                config = map(add, make_tuple(command[2:]), lWrist.getWorldPosition((0,0,0)))
+                print "new:", config
+                iksolve(config, rWrist, pRobot.right_limb, pRobot.right_mq)
+            else:
+                print "unknown command"
+        else:
+            print "unknown command"
+
 def iksolve(config, kEE, pEE, mq):
     goal = ik.objective(kEE,local=(0,0,0), world=config)
     q = pRobot.getKlamptSensedPosition()
@@ -59,7 +72,7 @@ def iksolve(config, kEE, pEE, mq):
         q = kRobot.getConfig()
         mq.setRamp(pEE.configFromKlampt(q))
     else:
-        print "failed:", ik.solver(goal).getResidual()
+        print "failed. Residual:", ik.solver(goal).getResidual()
 
 if __name__ == "__main__":
     global robotPoser
@@ -77,6 +90,5 @@ if __name__ == "__main__":
     res = world.readFile(klampt_model)
     if not res:
         raise RuntimeError("Unable to load Klamp't model", klampt_model)
-    print motion.robot.right_limb.sensedPosition()
     robotPoser = RobotPoser(world.robot(0))
     run()
