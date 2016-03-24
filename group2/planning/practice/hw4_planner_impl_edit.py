@@ -134,7 +134,6 @@ class LimbCSpace (CSpace):
         self.eps = 1e-1
 
     def feasible(self,q):
-        print len(q)
         if not CSpace.feasible(self,q):
             print "LimbCSpace.feasible: Configuration is out of bounds"
             return False
@@ -362,9 +361,9 @@ class LimbPlanner:
 
         # MotionPlan.setOptions(type="sbl", perturbationRadius = 0.5, connectionThreshold=2.0, bidirectional = True)
         # MotionPlan.setOptions(type="rrt",perturbationRadius=0.1,bidirectional=True)
-        # MotionPlan.setOptions(type="rrt", perturbationRadius = 0.25, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
+        MotionPlan.setOptions(type="rrt", perturbationRadius = 0.25, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
         # MotionPlan.setOptions(type="rrt*", perturbationRadius = 0.05, connectionThreshold=2, bidirectional = True)
-        MotionPlan.setOptions(type="rrt", perturbationRadius = 0.2, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
+        # MotionPlan.setOptions(type="rrt", perturbationRadius = 0.2, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
         # MotionPlan.setOptions(type="prm",knn=1,connectionThreshold=0.01)
         # plan = MotionPlan(cspace, type='sbl')
 

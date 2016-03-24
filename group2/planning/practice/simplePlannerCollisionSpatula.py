@@ -41,7 +41,7 @@ from Queue import Queue
 from operator import itemgetter
 
 # configuration variables
-config = 0
+config = 1
 NO_SIMULATION_COLLISIONS = config
 FAKE_SIMULATION = config
 SKIP_PATH_PLANNING = config
@@ -542,7 +542,7 @@ class PickingController:
                 return True
             else:
                 print "Grasp failed"
-                return Falsec
+                return False
 
     def unscoopAction(self):
         self.waitForMove()
@@ -1044,8 +1044,8 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                # path = self.planner.plan(qcmd,solution[0])
-                path = self.planner.plan(qcmd,solution[0], iks = ik_constraint)
+                path = self.planner.plan(qcmd,solution[0])
+                # path = self.planner.plan(qcmd,solution[0], iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
