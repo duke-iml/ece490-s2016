@@ -56,11 +56,41 @@ class ClosedLoopCSpaceTest (ClosedLoopRobotCSpace):
         self.eps = 1e-1
 
     def feasible(self,q):
-        if not RobotCSpace.feasible(self,q):
-            print "LimbCSpace.feasible: Configuration is out of bounds"
-            return False
+        if len(q) < self.robot.numLinks:
+            qLimb = q
+            q = self.robot.getConfig()
+            for i in range(len(self.limb_indices)):
+                q[self.limb_indices[i]] = qLimb[i]
+
+        qmin,qmax = self.robot.getJointLimits()
+        for i in range(len(q)):
+            if qmin[i] > q[i] or qmax[i] < q[i]:
+                print "joint out of range"
+                print i, qmin[i], q[i], qmax[i]
+                return False
+
+        # if not ClosedLoopRobotCSpace.feasible(self,q):
+        #     print "ClosedLoopRobotCSpace.feasible: Configuration is out of bounds"
+        #     return False
+
+        # for i in range(len(self.limb_indices)):
+        #     # qlimbs[i] = q[self.limb_indices[i]]
+        #     print i, self.limb_indices[i], len(q)
+        # print len(q), len(self.bound)
+        # for i in range(len(q)):
+        #     print i
+            # print self.bound[i][0]
+
+            # if self.bound[i][0] > q[i] or self.bound[i][1] < q[i]:
+            #     print "joint out of range"
+            #     return False
+            # # print q[i], self.bound[i]
+
+        # if self.inJointLimits(q):
+        #     print "within joint limits"
+
         if not self.planner.check_limb_collision_free(self.limb,q):
-                print "LimbCSpace.feasible: Configuration is in collision"
+                print "ClosedLoopRobotCSpace.feasible: Configuration is in collision"
                 return False
         return True
 
@@ -104,6 +134,7 @@ class LimbCSpace (CSpace):
         self.eps = 1e-1
 
     def feasible(self,q):
+        print len(q)
         if not CSpace.feasible(self,q):
             print "LimbCSpace.feasible: Configuration is out of bounds"
             return False
@@ -240,7 +271,12 @@ class LimbPlanner:
                     return False
 
         for link in collindices:
-            if self.world.terrain(0).geometry().collides(self.robot.link(link).geometry()):
+            shelfGeometry = self.world.terrain(0).geometry()
+            linkGeometry = self.robot.link(link).geometry()
+
+            shelfGeometry.setCollisionMargin(0.05)
+            # linkGeometry.setCollisionMargin(0.05)
+            if shelfGeometry.collides(linkGeometry):
                 # print "link #",link,"collides with terrain"
                 return False
 
@@ -301,10 +337,10 @@ class LimbPlanner:
         self.rebuild_dynamic_objects()
 
         # NOTE:
-        if iks == None:
-            cspace = LimbCSpace(self,limb)
-        else:
-            cspaceTest = ClosedLoopCSpaceTest(self,limb,iks)
+        cspace = LimbCSpace(self,limb)
+        if iks != None:
+            print "Initializing ClosedLoopCSPace"
+            cspace = ClosedLoopCSpaceTest(self,limb,iks)
 
         if not cspace.feasible(limbstart):
             print "  Start configuration is infeasible!"

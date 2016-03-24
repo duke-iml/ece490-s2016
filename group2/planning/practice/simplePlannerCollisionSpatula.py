@@ -41,12 +41,10 @@ from Queue import Queue
 from operator import itemgetter
 
 # configuration variables
-# Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
-# Question 4: set NO_SIMULATION_COLLISIONS = 0
-NO_SIMULATION_COLLISIONS = 0
-#Turn this on to help fast prototyping of later stages
-FAKE_SIMULATION = 0
-SKIP_PATH_PLANNING = 0
+config = 0
+NO_SIMULATION_COLLISIONS = config
+FAKE_SIMULATION = config
+SKIP_PATH_PLANNING = config
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -298,9 +296,9 @@ class LowLevelController:
         is given, then the end of the queue will be moving at that velocity.
         Otherwise, the end velocity will be zero."""
         self.lock.acquire()
-        if endvelocity == None: self.controller.addMilestone(destination)
+        if endvelocity == None: self.controller.addMilestoneLinear(destination)
         # else: self.controller.addMilestone(destination,endvelocity)
-        else: self.controller.addMilestoneLinear(destination,endvelocity)
+        else: self.controller.addMilestone(destination,endvelocity)
         self.lock.release()
     def isMoving(self):
         return self.controller.remainingTime()>0
@@ -544,7 +542,7 @@ class PickingController:
                 return True
             else:
                 print "Grasp failed"
-                return False
+                return Falsec
 
     def unscoopAction(self):
         self.waitForMove()
@@ -1000,7 +998,8 @@ class PickingController:
 
         Otherwise, does not modify the low-level controller and returns False.
         """
-        R_camera = [0,0,-1, 1,0,0, 0,1,0]
+        R_camera = [0,-1, 0, 0,0,-1, 1,0,0]
+        # R_camera = so3.mul( so3.rotation([0,0,1], -math.pi/2), so3.rotation([1,0,0], -math.pi/2) )
         t_camera = knowledge.bin_vantage_point(bin_name)
 
         # Setup ik objectives for both arms
@@ -1011,6 +1010,19 @@ class PickingController:
         qcmd = self.controller.getCommandedConfig()
 
         limbs = ['left']
+
+
+        # ClosedLoopRobotCSpace IK Constraint
+        # ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
+        print "****************"
+        ik_constraint = IKObjective()
+        ik_constraint.setLinks(23)
+        print ik_constraint.numRotDims()
+        ik_constraint.setAxialRotConstraint([1,0,0], [0,0,1])
+        # ik_constraint.setAxialRotConstraint([0,0,1], [0,0,1])
+        print ik_constraint.numRotDims()
+        print ik_constraint.getRotationAxis()
+        print "****************"
 
         print "\nSolving for MOVE_CAMERA_TO_BIN"
 
@@ -1033,7 +1045,6 @@ class PickingController:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 # path = self.planner.plan(qcmd,solution[0])
-                ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
                 path = self.planner.plan(qcmd,solution[0], iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
                     break
@@ -1240,11 +1251,22 @@ class PickingController:
         print "Planning failed"
         return False
 
-    # TODO: understand this function
     def sendPath(self,path):
+        q = path[0]
+        q[55] = 0 # don't move spatula
+        for i in [23,30,31,54,56]: q[i] = 0
+
         print len(path), "Milestones in path"
         self.controller.setMilestone(path[0])
+
+        # removing AppendRamp claming error
+        qmin,qmax = self.robot.getJointLimits()
         for q in path[1:]:
+            q[55] = 0 # don't move spatula
+            for i in [23,30,31,54,56]:
+                # print i, qmin[i], q[i], qmax[i]
+                q[i] = 0
+
             self.controller.appendMilestone(q)
 
 def draw_xformed(xform,localDrawFunc):
@@ -1554,7 +1576,8 @@ class MyGLViewer(GLRealtimeProgram):
         V,E =self.picking_controller.planner.roadmap
         positions = []
 
-        # gldraw.xform_widget([so3.identity(), self.simworld.robot(0).link(23).getTransform()[1]], 0.1, 0.015, lighting=False, fancy=True)
+        gldraw.xform_widget(self.simworld.robot(0).link(22).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
+        gldraw.xform_widget(self.simworld.robot(0).link(23).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
 
         for v in V:
             qcmd = self.planworld.robot(0).getConfig()
