@@ -171,18 +171,23 @@ class KnowledgeBase:
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
 
-        #
         # item = apc.ItemInBin(apc.shelf, 'bin_SHELF')
         # item.set_in_bin_xform(ground_truth_shelf_xform, 0,0,0)
         # item.info.geometry = load_item_geometry(item)
         # self.bin_contents['bin_SHELF'] = []
         # self.bin_contents['bin_SHELF'].append(item)
         self.shelf = []
+        self.center_point = None
 
     def bin_front_center(self,bin_name):
         bmin,bmax = apc.bin_bounds[bin_name]
         # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
         local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmax[2]]
+
+        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
+            local_center = vectorops.add(local_center, [0.01,0,0])
+        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
+            local_center = vectorops.add(local_center, [-0.02,0,0])
 
         world_center = se3.apply(ground_truth_shelf_xform, local_center)
         return world_center
@@ -196,13 +201,14 @@ class KnowledgeBase:
         return vectorops.add(world_center,world_offset)
 
     def bin_center_point(self):
-        bin_name = 'bin_L'
-        world_center = self.bin_front_center(bin_name)
-        # Vantage point has 20cm offset from bin center
-        # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.1,0.35])
-        world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0,0.5])
+        # bin_name = 'bin_L'
+        # world_center = self.bin_front_center(bin_name)
+        # # Vantage point has 20cm offset from bin center
+        # # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.1,0.35])
+        # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0,0.5])
 
-        return vectorops.add(world_center,world_offset)
+        # return vectorops.add(world_center,world_offset)
+        return self.center_point
 
     def bin_vertical_point(self):
         world_center = self.bin_center_point()
@@ -417,6 +423,9 @@ class PickingController:
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
+        # frames to draw
+        self.frames = []
+
     def waitForMove(self,timeout = None, pollRate = 0.1):
         """Waits for the move to complete, or timeout seconds is elapsed,
         before terminating."""
@@ -509,7 +518,6 @@ class PickingController:
         else:
             if self.tilt_wrist('down'):
                 self.waitForMove()
-
                 # push spatula base
                 # self.controller.commandGripper('left', [1])
                 # self.waitForMove()
@@ -588,15 +596,18 @@ class PickingController:
         # tilted angle view for spatula
         if direction == 'down':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*10))
-            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.025,0.335])
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.0275,0.3325])
 
         elif direction == 'up':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*10))
-            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.03,0.335])
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.03,0.3325])
 
         t_camera = vectorops.add(world_center,world_offset)
 
+        # debuggin code
+        # self.frames.append([R_camera,t_camera])
 
+        # t_camera = world_center
 
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
@@ -1021,7 +1032,9 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0])
+                # path = self.planner.plan(qcmd,solution[0])
+                ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
+                path = self.planner.plan(qcmd,solution[0], iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -1385,8 +1398,6 @@ class MyGLViewer(GLRealtimeProgram):
         self.picking_thread = Thread(target=run_controller,args=(self.picking_controller,self.command_queue))
         self.picking_thread.start()
 
-
-
     # where is this function called? somewhere in GLRealtimeProgram in glprogram
     def idle(self):
         if self.simulate:
@@ -1539,10 +1550,11 @@ class MyGLViewer(GLRealtimeProgram):
 
         # draw milestones
         glDisable(GL_LIGHTING)
+
         V,E =self.picking_controller.planner.roadmap
         positions = []
 
-        gldraw.xform_widget([so3.identity(), self.planworld.robot(0).link(23).getTransform()[1]], 0.1, 0.015, lighting=False, fancy=True)
+        # gldraw.xform_widget([so3.identity(), self.simworld.robot(0).link(23).getTransform()[1]], 0.1, 0.015, lighting=False, fancy=True)
 
         for v in V:
             qcmd = self.planworld.robot(0).getConfig()
@@ -1551,24 +1563,51 @@ class MyGLViewer(GLRealtimeProgram):
 
             self.planworld.robot(0).setConfig(qcmd)
 
-            loc = self.planworld.robot(0).link(23).getTransform()[1]
+            R = self.planworld.robot(0).link(23).getTransform()[0]
+            t = self.planworld.robot(0).link(23).getTransform()[1]
             # loc = self.planworld.robot(0).link(54).getTransform()[1]
-            positions.append(loc)
+            positions.append(t)
 
             # remove this line later
-            gldraw.xform_widget([so3.identity(), loc], 0.03, 0.0045, lighting=False, fancy=True)
+            # gldraw.xform_widget([R,t], 0.03, 0.0045, lighting=False, fancy=True)
 
         glColor3f(1,1,1)
+        glLineWidth(0.2)
         glBegin(GL_LINES)
         for (i,j) in E:
             glVertex3f(*positions[i])
             glVertex3f(*positions[j])
         glEnd()
+
+
+        #if the path is found, draw configurations along the path
+        path = self.picking_controller.planner.pathToDraw
+
+        qcmd = self.planworld.robot(0).getConfig()
+        if path and len(path)>0:
+            glColor3f(0,1,0)
+            glLineWidth(5.0)
+            glBegin(GL_LINE_STRIP)
+            for q in path:
+                for k in range(len(self.picking_controller.planner.limb_indices)):
+                    qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
+
+                self.planworld.robot(0).setConfig(qcmd)
+
+                glVertex3f(*self.planworld.robot(0).link(23).getTransform()[1])
+            glEnd()
+            glLineWidth(1.0)
+
+        qcmd = self.planworld.robot(0).setConfig(qcmd)
+
         glEnable(GL_LIGHTING)
 
 
-        # print config
-        # print self.simworld.robot(0).getConfig()
+
+        for frame in self.picking_controller.frames:
+            R = frame[0]
+            t = frame[1]
+            gldraw.xform_widget([R,t], 0.03, 0.0045, lighting=True, fancy=True)
 
         return
 
@@ -1606,7 +1645,8 @@ def load_apc_world():
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
-    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,-0.1])
+    # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.3,0,-0.1])
+    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.6,0,-0.1])
     T = reorient
     world.terrain(0).geometry().transform(*se3.mul(Trel,T))
 
@@ -1721,7 +1761,7 @@ if __name__ == "__main__":
         # spawn_objects_from_ground_truth(world)
 
     # load the resting configuration from klampt_models/baxter_rest.config
-    # global baxter_rest_config
+    global baxter_rest_config
     # f = open(model_dir+'baxter_rest.config','r')
     f = open(model_dir+'baxter_spatula_rest.config','r')
     baxter_rest_config = loader.readVector(f.readline())
@@ -1732,7 +1772,11 @@ if __name__ == "__main__":
     n = world.robot(0).numLinks()
     if len(baxter_rest_config) < n:
         baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
+        print "# links in rest_config < # links in robot"
     world.robot(0).setConfig(baxter_rest_config)
+
+    # set spatula center point
+    knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
 
     #run the visualizer
     visualizer = MyGLViewer(simWorld,world)
