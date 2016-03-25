@@ -56,12 +56,13 @@ def getObjectCOM(data):
     cloud = cloud.transpose()
 
     # Show a plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(cloud[0,:], cloud[1,:], cloud[2,:])
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
-    plt.show()
+    if SHOW_PLOT:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(cloud[0,:], cloud[1,:], cloud[2,:])
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+        plt.show()
 
     return (cloud.transpose(), com)
