@@ -1,4 +1,4 @@
-#!/usr/bin/python
+!/usr/bin/python
 
 # NOTE: Key sequence to control the baxter as desired:
 #       bin number (A~L) --> scoop (S) --> move spatula to center (N) --> move gripper to center (M)
@@ -17,9 +17,7 @@
 #          check with the object or the shelf? Does the collision checker check shelf model?
 #
 #       3) Why is the simulated (Green) and actual (Gray) trajectory different?
-#
-#       4) Sometimes the collision detection doesn't work well (spatula bangs into shelf; gripper goes through spatula)
-#
+##
 #       5) Fixing end-effector orientation throughout trajectory?
 #
 #       6) fix 2 points of spatula edge to shelf during wrist tilt
@@ -28,7 +26,6 @@ from klampt import robotsim
 from klampt.glprogram import *
 from klampt import vectorops, se3, so3, loader, gldraw, ik
 from klampt.robotsim import Geometry3D
-from klampt import visualization
 from baxter import *
 # from hw4_planner_impl import *
 from hw4_planner_impl_edit import *
@@ -42,10 +39,12 @@ from Queue import Queue
 from operator import itemgetter
 
 # configuration variables
-config = 0
-NO_SIMULATION_COLLISIONS = config
-FAKE_SIMULATION = config
-SKIP_PATH_PLANNING = config
+# Question 1,2,3: set NO_SIMULATION_COLLISIONS = 1
+# Question 4: set NO_SIMULATION_COLLISIONS = 0
+NO_SIMULATION_COLLISIONS = 1
+#Turn this on to help fast prototyping of later stages
+FAKE_SIMULATION = 1
+SKIP_PATH_PLANNING = 1
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -161,7 +160,6 @@ class KnowledgeBase:
       from left to right, the y coordinate increases from bottom to top,
       and the z coordinate increases from back to front.
       this will be loaded dynamically either from perception or hard coded.
-
     (in this homework assignment we will use the fake perception module
     to populate the bin contents, and assume the shelf xform is
     estimated perfectly.)
@@ -170,23 +168,18 @@ class KnowledgeBase:
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
 
+        #
         # item = apc.ItemInBin(apc.shelf, 'bin_SHELF')
         # item.set_in_bin_xform(ground_truth_shelf_xform, 0,0,0)
         # item.info.geometry = load_item_geometry(item)
         # self.bin_contents['bin_SHELF'] = []
         # self.bin_contents['bin_SHELF'].append(item)
         self.shelf = []
-        self.center_point = None
 
     def bin_front_center(self,bin_name):
         bmin,bmax = apc.bin_bounds[bin_name]
         # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
         local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmax[2]]
-
-        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
-            local_center = vectorops.add(local_center, [0.01,0,0])
-        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
-            local_center = vectorops.add(local_center, [-0.02,0,0])
 
         world_center = se3.apply(ground_truth_shelf_xform, local_center)
         return world_center
@@ -200,14 +193,13 @@ class KnowledgeBase:
         return vectorops.add(world_center,world_offset)
 
     def bin_center_point(self):
-        # bin_name = 'bin_L'
-        # world_center = self.bin_front_center(bin_name)
-        # # Vantage point has 20cm offset from bin center
-        # # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.1,0.35])
-        # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0,0.5])
+        bin_name = 'bin_L'
+        world_center = self.bin_front_center(bin_name)
+        # Vantage point has 20cm offset from bin center
+        # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.1,0.35])
+        world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0,0.5])
 
-        # return vectorops.add(world_center,world_offset)
-        return self.center_point
+        return vectorops.add(world_center,world_offset)
 
     def bin_vertical_point(self):
         world_center = self.bin_center_point()
@@ -297,7 +289,7 @@ class LowLevelController:
         is given, then the end of the queue will be moving at that velocity.
         Otherwise, the end velocity will be zero."""
         self.lock.acquire()
-        if endvelocity == None: self.controller.addMilestoneLinear(destination)
+        if endvelocity == None: self.controller.addMilestone(destination)
         else: self.controller.addMilestone(destination,endvelocity)
         self.lock.release()
     def isMoving(self):
@@ -387,7 +379,6 @@ class PickingController:
     - active_limb: the limb currently active, either holding or viewing a state
     - current_bin: the name of the bin where the camera is viewing or the gripper is located
     - held_object: the held object, if one is held, or None otherwise
-
     External modules can call viewBinAction(), graspAction(), ungraspAction(),
     and placeInOrderBinAction()
     """
@@ -420,9 +411,6 @@ class PickingController:
         # define a list of link indices on both arms
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
-
-        # frames to draw
-        self.frames = []
 
     def waitForMove(self,timeout = None, pollRate = 0.1):
         """Waits for the move to complete, or timeout seconds is elapsed,
@@ -516,6 +504,7 @@ class PickingController:
         else:
             if self.tilt_wrist('down'):
                 self.waitForMove()
+
                 # push spatula base
                 # self.controller.commandGripper('left', [1])
                 # self.waitForMove()
@@ -594,21 +583,15 @@ class PickingController:
         # tilted angle view for spatula
         if direction == 'down':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*10))
-            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.0275,0.3325])
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.025,0.335])
 
         elif direction == 'up':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*10))
-            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.03,0.3325])
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.03,0.335])
 
         t_camera = vectorops.add(world_center,world_offset)
 
-        # debuggin code
-        self.frames.append([R_camera,t_camera])
-        # self.frames.append(self.left_camera_link.getTransform())
-        # print [R_camera,t_camera]
-        # print self.left_camera_link.getTransform()
-        # return False
-        # t_camera = world_center
+
 
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
@@ -915,7 +898,6 @@ class PickingController:
         """Given a list of goals and their associated limbs, returns a list
         of (q,index) pairs, where q is an IK solution for goals[index].
         The results are sorted by distance from initialConfig.
-
         Arguments:
             - goals: a list of IKObjectives
             - limbs: a list of 'left'/'right', one for each goal, corresponding
@@ -927,7 +909,6 @@ class PickingController:
             - validity_checker: optionally, a special collision checker f(limb)
               that returns True if the robot's current limb configuration is valid.
               If None, the standard planner collision checker is used.
-
         Returns: a list [(solution1,index1),...,(solutionn,indexn)] of up to
         maxResults collision-free solutions.
         """
@@ -939,11 +920,13 @@ class PickingController:
         ikSolutions = []
         numSolutions = [0]*len(goals)
         numColFreeSolutions = [0]*len(goals)
+
         for i in range(maxIters):
             index = random.randint(0,len(goals)-1) # choose which ik goals to solve
             goal = goals[index]
             limb = limbs[index]
             numTrials[index] += 1
+
             # if first time trying the ik goal, initialize with current config
             if numTrials[index] == 1:
                 self.robot.setConfig(initialConfig)
@@ -961,6 +944,7 @@ class PickingController:
                     # print "IK solution for goal <", limb, "> was found"
                 # else:
                     # print "IK solution for goal <", limb, "> was in collision, trying again"
+
         # if len(ikSolutions)==0:
         #     print "No collision free IK solution"
         #     return []
@@ -992,16 +976,13 @@ class PickingController:
         """Starts a motion so the camera has a viewpoint that
         observes bin_name.  Will also change self.active_limb to the
         appropriate limb.
-
         If successful, sends the motion to the low-level controller and
         returns True.
-
         Otherwise, does not modify the low-level controller and returns False.
         """
-        R_camera = [0,-1, 0, 0,0,-1, 1,0,0]
-        # R_camera = so3.mul( so3.rotation([0,0,1], -math.pi/2), so3.rotation([1,0,0], -math.pi/2) )
+        R_camera = [0,0,-1, 1,0,0, 0,1,0]
         t_camera = knowledge.bin_vantage_point(bin_name)
-        # t_camera = [0.1,0.1,0.1]
+
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
@@ -1011,25 +992,9 @@ class PickingController:
 
         limbs = ['left']
 
-        # temporarily increase collision margin of shelf
-        self.planner.colMargin = 0.05
-
-        # ClosedLoopRobotCSpace IK Constraint
-        # ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
-        print "****************"
-        ik_constraint = IKObjective()
-        ik_constraint.setLinks(55)
-        print ik_constraint.numRotDims()
-        ik_constraint.setAxialRotConstraint([0,1,0], [0,0,-1])
-        # ik_constraint.setAxialRotConstraint([0,0,1], [0,0,1])
-        # ik_constraint.setAxialRotConstraint([0,1,0], [1,0,0])
-        print ik_constraint.numRotDims()
-        print ik_constraint.getRotationAxis()
-        print "****************"
-
         print "\nSolving for MOVE_CAMERA_TO_BIN"
 
-        for i in range(1):
+        for i in range(100):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
@@ -1048,7 +1013,6 @@ class PickingController:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 path = self.planner.plan(qcmd,solution[0])
-                # path = self.planner.plan(qcmd,solution[0], iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -1063,10 +1027,8 @@ class PickingController:
         one of its potential grasp locations.  Might change self.active_limb
         to the appropriate limb.  Must change self.active_grasp to the
         selected grasp.
-
         If successful, sends the motion to the low-level controller and
         returns True.
-
         Otherwise, does not modify the low-level controller and returns False.
         """
 
@@ -1127,10 +1089,8 @@ class PickingController:
 
     def move_to_ungrasp_object(self,object):
         """Sets the robot's configuration so the gripper ungrasps the object.
-
         If successful, sends the motion to the low-level controller and
         returns True.
-
         Otherwise, does not modify the low-level controller and returns False.
         """
         assert len(object.info.grasps) > 0,"Object doesn't define any grasps"
@@ -1197,10 +1157,8 @@ class PickingController:
 
     def move_to_order_bin(self,object):
         """Sets the robot's configuration so the gripper is over the order bin
-
         If successful, sends the motion to the low-level controller and
         returns True.
-
         Otherwise, does not modify the low-level controller and returns False.
         """
 
@@ -1233,72 +1191,27 @@ class PickingController:
             if len(sortedSolutions)==0:
                 # return False
                 continue
-            # prototyping hack: move straight to target
-            if SKIP_PATH_PLANNING:
-                self.controller.setMilestone(sortedSolutions[0][0])
-                self.active_limb = [sortedSolutions[0][1]]
-                return True
 
-            # else, if we want to path plan
-            else:
-                numSol = 0
-                for solution in sortedSolutions:
-                    numSol+=1
-                    path = self.planner.plan(qcmd,solution[0])
-                    if path == 1 or path == 2 or path == False:
-                        break
-                    elif path != None:
-                        self.waitForMove()
-                        self.sendPath(path)
-                        return True
+            for solution in sortedSolutions:
+                path = self.planner.plan(qcmd,solution[0])
+                if path == 1 or path == 2 or path == False:
+                    break
+                elif path != None:
+                    self.waitForMove()
+                    self.sendPath(path)
+                    return True
         print "Planning failed"
         return False
 
+    # TODO: understand this function
     def sendPath(self,path):
-        # q_temp = [0]*len(path[0])
-        # q_temp_list =
-        # for q_milestone in path:
-
-        # toy = [[1.0,1.0],[2.0,2.0],[3.0,3.0]]
-        # toy2 = [0]*(len(toy)*2-1)
-        # for i in range(len(toy)-1):
-        #     toy2[i*2] = toy[i]
-        #     toy2[i*2 +1] = vectorops.div(vectorops.add(toy[i],toy[i+1]), 2)
-        # toy2[-1] = toy[-1]
-        # print toy2
-        # print path
-
-        # toy = path
-        # toy2 = [0]*(len(toy)*2-1)
-        # for i in range(len(toy)-1):
-        #     toy2[i*2] = toy[i]
-        #     toy2[i*2 +1] = vectorops.div(vectorops.add(toy[i],toy[i+1]), 2)
-        # toy2[-1] = toy[-1]
-        # # print toy2
-        # path = toy2
-
-
-        q = path[0]
-        q[55] = 0 # don't move spatula
-        for i in [23,30,31,54,56]: q[i] = 0
-
-        print len(path), "Milestones in path"
         self.controller.setMilestone(path[0])
-
-        # removing AppendRamp claming error
-        qmin,qmax = self.robot.getJointLimits()
         for q in path[1:]:
-            q[55] = 0 # don't move spatula
-            for i in [23,30,31,54,56]:
-                # print i, qmin[i], q[i], qmax[i]
-                q[i] = 0
-
             self.controller.appendMilestone(q)
 
 def draw_xformed(xform,localDrawFunc):
     """Draws something given a se3 transformation and a drawing function
     that draws the object in its local frame.
-
     E.g., draw_xformed(xform,lambda:gldraw.box([ax,ay,az],[bx,by,bz])) draws
     a box oriented and translated by xform."""
     mat = zip(*se3.homogeneous(xform))
@@ -1400,18 +1313,13 @@ def restart_program():
 class MyGLViewer(GLRealtimeProgram):
     """This class is used to simulate / interact with with the world model
     in hw4.
-
     Pressing 'a-l' runs the view_bin method which should set the robot to a
     configuration that places a hand camera such that it points inside the
     bin.
-
     Pressing 's' should pause / unpause the simulation.
-
     Pressing 'x' should "grasp" an object in the currently pointed-to-bin
     with either one of the hands at the designated grasp point.
-
     Pressing 'u' should "ungrasp" an object currently grasped inside a bin.
-
     Pressing 'p' should "put down" an object in the order bin
     """
     def __init__(self,simworld,planworld):
@@ -1433,8 +1341,7 @@ class MyGLViewer(GLRealtimeProgram):
         self.draw_bins = False
         self.draw_grasps = True
         self.draw_gripper_and_camera = True
-        self.drawVE = False
-        self.drawPath = True
+        self.draw_shelf = False
 
         # initialize controllers, and starts a thread running "run_controller" with the
         # specified picking controller and command queue
@@ -1443,8 +1350,6 @@ class MyGLViewer(GLRealtimeProgram):
         else:
             self.low_level_controller =     LowLevelController(simworld.robot(0),self.sim.controller(0))
         self.command_queue = Queue()
-        # visualization.add("world",planworld)
-        # visualization.dialog()
         self.picking_controller = PickingController(planworld,self.low_level_controller)
         self.picking_thread = Thread(target=run_controller,args=(self.picking_controller,self.command_queue))
         self.picking_thread.start()
@@ -1512,6 +1417,12 @@ class MyGLViewer(GLRealtimeProgram):
                 glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[0.5,0.5,0.5,1])
                 r = 0.01
                 gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
+
+        # show box for representing the shelf for collision detection
+        if self.draw_shelf:
+            for i in knowledge.bin_contents['bin_SHELF']:
+                glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0.5,0,1])
+                draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
 
         #show object state
         for i in ground_truth_items:
@@ -1591,83 +1502,6 @@ class MyGLViewer(GLRealtimeProgram):
         glColor3f(1,0,0)
         draw_oriented_wire_box(order_bin_xform,order_bin_bounds[0],order_bin_bounds[1])
         glEnable(GL_LIGHTING)
-
-
-        # draw milestones
-        glDisable(GL_LIGHTING)
-
-        if self.drawVE :
-            V,E =self.picking_controller.planner.roadmap
-            positions = []
-
-            # gldraw.xform_widget(self.simworld.robot(0).link(22).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
-            # gldraw.xform_widget(self.simworld.robot(0).link(23).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
-            gldraw.xform_widget(self.simworld.robot(23).link(left_camera_link_name).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
-
-            for v in V:
-                qcmd = self.planworld.robot(0).getConfig()
-                for k in range(len(self.picking_controller.planner.limb_indices)):
-                    qcmd[self.picking_controller.planner.limb_indices[k]] = v[k]
-
-                self.planworld.robot(0).setConfig(qcmd)
-
-                linkNum = 23
-                R = self.planworld.robot(0).link(linkNum).getTransform()[0]
-                t = self.planworld.robot(0).link(linkNum).getTransform()[1]
-                # loc = self.planworld.robot(0).link(54).getTransform()[1]
-                positions.append(t)
-
-                # remove this line later (slows down the visualizer)
-                # gldraw.xform_widget([R,t], 0.015, 0.002, lighting=False, fancy=True)
-
-            glColor3f(0.1,0.1,0.1)
-            glLineWidth(0.1)
-            glBegin(GL_LINES)
-            for (i,j) in E:
-                glVertex3f(*positions[i])
-                glVertex3f(*positions[j])
-            glEnd()
-
-        if self.drawPath:
-            #if the path is found, draw configurations along the path
-            path = self.picking_controller.planner.pathToDraw
-
-            qcmd = self.planworld.robot(0).getConfig()
-            if path and len(path)>0:
-                # path smoother
-                smoothMaxIter = 5
-                for smoothIter in range(smoothMaxIter):
-                    # path = path
-                    smoothePath = [0]*(len(path)*2-1)
-                    for i in range(len(path)-1):
-                        smoothePath[i*2] = path[i]
-                        smoothePath[i*2 +1] = vectorops.div(vectorops.add(path[i],path[i+1]), 2)
-                    smoothePath[-1] = path[-1]
-                    path = smoothePath
-
-                glColor3f(0,1,0)
-                glLineWidth(5.0)
-                glBegin(GL_LINE_STRIP)
-                for q in path:
-                    for k in range(len(self.picking_controller.planner.limb_indices)):
-                        qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
-
-                    self.planworld.robot(0).setConfig(qcmd)
-
-                    glVertex3f(*self.planworld.robot(0).link(23).getTransform()[1])
-                glEnd()
-                glLineWidth(1.0)
-
-            qcmd = self.planworld.robot(0).setConfig(qcmd)
-
-        glEnable(GL_LIGHTING)
-
-
-        for frame in self.picking_controller.frames:
-            R = frame[0]
-            t = frame[1]
-            gldraw.xform_widget([R,t], 0.03, 0.0045, lighting=True, fancy=True)
-
         return
 
     def keyboardfunc(self,c,x,y):
@@ -1693,7 +1527,7 @@ def load_apc_world():
     # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     world.loadElement(os.path.join(model_dir,"baxter_with_spatula_col.rob"))
     print "Loading Kiva pod model..."
-    world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
+    # world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
 
@@ -1704,11 +1538,9 @@ def load_apc_world():
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
-    # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.3,0,-0.1])
-    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.5,0,-0.1])
-    # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,-0.1])
+    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,0])
     T = reorient
-    world.terrain(0).geometry().transform(*se3.mul(Trel,T))
+    # world.terrain(0).geometry().transform(*se3.mul(Trel,T))
 
     #initialize the shelf xform for the visualizer and object
     #xform initialization
@@ -1763,12 +1595,12 @@ def spawn_objects_from_ground_truth(world):
 
         # Spawn objects a little bit higher than bin floor
         t = item.xform[1]
-        t = [t[0], t[1], t[2]+0.01]
+        t = [t[0], t[1], t[2]-0.085]
         obj.setTransform(item.xform[0],t)
 
     return
 
-def spawn_shelf(world):
+def spawn_shelf_boundingBox(world):
     """For all ground_truth_items, spawns RigidObjects in the world
     according to their sizes / mass properties"""
 
@@ -1813,17 +1645,12 @@ if __name__ == "__main__":
         simWorld = load_apc_world()
     else:
         simWorld = load_apc_world()
-        # spawn_shelf(simWorld)
+        spawn_shelf_boundingBox(simWorld)
         spawn_objects_from_ground_truth(simWorld)
 
-        # NOTE: is this necessary?
-        # spawn_shelf(world)
-        spawn_objects_from_ground_truth(world)
-
-    # load the resting configuration from klampt_models/baxter_rest.config
-    global baxter_rest_config
-    # f = open(model_dir+'baxter_rest.config','r')
-    f = open(model_dir+'baxter_spatula_rest.config','r')
+    #load the resting configuration from klampt_models/baxter_rest.config
+    # global baxter_rest_config
+    f = open(model_dir+'baxter_rest.config','r')
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
     simWorld.robot(0).setConfig(baxter_rest_config)
@@ -1832,11 +1659,7 @@ if __name__ == "__main__":
     n = world.robot(0).numLinks()
     if len(baxter_rest_config) < n:
         baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
-        print "# links in rest_config < # links in robot"
     world.robot(0).setConfig(baxter_rest_config)
-
-    # set spatula center point
-    knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
 
     #run the visualizer
     visualizer = MyGLViewer(simWorld,world)

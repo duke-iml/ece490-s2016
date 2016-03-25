@@ -6,36 +6,9 @@ from klampt.robotcollide import WorldCollider
 from baxter import *
 import math
 import os
+import random
 
 # NOTE: testing code starts
-# from klampt.robotcspace import RobotCSpace
-# class RobotCSpaceTest (RobotCSpace):
-#     def __init__(self, planner, limb, collider=None):
-#         RobotCSpace.__init__(self, planner.robot, collider=None)
-#         self.planner = planner
-#         self.limb = limb
-#         self.robot = planner.robot
-
-#         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
-#         if limb=='left':
-#             # self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
-#             self.limb_indices = left_arm_geometry_indices + left_hand_geometry_indices
-#         else:
-#             # self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
-#             self.limb_indices = right_arm_geometry_indices + right_hand_geometry_indices
-#         qmin,qmax = self.robot.getJointLimits()
-#         self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
-#         self.eps = 1e-1
-
-#     def feasible(self,q):
-#         if not RobotCSpace.feasible(self,q):
-#             print "LimbCSpace.feasible: Configuration is out of bounds"
-#             return False
-#         if not self.planner.check_limb_collision_free(self.limb,q):
-#                 print "LimbCSpace.feasible: Configuration is in collision"
-#                 return False
-#         return True
-
 from klampt.robotcspace import ClosedLoopRobotCSpace
 class ClosedLoopCSpaceTest (ClosedLoopRobotCSpace):
     def __init__(self, planner, limb, iks, collider=None):
@@ -64,35 +37,38 @@ class ClosedLoopCSpaceTest (ClosedLoopRobotCSpace):
 
         qmin,qmax = self.robot.getJointLimits()
         for i in range(len(q)):
+            if qmin[i] == qmax[i]:
+                q[i] = qmin[i]
             if qmin[i] > q[i] or qmax[i] < q[i]:
                 print "joint out of range"
                 print i, qmin[i], q[i], qmax[i]
                 return False
 
-        # if not ClosedLoopRobotCSpace.feasible(self,q):
-        #     print "ClosedLoopRobotCSpace.feasible: Configuration is out of bounds"
-        #     return False
-
-        # for i in range(len(self.limb_indices)):
-        #     # qlimbs[i] = q[self.limb_indices[i]]
-        #     print i, self.limb_indices[i], len(q)
-        # print len(q), len(self.bound)
-        # for i in range(len(q)):
-        #     print i
-            # print self.bound[i][0]
-
-            # if self.bound[i][0] > q[i] or self.bound[i][1] < q[i]:
-            #     print "joint out of range"
-            #     return False
-            # # print q[i], self.bound[i]
-
-        # if self.inJointLimits(q):
-        #     print "within joint limits"
+        if not CSpace.feasible(self,q):
+            print "CSpace.feasible: Configuration is out of bounds"
+            return False
 
         if not self.planner.check_limb_collision_free(self.limb,q):
                 print "ClosedLoopRobotCSpace.feasible: Configuration is in collision"
                 return False
         return True
+
+
+    # def sample(self):
+    #     qmin,qmax = self.robot.getJointLimits()
+    #     q = self.robot.getConfig()
+
+    #     count = 1
+    #     while(not self.closedLoop()):
+    #         for i in range(len(self.limb_indices)):
+    #             j = self.limb_indices[i]
+    #             q[j] = random.uniform(qmin[j], qmax[j])
+    #         self.robot.setConfig(q)
+    #         print count
+    #         count += 1
+
+    #     return q
+
 
 # NOTE: testing code ends
 
@@ -131,7 +107,8 @@ class LimbCSpace (CSpace):
             self.limb_indices = right_arm_geometry_indices + right_hand_geometry_indices
         qmin,qmax = self.robot.getJointLimits()
         self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
-        self.eps = 1e-1
+        # self.eps = 1e-1
+        self.eps = 1e-2
 
     def feasible(self,q):
         if not CSpace.feasible(self,q):
@@ -148,37 +125,40 @@ class LimbCSpace (CSpace):
                 return False
         return True
 
-class TransferCSpace (CSpace):
-    def __init__(self,planner,limb,obj,grasp):
-        CSpace.__init__(self)
-        self.planner = planner
-        self.limb = limb
-        self.object = obj
-        self.grasp = grasp
-        self.objectGeom = obj.info.geometry
-        self.robot = self.planner.robot
-        id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
-        if limb=='left':
-            self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
-            self.limb_indices = left_arm_geometry_indices + left_hand_geometry_indices
-        else:
-            self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
-            self.limb_indices = right_arm_geometry_indices + right_hand_geometry_indices
-        qmin,qmax = self.robot.getJointLimits()
-        self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
-        self.eps = 1e-1
 
-    def feasible(self,q):
-        if not CSpace.feasible(self,q):
-            #print "LimbCSpace.feasible: Configuration is out of bounds"
-            return False
-        qrob = self.robot.getConfig()
-        self.planner.set_limb_config(self.limb,q,qrob)
-        self.robot.setConfig(qrob)
-        if not self.planner.check_collision_free_with_object(self.limb,self.objectGeom,self.grasp):
-            #print "LimbCSpace.feasible: Configuration is in collision"
-            return False
-        return True
+
+
+# class TransferCSpace (CSpace):
+#     def __init__(self,planner,limb,obj,grasp):
+#         CSpace.__init__(self)
+#         self.planner = planner
+#         self.limb = limb
+#         self.object = obj
+#         self.grasp = grasp
+#         self.objectGeom = obj.info.geometry
+#         self.robot = self.planner.robot
+#         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
+#         if limb=='left':
+#             self.limb_indices = [id_to_index[i.getID()] for i in planner.left_arm_links]
+#             self.limb_indices = left_arm_geometry_indices + left_hand_geometry_indices
+#         else:
+#             self.limb_indices = [id_to_index[i.getID()] for i in planner.right_arm_links]
+#             self.limb_indices = right_arm_geometry_indices + right_hand_geometry_indices
+#         qmin,qmax = self.robot.getJointLimits()
+#         self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
+#         self.eps = 1e-1
+
+#     def feasible(self,q):
+#         if not CSpace.feasible(self,q):
+#             #print "LimbCSpace.feasible: Configuration is out of bounds"
+#             return False
+#         qrob = self.robot.getConfig()
+#         self.planner.set_limb_config(self.limb,q,qrob)
+#         self.robot.setConfig(qrob)
+#         if not self.planner.check_collision_free_with_object(self.limb,self.objectGeom,self.grasp):
+#             #print "LimbCSpace.feasible: Configuration is in collision"
+#             return False
+#         return True
 
 class LimbPlanner:
     """Much of your code for HW4 will go here.
@@ -216,7 +196,8 @@ class LimbPlanner:
         # NOTE: added from lab3e.py
         self.roadmap = ([],[])
         self.limb_indices = []
-        self.pathToDraw = None
+        self.pathToDraw = []
+        self.colMargin = 0
 
 
     def set_limb_config(self,limb,limbconfig,q):
@@ -255,6 +236,7 @@ class LimbPlanner:
         armfilter = lambda x:isinstance(x,RobotModelLink) and (x.index in collindices)
         #check with objects in world model
         for o1,o2 in self.collider.collisionTests(armfilter,lambda x:True):   # NOTE: what is bb_reject??
+            # print "Collision Test: Collision between",o1[0].getName(),o2[0].getName()
             if o1[1].collides(o2[1]):
                 # print "Collision between",o1[0].getName(),o2[0].getName()
                 return False
@@ -270,16 +252,15 @@ class LimbPlanner:
                     return False
 
         for link in collindices:
+            # print "Collision Test: Collision between",self.robot.link(link).getName(),"shelf"
             shelfGeometry = self.world.terrain(0).geometry()
             linkGeometry = self.robot.link(link).geometry()
-
-            shelfGeometry.setCollisionMargin(0.05)
-            # linkGeometry.setCollisionMargin(0.05)
+            shelfGeometry.setCollisionMargin(self.colMargin)
             if shelfGeometry.collides(linkGeometry):
-                # print "link #",link,"collides with terrain"
+                print "link #",link,"collides with terrain"
                 return False
 
-
+        # print self.robot.getConfig()
         return True
 
     def check_collision_free_with_object(self,limb,objectGeom,grasp):
@@ -359,11 +340,11 @@ class LimbPlanner:
 
         # MotionPlan.setOptions(bidirectional = 1)
 
-        # MotionPlan.setOptions(type="sbl", perturbationRadius = 0.5, connectionThreshold=2.0, bidirectional = True)
+        # MotionPlan.setOptions(type="sbl", perturbationRadius = 0.25, connectionThreshold=2.0, bidirectional = True)
         # MotionPlan.setOptions(type="rrt",perturbationRadius=0.1,bidirectional=True)
-        MotionPlan.setOptions(type="rrt", perturbationRadius = 0.25, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
-        # MotionPlan.setOptions(type="rrt*", perturbationRadius = 0.05, connectionThreshold=2, bidirectional = True)
-        # MotionPlan.setOptions(type="rrt", perturbationRadius = 0.2, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
+        # MotionPlan.setOptions(type="rrt", perturbationRadius = 0.25, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
+        # MotionPlan.setOptions(type="rrt*", perturbationRadius = 0.25, connectionThreshold=2, bidirectional = True)
+        MotionPlan.setOptions(type="rrt", perturbationRadius = 1, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
         # MotionPlan.setOptions(type="prm",knn=1,connectionThreshold=0.01)
         # plan = MotionPlan(cspace, type='sbl')
 
@@ -374,18 +355,20 @@ class LimbPlanner:
         # NOTE: added from lab3e.py
         # self.roadmap = ([],[])
 
-
+        # fakePath = []
+        # for i in range(10):
+        #     fakePath.append(cspace.sample())
+        # return fakePath
 
 
 
 
 
         plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 20
-        maxSmoothIters = 10
+        maxPlanIters = 200
+        maxSmoothIters = 30
         for iters in xrange(maxPlanIters):
-            print iters
-            plan.planMore(100)
+            # print iters
 
             if limb=='left':
                 self.limb_indices = self.left_arm_indices
@@ -393,9 +376,11 @@ class LimbPlanner:
                 self.limb_indices = self.right_arm_indices
 
             self.roadmap = plan.getRoadmap()
+            # print plan.getRoadmap()
             V,E =self.roadmap
-            print len(V),"feasible milestones sampled,",len(E),"edges connected"
+            print "iter:",iters,"--",len(V),"feasible milestones sampled,",len(E),"edges connected"
 
+            plan.planMore(10)                                       # 100
 
 
             path = plan.getPath()
@@ -417,6 +402,8 @@ class LimbPlanner:
         plan.close()
         if printer:
             print "  No path found"
+            # print V
+        # return V
         return False
 
     def plan(self,start,goal,order=['left','right'],printer=True, iks = None):
@@ -454,66 +441,66 @@ class LimbPlanner:
                 self.set_limb_config(l,limbgoal[l],curconfig)
         return path
 
-    def plan_limb_transfer(self,limb,limbstart,limbgoal,heldobject,grasp):
-        """Returns a 7-DOF milestone path for the given limb to move from the
-        start to the goal while holding the given object.
-        Returns False if planning failed"""
-        self.rebuild_dynamic_objects()
-        cspace = TransferCSpace(self,limb,heldobject,grasp)
-        if not cspace.feasible(limbstart):
-            print "  Start configuration is infeasible!"
-            return False
-        if not cspace.feasible(limbgoal):
-            print "  Goal configuration is infeasible!"
-            return False
-        MotionPlan.setOptions(connectionThreshold=5.0)
-        MotionPlan.setOptions(shortcut=1)
-        plan = MotionPlan(cspace,'sbl')
+    # def plan_limb_transfer(self,limb,limbstart,limbgoal,heldobject,grasp):
+    #     """Returns a 7-DOF milestone path for the given limb to move from the
+    #     start to the goal while holding the given object.
+    #     Returns False if planning failed"""
+    #     self.rebuild_dynamic_objects()
+    #     cspace = TransferCSpace(self,limb,heldobject,grasp)
+    #     if not cspace.feasible(limbstart):
+    #         print "  Start configuration is infeasible!"
+    #         return False
+    #     if not cspace.feasible(limbgoal):
+    #         print "  Goal configuration is infeasible!"
+    #         return False
+    #     MotionPlan.setOptions(connectionThreshold=5.0)
+    #     MotionPlan.setOptions(shortcut=1)
+    #     plan = MotionPlan(cspace,'sbl')
 
-        # MotionPlan.setOptions(type='rrt*')
-        # MotionPlan.setOptions(type="prm",knn=10,connectionThreshold=0.1,shortcut=True)
-        # MotionPlan.setOptions(type='fmm*')
+    #     # MotionPlan.setOptions(type='rrt*')
+    #     # MotionPlan.setOptions(type="prm",knn=10,connectionThreshold=0.1,shortcut=True)
+    #     # MotionPlan.setOptions(type='fmm*')
 
 
-        plan = MotionPlan(cspace)
+    #     plan = MotionPlan(cspace)
 
-        plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 200
-        maxSmoothIters = 10
-        for iters in xrange(maxPlanIters):
-            plan.planMore(1)
-            path = plan.getPath()
-            if path != None:
-                print "  Found a path on iteration",iters,'/',maxPlanIters
-                if len(path) > 2:
-                    print "  Smoothing..."
-                    plan.planMore(min(maxPlanIters-iters,maxSmoothIters))
-                    path = plan.getPath()
-                cspace.close()
-                plan.close()
-                return path
-        cspace.close()
-        plan.close()
-        print "No path found"
-        return False
+    #     plan.setEndpoints(limbstart,limbgoal)
+    #     maxPlanIters = 200
+    #     maxSmoothIters = 10
+    #     for iters in xrange(maxPlanIters):
+    #         plan.planMore(1)
+    #         path = plan.getPath()
+    #         if path != None:
+    #             print "  Found a path on iteration",iters,'/',maxPlanIters
+    #             if len(path) > 2:
+    #                 print "  Smoothing..."
+    #                 plan.planMore(min(maxPlanIters-iters,maxSmoothIters))
+    #                 path = plan.getPath()
+    #             cspace.close()
+    #             plan.close()
+    #             return path
+    #     cspace.close()
+    #     plan.close()
+    #     print "No path found"
+    #     return False
 
-    def plan_transfer(self,start,goal,limb,heldobject,grasp):
-        """Plans a motion for the robot to move from configuration start
-        to configuration goal while holding the given object."""
-        limbstart = self.get_limb_config(start,limb)
-        limbgoal = self.get_limb_config(goal,limb)
-        path = [start]
-        print "Planning transfer path for limb",limb
-        self.robot.setConfig(start)
-        #do the limb planning
-        limbpath = self.plan_limb_transfer(limb,limbstart,limbgoal,heldobject,grasp)
-        if limbpath == False:
-            print "  Failed to plan transfer path for limb",limb
-            return None
-        print "  Planned transfer path successfully for limb",limb
-        #concatenate whole body path
-        for qlimb in limbpath[1:]:
-            q = path[-1][:]
-            self.set_limb_config(limb,qlimb,q)
-            path.append(q)
-        return path
+    # def plan_transfer(self,start,goal,limb,heldobject,grasp):
+    #     """Plans a motion for the robot to move from configuration start
+    #     to configuration goal while holding the given object."""
+    #     limbstart = self.get_limb_config(start,limb)
+    #     limbgoal = self.get_limb_config(goal,limb)
+    #     path = [start]
+    #     print "Planning transfer path for limb",limb
+    #     self.robot.setConfig(start)
+    #     #do the limb planning
+    #     limbpath = self.plan_limb_transfer(limb,limbstart,limbgoal,heldobject,grasp)
+    #     if limbpath == False:
+    #         print "  Failed to plan transfer path for limb",limb
+    #         return None
+    #     print "  Planned transfer path successfully for limb",limb
+    #     #concatenate whole body path
+    #     for qlimb in limbpath[1:]:
+    #         q = path[-1][:]
+    #         self.set_limb_config(limb,qlimb,q)
+    #         path.append(q)
+    #     return path
