@@ -24,8 +24,8 @@ class Milestone1Master:
     def __init__(self, world):
         self.world = world
         self.robotModel = world.robot(0)
-        #self.state = INITIAL_STATE
-	self.state = 'SCANNING_BIN'
+        self.state = INITIAL_STATE
+        #self.state = 'SCANNING_BIN'
         self.config = self.robotModel.getConfig()
         self.keep_subscribing = True
         self.right_camera_link = self.robotModel.link(RIGHT_CAMERA_LINK_NAME)
@@ -41,7 +41,7 @@ class Milestone1Master:
         self.object_com = [0, 0, 0]
         self.points = []
 
-	self.cameraCalibration = RIGHT_F200_CAMERA_XFORM
+	self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 	
 
     def load_real_robot_state(self):
@@ -70,8 +70,26 @@ class Milestone1Master:
         rospy.init_node("listener", anonymous=True)
         self.loop()
 
+    def getCOM(self):
+        xTot = 0
+        yTot = 0
+        zTot = 0
+        numPoints = 0
+        COM = [0, 0, 0]
+        for point in self.points[::100]:
+    	    transformed = se3.apply(self.Tcamera, point)
+            xTot = transformed[0] + xTot 
+	    yTot = transformed[1] + yTot
+	    zTot = transformed[2] + zTot	
+	    numPoints+=1
+    
+        COM[0] = xTot/numPoints
+        COM[1] = yTot/numPoints
+        COM[2] = zTot/numPoints
+        return COM
+
     def drawStuff(self):
-        gldraw.xform_widget(self.Tvacuum,0.1,0.01)
+        gldraw.xform_widget(self.Tvacuum,1,1)    
         glPointSize(5.0)
         glBegin(GL_POINTS)
         for point in self.points[::100]:
@@ -79,6 +97,16 @@ class Milestone1Master:
             glVertex3f(transformed[0], transformed[1], transformed[2])
         # glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
         glEnd()
+
+        gldraw.setcolor(1,1,0)
+	glPointSize(10.0)
+        if len(self.points) != 0:
+	    COM = self.getCOM()
+	    glBegin(1)
+            glVertex3f(COM[0], COM[1], COM[2])
+	    glEnd()
+        gldraw.setcolor(0,0,1)
+
 
     def loop(self):
         try:
@@ -93,7 +121,7 @@ class Milestone1Master:
 
                 if self.state == 'START':
                     print "Moving left limb to 0"
-                    motion.robot.left_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
+                    #motion.robot.left_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
                     self.state = 'MOVING_LEFT_TO_0'
                 if self.state == 'MOVING_LEFT_TO_0':
                     if not motion.robot.left_mq.moving():
@@ -107,7 +135,7 @@ class Milestone1Master:
                         motion.robot.right_mq.appendLinear(3, Q_SCAN_BIN)
                         self.state = 'MOVING_TO_SCAN_BIN'
                 if self.state == 'MOVING_TO_SCAN_BIN':
-                    motion.robot.left_mq.setLinear(3, Q_SPATULA_AT_BIN)
+                    #motion.robot.left_mq.setLinear(3, Q_SPATULA_AT_BIN)
                     self.state = 'MOVING_SPATULA_TO_BIN'
                 if self.state == 'MOVING_SPATULA_TO_BIN':
                     if not motion.robot.left_mq.moving() and not motion.robot.right_mq.moving():
@@ -162,15 +190,30 @@ class Milestone1Master:
 		    except: 
 			print "input error\n"
 
+		    print "printing camera calibration"
+		    print self.cameraCalibration
+
+		    try: 
+			move = raw_input("Do you want to move? (y or n)");
+			if move == "y":
+			    self.state = 'MOVING_TO_GRASP_OBJECT'
+		    except:
+			print "input error\n"
+
                 if self.state == 'MOVING_TO_GRASP_OBJECT':
                     motion.robot.right_mq.appendLinear(3, [0.679553488256836, -1.1125195651428224, -0.054456317907714845, 1.96349540625, -0.9924855686279298, -0.9349612891479493, 0.0])
                     #TODO remove
-                    self.object_com = [0.9843122087425558, -0.006518608357828026, 1.1462877367154443]
+                    self.object_com = self.getCOM()
+		    print self.object_com
+
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
+			print "headed to destination"
                         print destination
-                        time.sleep(5000)
-                        #motion.robot.right_mq.setLinear(3, [destination[v] for v in self.right_arm_indices])
+                        #time.sleep(2000)
+                        motion.robot.right_mq.appendLinear(3, [destination[v] for v in self.right_arm_indices])
+			time.sleep(4)
+			self.state = 'DO_NOTHING'
                     else:
                         print "Couldn't move there"
 
@@ -191,8 +234,8 @@ def setupWorld():
     #world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"))
-    print "Loading Kiva pod model..."
-    world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
+    #print "Loading Kiva pod model..."
+    #world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
     print "Loading plane model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"plane.env"))
     
@@ -203,10 +246,12 @@ def setupWorld():
     
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees 
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.2,0,0])
-    T = world.rigidObject(0).getTransform()
-    world.rigidObject(0).setTransform(*se3.mul(Trel,T))
+    #T = world.rigidObject(0).getTransform()
+    #world.rigidObject(0).setTransform(*se3.mul(Trel,T))
 
     return world
+
+
 
 def visualizerThreadFunction():
     visualizer.run()

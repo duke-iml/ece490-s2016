@@ -15,6 +15,7 @@ from planning.MyGLViewer import MyGLViewer
 from util.constants import *
 from Motion import motion
 from perception import perception
+from planning import planning
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
 import sensor_msgs.point_cloud2 as pc2
@@ -41,7 +42,7 @@ class FullIntegrationMaster:
         # Set up serial
         if REAL_VACUUM:
             self.serial = serial.Serial()
-            self.serial.port = "/dev/ttyACM0"
+            self.serial.port = ARDUINO_SERIAL_PORT
             self.serial.baudrate = 9600
             self.serial.open()
             if self.serial.isOpen():
@@ -131,7 +132,7 @@ class FullIntegrationMaster:
                         if self.right_arm_ik(self.object_com):
                             destination = self.robotModel.getConfig()
                             motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                            motion.robot.right_mq.appendLinear(MOVE_TIME, [destination[v] for v in self.right_arm_indices])
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print "Got an invalid cloud, trying again"
@@ -142,19 +143,41 @@ class FullIntegrationMaster:
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, [destination[v] for v in self.right_arm_indices])
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
+                        # TODO
+                        time.sleep(50000)
                         print "Couldn't move there"
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
-                        self.turnOnVacuum()
+                        # Turn on vacuum, then move downwards to grasp
+                        move_target = se3.apply(self.Tvacuum, [0, 0, 0])
+                        move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE
+                        if self.right_arm_ik(move_target):
+                            self.turnOnVacuum()
+                            destination = self.robotModel.getConfig()
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                        else:
+                            # TODO
+                            time.sleep(50000)
+                            print "Couldn't move there"
                         self.state = 'GRASPING_OBJECT'
                 elif self.state == 'GRASPING_OBJECT':
                     self.wait_start_time = time.time()
                     self.state = 'WAITING_TO_GRASP_OBJECT'
                 elif self.state == 'WAITING_TO_GRASP_OBJECT':
                     if time.time() - self.wait_start_time > GRASP_WAIT_TIME:
+                        # Move back 
+                        move_target = se3.apply(self.Tvacuum, [0, 0, 0])
+                        move_target[0] = move_target[0] - BACK_UP_DISTANCE
+                        if self.right_arm_ik(move_target):
+                            destination = self.robotModel.getConfig()
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                        else:
+                            # TODO
+                            time.sleep(50000)
+                            print "Couldn't move there"
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
