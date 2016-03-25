@@ -17,7 +17,9 @@
 #          check with the object or the shelf? Does the collision checker check shelf model?
 #
 #       3) Why is the simulated (Green) and actual (Gray) trajectory different?
-##
+#
+#       4) Need to make planning faster
+#
 #       5) Fixing end-effector orientation throughout trajectory?
 #
 #       6) fix 2 points of spatula edge to shelf during wrist tilt
