@@ -51,13 +51,10 @@ SKIP_PATH_PLANNING = config
 model_dir = "../klampt_models/"
 
 # global variable for baxter's restinag configuration
-# baxter_rest_config = [0.0]*54  # no need to declare as this because we load from file in main()
 global baxter_rest_config
 
 # The transformation of the order bin
-# = identity rotation and translation in x
 order_bin_xform = (so3.identity(),[.65,-0.85,0])
-# the local bounding box of the order bin
 order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 # Order list. Can be parsed from JSON input
@@ -69,31 +66,6 @@ orderList = ['tall_item', 'med_item',  'tall_item',
 
 # Declare the knowledge base
 global knowledge
-
-# a list of actual items -- this is only used for the fake perception module, and your
-# code should not use these items directly
-# def init_ground_truth():
-#     global ground_truth_items
-#     ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_C'),
-#                           # apc.ItemInBin(apc.small_item,'bin_A'),
-#                           apc.ItemInBin(apc.tall_item,'bin_A'),
-#                           apc.ItemInBin(apc.med_item,'bin_E')]
-#     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,math.pi/6)
-#     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
-#     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
-#     for item in ground_truth_items:
-#         item.info.geometry = load_item_geometry(item)
-
-# def init_ground_truth():
-#     global ground_truth_items
-#     ground_truth_items = [apc.ItemInBin(apc.tall_item,'bin_B'),
-#                           apc.ItemInBin(apc.small_item,'bin_D'),
-#                           apc.ItemInBin(apc.med_item,'bin_H')]
-#     ground_truth_items[0].set_in_bin_xform(ground_truth_shelf_xform,0.25,0.2,0.0)
-#     ground_truth_items[1].set_in_bin_xform(ground_truth_shelf_xform,0.5,0.1,math.pi/4)
-#     ground_truth_items[2].set_in_bin_xform(ground_truth_shelf_xform,0.6,0.2,math.pi/2)
-#     for item in ground_truth_items:
-#         item.info.geometry = load_item_geometry(item)
 
 def init_ground_truth():
     global ground_truth_items
@@ -424,24 +396,24 @@ class PickingController:
         # frames to draw
         self.frames = []
 
-    def waitForMove(self,timeout = None, pollRate = 0.1):
+    def waitForMove(self,timeout = None, pollRate = 0.01):
         """Waits for the move to complete, or timeout seconds is elapsed,
         before terminating."""
         if timeout == None:
-            timeout = 30
+            timeout = 300
         iters = 0
         t = 0
-        print "Waiting for move to complete",
+        # print "Waiting for move to complete",
         while self.controller.isMoving(): # remaining time > 0
-            if iters % 10 == 0:
-                print ".",
+            # if iters % 10 == 0:
+            #     print ".",
             time.sleep(pollRate)
             t += pollRate
             if timeout != None and t > timeout:
                 print "Timed Out!"
                 return False
             iters += 1
-        print "--> done\n"
+        # print "--> done\n"
         return True
 
     def viewBinAction(self,b):
@@ -453,7 +425,7 @@ class PickingController:
         else:
             # If a valid bin name
             if b in apc.bin_names:
-                print "Valid bin (", b, ")"
+                # print "Valid bin (", b, ")"
 
                 if self.move_camera_to_bin(b):
                     self.waitForMove()
@@ -587,13 +559,14 @@ class PickingController:
         so that the objects are picked up.
         """
         self.waitForMove()
-
+        self.world.terrain(0).geometry().setCollisionMargin(0)
         bin_name = self.current_bin
         world_center = knowledge.bin_front_center(bin_name)
 
         # tilted angle view for spatula
         if direction == 'down':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*10))
+            # [(+Right/-Left), (+Up/-Down), (+In/-Out)
             world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.0275,0.3325])
 
         elif direction == 'up':
@@ -603,28 +576,21 @@ class PickingController:
         t_camera = vectorops.add(world_center,world_offset)
 
         # debuggin code
-        self.frames.append([R_camera,t_camera])
-        # self.frames.append(self.left_camera_link.getTransform())
-        # print [R_camera,t_camera]
-        # print self.left_camera_link.getTransform()
-        # return False
-        # t_camera = world_center
+        # self.frames.append([R_camera,t_camera])
 
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
-        # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
 
         qcmd = self.controller.getCommandedConfig()
         limbs = ['left']
 
-        print "\nSolving for TILT_WRIST"
+        print "Solving for TILT_WRIST (", direction,")"
 
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
-                # return False
                 continue
 
             # prototyping hack: move straight to target
@@ -669,7 +635,6 @@ class PickingController:
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_wrist,t=t_wrist)
-        # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
 
         qcmd = self.controller.getCommandedConfig()
         limbs = ['left']
@@ -680,7 +645,6 @@ class PickingController:
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
-                # return False
                 continue
 
             # prototyping hack: move straight to target
@@ -715,18 +679,15 @@ class PickingController:
             # Setup ik objectives for both arms
             # place +z in the +x axis, -y in the +z axis, and x in the -y axis
             right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
-            # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
 
             qcmd = self.controller.getCommandedConfig()
             limbs = ['right']
 
             print "\nSolving for MOVE_GRIPPER_TO_CENTER (Right Hand)"
-
             for i in range(100):
                 sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
                 if len(sortedSolutions)==0:
-                    # return False
                     continue
 
                 # prototyping hack: move straight to target
@@ -794,7 +755,6 @@ class PickingController:
                 # now open the gripper
                 self.controller.commandGripper(self.active_limb,[1])
                 self.waitForMove()
-
 
                 knowledge.order_bin_contents.append(self.held_object)
                 self.active_limb = 'left'
@@ -888,8 +848,6 @@ class PickingController:
             q = self.controller.getCommandedConfig()
         else:
             q = baxter_rest_config[:]
-        # q = baxter_rest_config[:]
-
 
         if range == None:
             if limb == 'left':
@@ -911,7 +869,7 @@ class PickingController:
             self.robot.setConfig(q)
         return
 
-    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=True):
+    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=False):
         """Given a list of goals and their associated limbs, returns a list
         of (q,index) pairs, where q is an IK solution for goals[index].
         The results are sorted by distance from initialConfig.
@@ -958,15 +916,9 @@ class PickingController:
                     numColFreeSolutions[index] += 1
                     ikSolutions.append((self.robot.getConfig(),index))
                     if len(ikSolutions) >= maxResults: break
-                    # print "IK solution for goal <", limb, "> was found"
-                # else:
-                    # print "IK solution for goal <", limb, "> was in collision, trying again"
-        # if len(ikSolutions)==0:
-        #     print "No collision free IK solution"
-        #     return []
 
         if printer:
-            print "< IK Summary >"
+            print "< IK Summary >",
             for i in range(len(goals)):
                 if numTrials != 0:
                     print "Goal: #", i, "; Attempted:", numTrials[i], "/", maxIters, "; Result:", numColFreeSolutions[i], "/", numSolutions[i], "col. free. solutions"
@@ -998,42 +950,38 @@ class PickingController:
 
         Otherwise, does not modify the low-level controller and returns False.
         """
-        R_camera = [0,-1, 0, 0,0,-1, 1,0,0]
+        R_camera = [0,-1,0,0,0,-1,1,0,0]
         # R_camera = so3.mul( so3.rotation([0,0,1], -math.pi/2), so3.rotation([1,0,0], -math.pi/2) )
         t_camera = knowledge.bin_vantage_point(bin_name)
-        # t_camera = [0.1,0.1,0.1]
+
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
-        # right_goal = ik.objective(self.right_camera_link,R=R_camera,t=t_camera)
 
         qcmd = self.controller.getCommandedConfig()
-
         limbs = ['left']
 
         # temporarily increase collision margin of shelf
-        self.planner.colMargin = 0.05
+        self.world.terrain(0).geometry().setCollisionMargin(0.05)
 
         # ClosedLoopRobotCSpace IK Constraint
         # ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
-        print "****************"
+        # print "****************"
         ik_constraint = IKObjective()
         ik_constraint.setLinks(55)
-        print ik_constraint.numRotDims()
+        # print ik_constraint.numRotDims()
         ik_constraint.setAxialRotConstraint([0,1,0], [0,0,-1])
         # ik_constraint.setAxialRotConstraint([0,0,1], [0,0,1])
         # ik_constraint.setAxialRotConstraint([0,1,0], [1,0,0])
-        print ik_constraint.numRotDims()
-        print ik_constraint.getRotationAxis()
-        print "****************"
+        # print ik_constraint.numRotDims()
+        # print ik_constraint.getRotationAxis()
+        # print "****************"
 
         print "\nSolving for MOVE_CAMERA_TO_BIN"
-
         for i in range(1):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
-                # return False
                 continue
 
             # prototyping hack: move straight to target
@@ -1095,12 +1043,10 @@ class PickingController:
         limbs = ['right']
 
         print "\nSolving for GRASP_OBJECT"
-
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
-                # return False
                 continue
 
             # prototyping hack: move straight to target
@@ -1228,11 +1174,9 @@ class PickingController:
         for i in range(100):
             sortedSolutions = self.get_ik_solutions([placegoal],['right'],qcmd,tol=1e-2, maxIters=100, maxResults = 100)
 
-            # if len(sortedSolutions) == 0:
-            #     print "Failed to find placement config"
             if len(sortedSolutions)==0:
-                # return False
                 continue
+
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
                 self.controller.setMilestone(sortedSolutions[0][0])
@@ -1255,34 +1199,11 @@ class PickingController:
         return False
 
     def sendPath(self,path):
-        # q_temp = [0]*len(path[0])
-        # q_temp_list =
-        # for q_milestone in path:
-
-        # toy = [[1.0,1.0],[2.0,2.0],[3.0,3.0]]
-        # toy2 = [0]*(len(toy)*2-1)
-        # for i in range(len(toy)-1):
-        #     toy2[i*2] = toy[i]
-        #     toy2[i*2 +1] = vectorops.div(vectorops.add(toy[i],toy[i+1]), 2)
-        # toy2[-1] = toy[-1]
-        # print toy2
-        # print path
-
-        # toy = path
-        # toy2 = [0]*(len(toy)*2-1)
-        # for i in range(len(toy)-1):
-        #     toy2[i*2] = toy[i]
-        #     toy2[i*2 +1] = vectorops.div(vectorops.add(toy[i],toy[i+1]), 2)
-        # toy2[-1] = toy[-1]
-        # # print toy2
-        # path = toy2
-
-
         q = path[0]
         q[55] = 0 # don't move spatula
         for i in [23,30,31,54,56]: q[i] = 0
 
-        print len(path), "Milestones in path"
+        # print len(path), "Milestones in path"
         self.controller.setMilestone(path[0])
 
         # removing AppendRamp claming error
@@ -1600,8 +1521,6 @@ class MyGLViewer(GLRealtimeProgram):
             V,E =self.picking_controller.planner.roadmap
             positions = []
 
-            # gldraw.xform_widget(self.simworld.robot(0).link(22).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
-            # gldraw.xform_widget(self.simworld.robot(0).link(23).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
             gldraw.xform_widget(self.simworld.robot(23).link(left_camera_link_name).getTransform(), 0.1, 0.015, lighting=False, fancy=True)
 
             for v in V:
@@ -1706,12 +1625,11 @@ def load_apc_world():
     reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
     # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.3,0,-0.1])
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.5,0,-0.1])
-    # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,-0.1])
+    # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.6,0,-0.1])
     T = reorient
     world.terrain(0).geometry().transform(*se3.mul(Trel,T))
 
     #initialize the shelf xform for the visualizer and object
-    #xform initialization
     global ground_truth_shelf_xform
     ground_truth_shelf_xform = se3.mul(Trel,T)
     return world
@@ -1768,23 +1686,6 @@ def spawn_objects_from_ground_truth(world):
 
     return
 
-def spawn_shelf(world):
-    """For all ground_truth_items, spawns RigidObjects in the world
-    according to their sizes / mass properties"""
-
-    print "Initializing shelf obj"
-    # shelf = world.loadRigidObject(os.path.join(model_dir,"north_shelf/shelf_with_bins.obj"))
-    # knowledge.shelf = world.loadRigidObject(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
-    knowledge.shelf = world.loadRigidObject(os.path.join(model_dir,"kiva_pod/model.obj"))
-
-    reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
-    Trel = (so3.mul(so3.rotation((1,0,0),-math.pi/2), so3.rotation((0,1,0), math.pi/2)),[1.35,0,0.055])
-
-    T = reorient
-    knowledge.shelf.setTransform(*se3.mul(Trel,T))
-
-    return
-
 def myCameraSettings(visualizer):
     visualizer.camera.tgt = [-1, -.5, -0.75]
     visualizer.camera.rot = [0,0.5,0.9]
@@ -1806,14 +1707,12 @@ if __name__ == "__main__":
     # Instantiate global knowledge base
     knowledge = KnowledgeBase()
 
-
     # TODO
     if NO_SIMULATION_COLLISIONS:
         # simworld = load_baxter_only_world()
         simWorld = load_apc_world()
     else:
         simWorld = load_apc_world()
-        # spawn_shelf(simWorld)
         spawn_objects_from_ground_truth(simWorld)
 
         # NOTE: is this necessary?

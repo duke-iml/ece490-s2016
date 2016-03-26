@@ -39,10 +39,10 @@ def set_model_gripper_command(robot,limb,command):
     """
     value = command[0]
     if limb=='left':
-        print "Opening left gripper to",value
+        # print "Opening left gripper to",value
         robot.driver(15).setValue(value*0.2)
     else:
-        print "Opening right gripper to",value
+        # print "Opening right gripper to",value
         robot.driver(16).setValue(value*0.03)
         robot.driver(17).setValue(-value*0.03)
 
@@ -56,10 +56,10 @@ def set_model_spatula_command(robot,limb,command):
     """
     value = command[0]
     if limb=='left':
-        print "Opening left gripper to",value
+        # print "Opening left gripper to",value
         robot.getDriver(15).setValue(value*0.03)
         robot.getDriver(16).setValue(-value*0.03)
     else:
-        print "Opening right gripper to",value
+        # print "Opening right gripper to",value
         robot.getDriver(17).setValue(value*0.03)
         robot.getDriver(18).setValue(-value*0.03)
