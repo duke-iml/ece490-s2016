@@ -16,9 +16,9 @@
 #          thinks the configuration is infeasible (collision checks). Is this collision
 #          check with the object or the shelf? Does the collision checker check shelf model?
 #
-#       3) Why is the simulated (Green) and actual (Gray) trajectory different?
+#       3) toggle between simulation modes during run (global config variable)
 #
-#       4) Sometimes the collision detection doesn't work well (spatula bangs into shelf; gripper goes through spatula)
+#       4) spawn shelf objects a little behind (gets in the spatula during tilt_wrist)
 #
 #       5) Fixing end-effector orientation throughout trajectory?
 #
@@ -457,6 +457,10 @@ class PickingController:
             # if self.move_gripper_to_center():
             #     self.waitForMove()
 
+            # now close the gripper
+            self.controller.commandGripper(self.active_limb, [1])
+            self.waitForMove()
+
             if self.move_to_grasp_object(self.held_object):
                 self.waitForMove()
 
@@ -571,7 +575,8 @@ class PickingController:
 
         elif direction == 'up':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*10))
-            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.03,0.3325])
+            # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.02,0.3335])
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.01,0.4])
 
         t_camera = vectorops.add(world_center,world_offset)
 
@@ -582,7 +587,8 @@ class PickingController:
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
 
-        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getCommandedConfig()
+        qcmd = self.controller.getSensedConfig()
         limbs = ['left']
 
         print "Solving for TILT_WRIST (", direction,")"
@@ -604,7 +610,7 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0])
+                path = self.planner.plan(qcmd,solution[0],'left')
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -636,7 +642,8 @@ class PickingController:
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_wrist,t=t_wrist)
 
-        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getCommandedConfig()
+        qcmd = self.controller.getSensedConfig()
         limbs = ['left']
 
         print "\nSolving for MOVE_SPATULA_TO_CENTER (Left Hand)"
@@ -659,7 +666,7 @@ class PickingController:
                 for solution in sortedSolutions:
                     numSol += 1
                     print numSol, "solutions planned out of", len(sortedSolutions)
-                    path = self.planner.plan(qcmd,solution[0])
+                    path = self.planner.plan(qcmd,solution[0],'left')
                     if path == 1 or path == 2 or path == False:
                         break
                     elif path != None:
@@ -680,7 +687,8 @@ class PickingController:
             # place +z in the +x axis, -y in the +z axis, and x in the -y axis
             right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
 
-            qcmd = self.controller.getCommandedConfig()
+            # qcmd = self.controller.getCommandedConfig()
+            qcmd = self.controller.getSensedConfig()
             limbs = ['right']
 
             print "\nSolving for MOVE_GRIPPER_TO_CENTER (Right Hand)"
@@ -702,7 +710,7 @@ class PickingController:
                     for solution in sortedSolutions:
                         numSol += 1
                         print numSol, "solutions planned out of", len(sortedSolutions)
-                        path = self.planner.plan(qcmd,solution[0])
+                        path = self.planner.plan(qcmd,solution[0],'right')
                         if path == 1 or path == 2 or path == False:
                             break
                         elif path != None:
@@ -844,10 +852,11 @@ class PickingController:
 
         # Initialze non-active limb with current position, instead of
         # resting_config to keep its current position
-        if self.stateLeft == 'holding':
-            q = self.controller.getCommandedConfig()
-        else:
-            q = baxter_rest_config[:]
+        # if self.stateLeft == 'holding':
+        #     q = self.controller.getCommandedConfig()
+        # else:
+        #     q = baxter_rest_config[:]
+        q = self.controller.getCommandedConfig()
 
         if range == None:
             if limb == 'left':
@@ -958,7 +967,8 @@ class PickingController:
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
 
-        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getCommandedConfig()
+        qcmd = self.controller.getSensedConfig()
         limbs = ['left']
 
         # temporarily increase collision margin of shelf
@@ -977,7 +987,7 @@ class PickingController:
         # print ik_constraint.getRotationAxis()
         # print "****************"
 
-        print "\nSolving for MOVE_CAMERA_TO_BIN"
+        print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
         for i in range(1):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
@@ -995,8 +1005,8 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0])
-                # path = self.planner.plan(qcmd,solution[0], iks = ik_constraint)
+                path = self.planner.plan(qcmd,solution[0],'left')
+                # path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -1039,7 +1049,8 @@ class PickingController:
         # Setup ik objectives for both arms
         right_goal = ik.objective(self.right_gripper_link,R=Rt[0],t=Rt[1])
 
-        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getCommandedConfig()
+        qcmd = self.controller.getSensedConfig()
         limbs = ['right']
 
         print "\nSolving for GRASP_OBJECT"
@@ -1061,7 +1072,7 @@ class PickingController:
                 for solution in sortedSolutions:
                     numSol += 1
                     print numSol, "solutions planned out of", len(sortedSolutions)
-                    path = self.planner.plan(qcmd,solution[0])
+                    path = self.planner.plan(qcmd,solution[0],'right')
                     if path == 1 or path == 2 or path == False:
                         break
                     elif path != None:
@@ -1150,7 +1161,8 @@ class PickingController:
         Otherwise, does not modify the low-level controller and returns False.
         """
 
-        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getCommandedConfig()
+        qcmd = self.controller.getSensedConfig()
         target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.1])
 
         R_obj = object.randRt[0]
@@ -1188,7 +1200,7 @@ class PickingController:
                 numSol = 0
                 for solution in sortedSolutions:
                     numSol+=1
-                    path = self.planner.plan(qcmd,solution[0])
+                    path = self.planner.plan(qcmd,solution[0],'right')
                     if path == 1 or path == 2 or path == False:
                         break
                     elif path != None:
@@ -1201,7 +1213,7 @@ class PickingController:
     def sendPath(self,path):
         q = path[0]
         q[55] = 0 # don't move spatula
-        for i in [23,30,31,54,56]: q[i] = 0
+        for i in [23,30,31,43,50,51,54,56,57]: q[i] = 0
 
         # print len(path), "Milestones in path"
         self.controller.setMilestone(path[0])
@@ -1210,7 +1222,7 @@ class PickingController:
         qmin,qmax = self.robot.getJointLimits()
         for q in path[1:]:
             q[55] = 0 # don't move spatula
-            for i in [23,30,31,54,56]:
+            for i in [23,30,31,43,50,51,54,56,57]:
                 # print i, qmin[i], q[i], qmax[i]
                 q[i] = 0
 
@@ -1304,6 +1316,9 @@ def run_controller(controller,command_queue):
                 controller.move_gripper_to_center()
             elif c == 'r':
                 restart_program()
+            elif c == '`':
+                global config
+                config = (not config)
             elif c=='q':
                 break
         else:
@@ -1570,14 +1585,21 @@ class MyGLViewer(GLRealtimeProgram):
                 for q in path:
                     for k in range(len(self.picking_controller.planner.limb_indices)):
                         qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
-
                     self.planworld.robot(0).setConfig(qcmd)
-
                     glVertex3f(*self.planworld.robot(0).link(23).getTransform()[1])
                 glEnd()
-                glLineWidth(1.0)
 
-            qcmd = self.planworld.robot(0).setConfig(qcmd)
+                glColor3f(0,1,0)
+                glLineWidth(5.0)
+                glBegin(GL_LINE_STRIP)
+                for q in path:
+                    for k in range(len(self.picking_controller.planner.limb_indices)):
+                        qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
+                    self.planworld.robot(0).setConfig(qcmd)
+                    glVertex3f(*self.planworld.robot(0).link(43).getTransform()[1])
+                glEnd()
+
+                glLineWidth(1.0)
 
         glEnable(GL_LIGHTING)
 

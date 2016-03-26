@@ -105,16 +105,26 @@ class LimbCSpace (CSpace):
         self.eps = 1e-1
 
     def feasible(self,q):
+        # for i in range(len(q)):
+        #     # print "q", i, q[i], self.bound[i][0], self.bound[i][1]
+        #     if (q[i] < self.bound[i][0]) :
+        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (min:",self.bound[i][0],")"
+        #         print "Changed joint value to its minimum"
+        #         q[i] = self.bound[i][0]
+
+        #     if (q[i] > self.bound[i][1]) :
+        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (max:",self.bound[i][1],")"
+        #         print "Changed joint value to its maximum"
+        #         q[i] = self.bound[i][1]
+
         if not CSpace.feasible(self,q):
             # print "LimbCSpace.feasible: Configuration is out of bounds"
             return False
-        # for i in range(len(q)):
-        #     # print "q", i, q[i], self.bound[i][0], self.bound[i][1]
-        #     if not ((q[i] >= self.bound[i][0]) and (q[i] <= self.bound[i][1])):
-        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (min:",self.bound[i][0],", max:", self.bound[i][1],")"
-        #         return False
 
-        if not self.planner.check_limb_collision_free(self.limb,q):
+        # print "check_limb_collision_free...",
+        cond = self.planner.check_limb_collision_free(self.limb,q)
+        # print "Done"
+        if not cond:
                 # print "LimbCSpace.feasible: Configuration is in collision"
                 return False
         return True
@@ -154,6 +164,7 @@ class LimbPlanner:
         self.limb_indices = []
         self.pathToDraw = []
         self.colMargin = 0
+        self.activeLimb = None
 
 
     def set_limb_config(self,limb,limbconfig,q):
@@ -207,14 +218,14 @@ class LimbPlanner:
                     # print "Collision between link",self.robot.link(link).getName()," and dynamic object"
                     return False
 
-        for link in collindices:
-            # print "Collision Test: Collision between",self.robot.link(link).getName(),"shelf"
-            shelfGeometry = self.world.terrain(0).geometry()
-            linkGeometry = self.robot.link(link).geometry()
+        # for link in collindices:
+        #     # print "Collision Test: Collision between",self.robot.link(link).getName(),"shelf"
+        #     shelfGeometry = self.world.terrain(0).geometry()
+        #     linkGeometry = self.robot.link(link).geometry()
 
-            if shelfGeometry.collides(linkGeometry):
-                print "link #",link,"collides with terrain"
-                return False
+        #     if shelfGeometry.collides(linkGeometry):
+        #         print "link #",link,"collides with terrain"
+        #         return False
 
         # print self.robot.getConfig()
         return True
@@ -252,6 +263,7 @@ class LimbPlanner:
             cspace = ClosedLoopCSpaceTest(self,limb,iks)
 
         if not cspace.feasible(limbstart):
+            cspace.feasible(limbstart)
             print "  Start configuration is infeasible!"
             return 1
         if not cspace.feasible(limbgoal):
@@ -289,8 +301,10 @@ class LimbPlanner:
 
             if limb=='left':
                 self.limb_indices = self.left_arm_indices
+                self.activeLimb = 'left'
             else:
                 self.limb_indices = self.right_arm_indices
+                self.activeLimb = 'right'
 
             self.roadmap = plan.getRoadmap()
             # print plan.getRoadmap()
@@ -325,37 +339,58 @@ class LimbPlanner:
 
         return False
 
-    def plan(self,start,goal,order=['left','right'],printer=True, iks = None):
+    def plan(self,start,goal,limb,printer=True, iks = None):
         """Plans a motion for the robot to move from configuration start
         to configuration goal.  By default, moves the left arm first,
         then the right.  To move the right first, set the 'order' argument
         to ['right','left']"""
         limbstart = {}
         limbgoal = {}
-        for l in ['left','right']:
-            limbstart[l] = self.get_limb_config(start,l)
-            limbgoal[l] = self.get_limb_config(goal,l)
+        # for l in ['left','right']:
+        l =limb
+        limbstart[l] = self.get_limb_config(start,l)
+        limbgoal[l] = self.get_limb_config(goal,l)
         path = [start]
         curconfig = start[:]
-        for l in order:
-            diff = sum((a-b)**2 for a,b in zip(limbstart[l],limbgoal[l]))
-            if diff > 1e-8:
+        # for l in order:
+        #     diff = sum((a-b)**2 for a,b in zip(limbstart[l],limbgoal[l]))
+        #     if diff > 1e-8:
+        #         if printer:
+        #             print "< Planning for limb",l,">"
+        #             print "  Euclidean distance:",math.sqrt(diff)
+        #         self.robot.setConfig(curconfig)
+        #         #do the limb planning
+        #         limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer, iks=iks)
+        #         if limbpath == 1 or limbpath == 2 or limbpath == False:
+        #             if printer:
+        #                 print "  Failed to plan for limb",l,"\n"
+        #             return limbpath
+        #         if printer:
+        #             print "  Planned successfully for limb",l, "\n"
+        #         #concatenate whole body path
+        #         for qlimb in limbpath[1:]:
+        #             q = path[-1][:]
+        #             self.set_limb_config(l,qlimb,q)
+        #             path.append(q)
+        #         self.set_limb_config(l,limbgoal[l],curconfig)
+        diff = sum((a-b)**2 for a,b in zip(limbstart[l],limbgoal[l]))
+        if diff > 1e-8:
+            if printer:
+                print "< Planning for limb",l,">"
+                print "  Euclidean distance:",math.sqrt(diff)
+            self.robot.setConfig(curconfig)
+            #do the limb planning
+            limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer, iks=iks)
+            if limbpath == 1 or limbpath == 2 or limbpath == False:
                 if printer:
-                    print "< Planning for limb",l,">"
-                    print "  Euclidean distance:",math.sqrt(diff)
-                self.robot.setConfig(curconfig)
-                #do the limb planning
-                limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer, iks=iks)
-                if limbpath == 1 or limbpath == 2 or limbpath == False:
-                    if printer:
-                        print "  Failed to plan for limb",l,"\n"
-                    return limbpath
-                if printer:
-                    print "  Planned successfully for limb",l, "\n"
-                #concatenate whole body path
-                for qlimb in limbpath[1:]:
-                    q = path[-1][:]
-                    self.set_limb_config(l,qlimb,q)
-                    path.append(q)
-                self.set_limb_config(l,limbgoal[l],curconfig)
+                    print "  Failed to plan for limb",l,"\n"
+                return limbpath
+            if printer:
+                print "  Planned successfully for limb",l, "\n"
+            #concatenate whole body path
+            for qlimb in limbpath[1:]:
+                q = path[-1][:]
+                self.set_limb_config(l,qlimb,q)
+                path.append(q)
+            self.set_limb_config(l,limbgoal[l],curconfig)
         return path
