@@ -567,33 +567,46 @@ class PickingController:
         bin_name = self.current_bin
         world_center = knowledge.bin_front_center(bin_name)
 
+        # Setup ik objectives for both arms
+        # place +z in the +x axis, -y in the +z axis, and x in the -y axis
+        # left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
+        left_goal = []
+
         # tilted angle view for spatula
         if direction == 'down':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*10))
             # [(+Right/-Left), (+Up/-Down), (+In/-Out)
             world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.0275,0.3325])
+            t_camera = vectorops.add(world_center,world_offset)
+            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.028,0.3325])
+            t_camera = vectorops.add(world_center,world_offset)
+            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+
+            world_offset = so3.apply(ground_truth_shelf_xform[0],[0,0.0285,0.3325])
+            t_camera = vectorops.add(world_center,world_offset)
+            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
 
         elif direction == 'up':
             R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*10))
             # world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.02,0.3335])
             world_offset = so3.apply(ground_truth_shelf_xform[0],[0,-0.01,0.4])
-
-        t_camera = vectorops.add(world_center,world_offset)
+            t_camera = vectorops.add(world_center,world_offset)
+            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
 
         # debuggin code
         # self.frames.append([R_camera,t_camera])
 
-        # Setup ik objectives for both arms
-        # place +z in the +x axis, -y in the +z axis, and x in the -y axis
-        left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
 
-        # qcmd = self.controller.getCommandedConfig()
-        qcmd = self.controller.getSensedConfig()
+
+        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getSensedConfig()
         limbs = ['left']
 
         print "Solving for TILT_WRIST (", direction,")"
 
-        for i in range(100):
+        for i in range(500):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
@@ -642,8 +655,8 @@ class PickingController:
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_wrist,t=t_wrist)
 
-        # qcmd = self.controller.getCommandedConfig()
-        qcmd = self.controller.getSensedConfig()
+        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getSensedConfig()
         limbs = ['left']
 
         print "\nSolving for MOVE_SPATULA_TO_CENTER (Left Hand)"
@@ -680,15 +693,15 @@ class PickingController:
         self.waitForMove()
 
         if self.stateLeft == 'holding':
-            R_wrist = so3.rotation([1,0,0], math.pi)
+            R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], math.pi))
             t_wrist = knowledge.bin_vertical_point()
 
             # Setup ik objectives for both arms
             # place +z in the +x axis, -y in the +z axis, and x in the -y axis
             right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
 
-            # qcmd = self.controller.getCommandedConfig()
-            qcmd = self.controller.getSensedConfig()
+            qcmd = self.controller.getCommandedConfig()
+            # qcmd = self.controller.getSensedConfig()
             limbs = ['right']
 
             print "\nSolving for MOVE_GRIPPER_TO_CENTER (Right Hand)"
@@ -967,8 +980,8 @@ class PickingController:
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
 
-        # qcmd = self.controller.getCommandedConfig()
-        qcmd = self.controller.getSensedConfig()
+        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getSensedConfig()
         limbs = ['left']
 
         # temporarily increase collision margin of shelf
@@ -988,7 +1001,7 @@ class PickingController:
         # print "****************"
 
         print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
-        for i in range(1):
+        for i in range(100):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
@@ -1049,8 +1062,8 @@ class PickingController:
         # Setup ik objectives for both arms
         right_goal = ik.objective(self.right_gripper_link,R=Rt[0],t=Rt[1])
 
-        # qcmd = self.controller.getCommandedConfig()
-        qcmd = self.controller.getSensedConfig()
+        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getSensedConfig()
         limbs = ['right']
 
         print "\nSolving for GRASP_OBJECT"
@@ -1161,8 +1174,8 @@ class PickingController:
         Otherwise, does not modify the low-level controller and returns False.
         """
 
-        # qcmd = self.controller.getCommandedConfig()
-        qcmd = self.controller.getSensedConfig()
+        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getSensedConfig()
         target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.1])
 
         R_obj = object.randRt[0]
@@ -1202,6 +1215,8 @@ class PickingController:
                     numSol+=1
                     path = self.planner.plan(qcmd,solution[0],'right')
                     if path == 1 or path == 2 or path == False:
+                        if path==1:
+                            print "Invalid StartConfig = ", qcmd
                         break
                     elif path != None:
                         self.waitForMove()
@@ -1212,21 +1227,37 @@ class PickingController:
 
     def sendPath(self,path):
         q = path[0]
-        q[55] = 0 # don't move spatula
-        for i in [23,30,31,43,50,51,54,56,57]: q[i] = 0
+        qmin,qmax = self.robot.getJointLimits()
 
-        # print len(path), "Milestones in path"
-        self.controller.setMilestone(path[0])
+        q[55] = 0 # don't move spatula
 
         # removing AppendRamp claming error
-        qmin,qmax = self.robot.getJointLimits()
+        for i in [23,30,31,43,50,51,54,56,57]: q[i] = 0
+
+        q = self.clampJointLimits(q,qmin,qmax)
+
+        self.controller.setMilestone(path[0])
+
         for q in path[1:]:
             q[55] = 0 # don't move spatula
             for i in [23,30,31,43,50,51,54,56,57]:
                 # print i, qmin[i], q[i], qmax[i]
                 q[i] = 0
-
+            q = self.clampJointLimits(q,qmin,qmax)
             self.controller.appendMilestone(q)
+
+    def clampJointLimits(self,q,qmin,qmax):
+        for i in range(len(q)):
+            if (q[i] < qmin[i]) :
+                print "Joint #",i,"(",q[i],") out of limits (min:",qmin[i],")"
+                print "Changed joint value to its minimum"
+                q[i] = qmin[i]
+
+            if (q[i] > qmax[i]) :
+                print "Joint #",i,"(",q[i],") out of limits (max:",qmax[i],")"
+                print "Changed joint value to its maximum"
+                q[i] = qmax[i]
+        return q
 
 def draw_xformed(xform,localDrawFunc):
     """Draws something given a se3 transformation and a drawing function
@@ -1582,8 +1613,10 @@ class MyGLViewer(GLRealtimeProgram):
                 glColor3f(0,1,0)
                 glLineWidth(5.0)
                 glBegin(GL_LINE_STRIP)
+                # print "Drawing path (limb", self.picking_controller.planner.activeLimb,"(",len(self.picking_controller.planner.limb_indices),"/",len(path[0]),"))"
                 for q in path:
                     for k in range(len(self.picking_controller.planner.limb_indices)):
+                        if k>len(q): print "Index Out of Range: (k,len(q),q)", k,len(q),q
                         qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
                     self.planworld.robot(0).setConfig(qcmd)
                     glVertex3f(*self.planworld.robot(0).link(23).getTransform()[1])

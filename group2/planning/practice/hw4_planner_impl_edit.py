@@ -214,7 +214,6 @@ class LimbPlanner:
             assert obj.info.geometry != None
             for link in collindices:
                 if self.robot.link(link).geometry().collides(obj.info.geometry):
-                    # NOTE: Uncomment this line to show collision warnings
                     # print "Collision between link",self.robot.link(link).getName()," and dynamic object"
                     return False
 
@@ -255,6 +254,13 @@ class LimbPlanner:
         """Returns a 7-DOF milestone path for the given limb to move from the
         start to the goal, or False if planning failed"""
         self.rebuild_dynamic_objects()
+
+        # NOTE: Not sure, but I think this is what's happening
+        # Need to reset pathToDraw here because the MyGLViewer.draw() is called
+        # concurrently, it uses an old path (ex. of left arm) while using the
+        # new limb (ex. right limb) for drawing the trajectory. This throws an
+        # Index-Out-of-Range exception for drawing the path
+        self.pathToDraw = []
 
         # NOTE:
         cspace = LimbCSpace(self,limb)
@@ -329,6 +335,7 @@ class LimbPlanner:
                 plan.close()
 
                 # testing
+                # print "  Returning path (limb", self.activeLimb,", (",len(self.limb_indices),"/",len(path[0]),"))"
                 self.pathToDraw = path
 
                 return path
@@ -377,7 +384,7 @@ class LimbPlanner:
         if diff > 1e-8:
             if printer:
                 print "< Planning for limb",l,">"
-                print "  Euclidean distance:",math.sqrt(diff)
+                # print "  Euclidean distance:",math.sqrt(diff)
             self.robot.setConfig(curconfig)
             #do the limb planning
             limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer, iks=iks)
