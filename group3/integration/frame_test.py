@@ -13,7 +13,8 @@ from OpenGL.GL import *
 from planning.MyGLViewer import MyGLViewer
 from util.constants import *
 from Motion import motion
-from perception.pc import PCProcessor
+#from perception.pc import PCProcessor
+from perception import perception
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
 import sensor_msgs.point_cloud2 as pc2
@@ -24,8 +25,8 @@ class Milestone1Master:
     def __init__(self, world):
         self.world = world
         self.robotModel = world.robot(0)
-        self.state = INITIAL_STATE
-        #self.state = 'SCANNING_BIN'
+        #self.state = INITIAL_STATE
+        self.state = 'SCANNING_BIN'
         self.config = self.robotModel.getConfig()
         self.keep_subscribing = True
         self.right_camera_link = self.robotModel.link(RIGHT_CAMERA_LINK_NAME)
@@ -40,6 +41,7 @@ class Milestone1Master:
         self.Tvacuum = se3.identity()
         self.object_com = [0, 0, 0]
         self.points = []
+	self.worldPoints = []
 
 	self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 	
@@ -48,7 +50,7 @@ class Milestone1Master:
         """Makes the robot model match the real robot"""
         self.robotModel.setConfig(motion.robot.getKlamptSensedPosition())
 
-    def right_arm_ik(self, right_target):
+    def right_arm_normal_ik(self, right_target):
         """Solves IK to move the right arm to the specified
             right_target ([x, y, z] in world space)
         """
@@ -58,7 +60,28 @@ class Milestone1Master:
             for j in self.right_arm_indices:
                 q[j] = random.uniform(qmin[j],qmax[j])
             #goal = ik.objective(self.right_gripper_link,local=[vectorops.sub(right_gripper_center_xform[1],[0,0,0.1]),right_gripper_center_xform[1]],world=[vectorops.add(target,[0,0,0.1]),target])
-            goal = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
+	
+
+	    localP1 = VACUUM_POINT_XFORM[1]
+	    localP2 = [VACUUM_POINT_XFORM[1][0] - IK_OFFSET , VACUUM_POINT_XFORM[1][1], VACUUM_POINT_XFORM[1][2]]
+	    
+	    
+
+	    print "local points"
+	    print localP1
+	    print localP2
+
+
+
+	    worldP1 = right_target
+	    worldP2 = [right_target[0], right_target[1] , right_target[2] + IK_OFFSET]
+
+	    print "world points"
+	    print worldP1
+	    print worldP2
+
+
+            goal = ik.objective(self.robotModel.link('right_wrist'),local= (localP1, localP2),world=(worldP1, worldP2))
             if ik.solve(goal,tol=0.1):
                 return True
         print "right_arm_ik failed for ", right_target
@@ -76,36 +99,38 @@ class Milestone1Master:
         zTot = 0
         numPoints = 0
         COM = [0, 0, 0]
-        for point in self.points[::100]:
-    	    transformed = se3.apply(self.Tcamera, point)
-            xTot = transformed[0] + xTot 
-	    yTot = transformed[1] + yTot
-	    zTot = transformed[2] + zTot	
+        for point in self.worldPoints[::100]:
+    	    #transformed = se3.apply(self.Tcamera, point)
+            xTot = point[0] + xTot 
+	    yTot = point[1] + yTot
+	    zTot = point[2] + zTot	
 	    numPoints+=1
-    
-        COM[0] = xTot/numPoints
-        COM[1] = yTot/numPoints
-        COM[2] = zTot/numPoints
+    	if numPoints != 0:
+            COM[0] = xTot/numPoints
+            COM[1] = yTot/numPoints
+            COM[2] = zTot/numPoints
         return COM
 
     def drawStuff(self):
-        gldraw.xform_widget(self.Tvacuum,1,1)    
+        gldraw.xform_widget(self.Tvacuum,.5,.5)    
         glPointSize(5.0)
-        glBegin(GL_POINTS)
-        for point in self.points[::100]:
-            transformed = se3.apply(self.Tcamera, point)
-            glVertex3f(transformed[0], transformed[1], transformed[2])
-        # glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
-        glEnd()
 
-        gldraw.setcolor(1,1,0)
+
+        glBegin(GL_POINTS)
+        for point in self.worldPoints[::100]:
+            
+            glVertex3f(point[0], point[1], point[2])
+	glEnd()
+
+	glColor3b(1,0,0);
 	glPointSize(10.0)
-        if len(self.points) != 0:
-	    COM = self.getCOM()
-	    glBegin(1)
-            glVertex3f(COM[0], COM[1], COM[2])
-	    glEnd()
-        gldraw.setcolor(0,0,1)
+	glBegin(GL_POINTS)
+	com = self.getCOM()
+	glVertex3f(com[0], com[1], com[2])
+        glEnd()
+	glColor3b(0,0,1)
+
+  
 
 
     def loop(self):
@@ -113,7 +138,7 @@ class Milestone1Master:
             while True:
                 print self.state
                 self.load_real_robot_state()
-                self.Tcamera = se3.mul(self.robotModel.link('right_wrist').getTransform(), self.cameraCalibration)
+                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), self.cameraCalibration)
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
                 if self.state == 'CUSTOM_CODE':
@@ -152,11 +177,17 @@ class Milestone1Master:
                         for point in pc2.read_points(cloud, skip_nans=True):
                             cloud_is_good = True
                             break
-                    self.points, self.object_com = PCProcessor().getObjectCOM(cloud)
+                    self.points, self.object_com = perception.getObjectCOM(cloud)
                     print len(self.points)
                     # DANGER THESE ARE IN CAMERA FRAME
                     # self.state = 'MOVING_TO_GRASP_OBJECT'
                     self.state = 'SCANNING_BIN'
+
+		    self.worldPoints = []	
+		    for point in self.points:
+			transformed = se3.apply(self.Tcamera, point)
+ 			self.worldPoints.append(transformed)
+
 
 		    print self.cameraCalibration
 
@@ -201,12 +232,20 @@ class Milestone1Master:
 			print "input error\n"
 
                 if self.state == 'MOVING_TO_GRASP_OBJECT':
-                    motion.robot.right_mq.appendLinear(3, [0.679553488256836, -1.1125195651428224, -0.054456317907714845, 1.96349540625, -0.9924855686279298, -0.9349612891479493, 0.0])
+                    motion.robot.right_mq.appendLinear(3, GRASP_INTERMEDIATE1)
+		    
+		    while( motion.robot.right_mq.moving()):
+			print "moving to intermediate 1"
+		   
+		    #motion.robot.right_mq.appendLinear(3, GRASP_INTERMEDIATE2)
+		    while( motion.robot.right_mq.moving() ):
+			print "moving to intermediate 2"
+		    
                     #TODO remove
                     self.object_com = self.getCOM()
 		    print self.object_com
 
-                    if self.right_arm_ik(self.object_com):
+                    if self.right_arm_normal_ik(self.object_com):
                         destination = self.robotModel.getConfig()
 			print "headed to destination"
                         print destination

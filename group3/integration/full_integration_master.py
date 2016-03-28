@@ -169,9 +169,9 @@ class FullIntegrationMaster:
                 elif self.state == 'WAITING_TO_GRASP_OBJECT':
                     if time.time() - self.wait_start_time > GRASP_WAIT_TIME:
                         # Move back 
-                        move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                        move_target[0] = move_target[0] - BACK_UP_DISTANCE
-                        if self.right_arm_ik(move_target):
+                        #move_target = se3.apply(self.Tvacuum, [0, 0, 0])
+                        #move_target[0] = move_target[0] - BACK_UP_DISTANCE
+                        if self.right_arm_ik(self.object_com):
                             destination = self.robotModel.getConfig()
                             motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                         else:
