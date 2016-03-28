@@ -8,7 +8,7 @@ import sensor_msgs.point_cloud2 as pc2
 from util.constants import *
 from scipy.spatial import KDTree, cKDTree
 
-def isCloudValid(data):
+def isCloudValid(cloud):
     """
     Returns whether a cloud is valid to be processed by this perception module
     """
@@ -21,7 +21,7 @@ def isCloudValid(data):
 def calPointCloud(cloud):
     """
     Input: Point cloud
-    Output: Calibrated cloud
+    Output: (Calibrated cloud, COM that was subtracted)
     Calculates the COM of the two shelf edges and
     subtracts their COM from every point in the cloud
     """
@@ -35,7 +35,7 @@ def calPointCloud(cloud):
     pointmean = np.mean(pointsort,axis = 0)
     print ("COM of shelf edges: ", pointmean)
     cloud = cloud - pointmean
-    return cloud
+    return (cloud, pointmean)
 
 def convertPc2ToNp(data):
     """
@@ -115,14 +115,10 @@ def segmentation(object):
     show = 1
     while max(leftpoint) > 0 and ooo <= 1:
         r = np.zeros((1,3))
-        print'segmentation while loop'
         while len(point_list) >0 and oo<=5000:
-            print'segmentation while loop 2'
+            print "segmentation loop..."
             number = len(point_list)
-            # print point_list
-            # print number
             for k in range(0,number):
-                # print 'forloop1'
                 dmin = point_list[0]
                 edth = np.median(dist1[dmin-1])
                 n,v,p = np.linalg.svd(object[idx1[dmin-1,:],:])
@@ -166,9 +162,7 @@ def segmentation(object):
             else:
                 oo = oo+1
                 listall.append(point_list)
-        print r[:,2]!=0
         if len(r) > 1:
-            print 'plot first'
             print np.size(r,axis= 0)
             print np.size(r,axis= 1)
             np.savez('plane1', r[:,0],r[:,1],r[:,2])
@@ -186,6 +180,7 @@ def segmentation(object):
         listall = [point_list]# why this???
         ooo = ooo+1
 
+    print ("plane from segmentation: ", r)
     return r
 
 def com(cloud):

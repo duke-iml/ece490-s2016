@@ -29,7 +29,7 @@ class SaveF200DepthSnapshot:
             cloud = np.array([xs,ys,zs])
             cloud = cloud.transpose()
             print cloud[0]
-            cloud = perception.calPointCloud(cloud)
+            cloud, _ = perception.calPointCloud(cloud)
             #add end
             #cloud = cloud.transpose()
             xs = cloud[:,0]

@@ -76,12 +76,19 @@ class FullIntegrationMaster:
 
     def drawStuff(self):
         gldraw.xform_widget(self.Tvacuum,0.1,0.01)
+        gldraw.xform_widget(self.Tcamera,0.1,0.01)
+
         glPointSize(5.0)
+        glColor3b(0,0,1)
         glBegin(GL_POINTS)
         for point in self.points[::100]:
             transformed = se3.apply(self.Tcamera, point)
             glVertex3f(transformed[0], transformed[1], transformed[2])
-        # glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
+        glEnd()
+
+        glColor3b(1,0,0);
+        glBegin(GL_POINTS)
+        glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
         glEnd()
 
     def turnOnVacuum(self):
@@ -102,11 +109,11 @@ class FullIntegrationMaster:
                 print self.state
 
                 self.load_real_robot_state()
-                self.Tcamera = se3.mul(self.robotModel.link('right_lower_elbow').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
+                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
                 if self.state == 'CUSTOM_CODE':
-                    print se3.apply(self.Tvacuum, [0, 0, 0])
+                    pass
 
                 elif self.state == 'START':
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
@@ -121,13 +128,15 @@ class FullIntegrationMaster:
                     if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
                         self.state = 'SCANNING_BIN' if REAL_PERCEPTION else 'FAKE_SCANNING_BIN'
                 elif self.state == 'SCANNING_BIN':
+                    print "Waiting for message from camera"
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     if perception.isCloudValid(cloud):
                         np_cloud = perception.convertPc2ToNp(cloud)
-                        np_cloud = perception.calPointCloud(np_cloud)
+                        np_cloud, pointmean = perception.calPointCloud(np_cloud)
                         np_cloud = perception.subtractShelf(np_cloud)
-                        plane = perception.segmentation(np_cloud)
-                        self.object_com = perception.com(plane)
+                        #plane = perception.segmentation(np_cloud)
+                        #self.object_com = se3.apply(self.Tcamera, perception.com(plane) + pointmean)
+                        self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud) + pointmean)
                         if self.right_arm_ik(self.object_com):
                             destination = self.robotModel.getConfig()
                             motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
@@ -204,8 +213,8 @@ def setupWorld():
     #world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"))
-    print "Loading Kiva pod model..."
-    world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
+    #print "Loading Kiva pod model..."
+    #world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
     print "Loading plane model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"plane.env"))
     
@@ -216,8 +225,8 @@ def setupWorld():
     
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees 
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.2,0,0])
-    T = world.rigidObject(0).getTransform()
-    world.rigidObject(0).setTransform(*se3.mul(Trel,T))
+    #T = world.rigidObject(0).getTransform()
+    #world.rigidObject(0).setTransform(*se3.mul(Trel,T))
 
     return world
 
