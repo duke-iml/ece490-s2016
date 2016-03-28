@@ -123,15 +123,18 @@ class FullIntegrationMaster:
                 elif self.state == 'SCANNING_BIN':
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     if perception.isCloudValid(cloud):
-                        # These are in the camera frame
-                        self.points, self.object_com = perception.getObjectCOM(cloud)
+                        np_cloud = perception.convertPc2ToNp(cloud)
+                        np_cloud = perception.calPointCloud(np_cloud)
+                        np_cloud = perception.subtractShelf(np_cloud)
+                        plane = perception.segmentation(np_cloud)
+                        self.object_com = perception.com(plane)
                         if self.right_arm_ik(self.object_com):
                             destination = self.robotModel.getConfig()
                             motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
                             motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                        self.state = 'MOVING_TO_GRASP_OBJECT'
-                    else:
-                        print "Got an invalid cloud, trying again"
+                            self.state = 'MOVING_TO_GRASP_OBJECT'
+                        else:
+                            print "Got an invalid cloud, trying again"
                 elif self.state == 'FAKE_SCANNING_BIN':
                     self.object_com = [1.174, -0.097, 1.151]
                     self.points = [self.object_com]

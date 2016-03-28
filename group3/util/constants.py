@@ -1,10 +1,10 @@
 import math
 from klampt import vectorops,so3
 
-INITIAL_STATE = "START"
+INITIAL_STATE = "SCANNING_BIN"
 
-REAL_PERCEPTION = False
-REAL_VACUUM = True
+REAL_PERCEPTION = True
+REAL_VACUUM = False
 SHOW_PLOT = False
 
 # Right arm configurations
