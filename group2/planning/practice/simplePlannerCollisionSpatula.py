@@ -1088,7 +1088,8 @@ class PickingController:
                     path = self.planner.plan(qcmd,solution[0],'right')
                     if path == 1 or path == 2 or path == False:
                         break
-                    elif path != None:
+                    # elif path != None:
+                    else:
                         self.sendPath(path)
                         self.active_limb = limbs[solution[1]]
                         return True
