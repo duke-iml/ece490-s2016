@@ -16,38 +16,35 @@ Dennis Lynch
 #Initialize a new ROS node
 rospy.init_node('retriever_node')
 
-#Initialize the variables for baxter's arms
-left_arm = baxter_interface.Limb('left')
-right_arm = baxter_interface.Limb('right')
+#Initialize skipping variables
+skip_left = False
+skip_right = False
 
-#Initialize an array of joint names - these are the labels that each value should be associated with
-left_joints = left_arm.joint_names()
-right_joints = right_arm.joint_names()
+#Specify the file names
+print "Please specify the limb file names (leave blank to not create a file)"
+left_arm_filename = raw_input("Left arm filename:")
+right_arm_filename = raw_input("Right arm filename:")
 
-#Retrieve the current angle (in radians?) for each of the current joints on each baxter arm
-left_angles = [left_arm.joint_angle(j) for j in left_joints]
-right_angles = [right_arm.joint_angle(j) for j in right_joints]
+if left_arm_filename == "":
+    skip_left = True
 
-#This prints out the angles, allowing for a user to copy and paste the terminal output cleanly to the desired python module
-print "Left Arm Angles (radians):"
-print "* Copy and paste everything in the terminal between the dotted lines directly into the python module"
-print "--------------------"
-print "{\'" + left_joints[0] + "\'",":",left_angles[0], ","
-for i in range(1, len(left_angles) - 1):
-    print "\'" + left_joints[i] + "\'",":",left_angles[i],","
+if right_arm_filename == "":
+    skip_right = True
 
-print "\'" + left_joints[len(left_angles) - 1] + "\'",":",left_angles[len(left_angles) - 1], "}"
-print "--------------------"
-print ""
-print ""
-print "Right Arm Angles (radians):"
-print "* Copy and paste everything in the terminal between the dotted lines directly into the python module"
-print "--------------------"
-print "{\'" + right_joints[0] + "\'",":",right_angles[0], ","
-for i in range(1, len(right_angles) - 1):
-    print "\'" + right_joints[i] + "\'",":",right_angles[i],","
+if not skip_left:
+    full_left_filename = "state_json_files/" + left_arm_filename + ".json"
+    left_arm = baxter_interface.Limb('left')
+    left_joints = left_arm.joint_names()
+    left_angles = [left_arm.joint_angle(j) for j in left_joints]
+    with open(full_left_filename, "w") as file:
+        json.dump({left_joints[i]:left_angles[i] for i in range(0, len(left_angles))}, file, indent=4)
 
-print "\'" + right_joints[len(right_angles) - 1] + "\'",":",right_angles[len(right_angles) - 1], "}"
-print "--------------------"
+if not skip_right:
+    full_right_filename = "state_json_files/" + right_arm_filename + ".json"
+    right_arm = baxter_interface.Limb('right')
+    right_joints = right_arm.joint_names()
+    right_angles = [right_arm.joint_angle(j) for j in right_joints]
+    with open(full_right_filename, "w") as file:
+        json.dump({right_joints[i]:right_angles[i] for i in range(0, len(right_angles))}, file, indent=4)
 
 quit()

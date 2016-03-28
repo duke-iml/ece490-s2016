@@ -55,7 +55,7 @@ class KnowledgeBase:
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
         self.shelf_xform = se3.identity()
-    
+
     def bin_front_center(self,bin_name):
         bmin,bmax = apc.bin_bounds[bin_name]
         local_center = [(bmin[0]+bmax[0])*0.5,(bmin[1]+bmax[1])*0.5,bmax[2]]
@@ -318,7 +318,7 @@ class PickingController:
 
     def viewBinAction(self,b):
         self.waitForMove()
-            
+
         if self.state != 'ready':
             print "Already holding an object, can't move to bin"
             return False
@@ -337,10 +337,10 @@ class PickingController:
                 print "Invalid bin",b
                 return False
         return True
-        
+
     def graspAction(self):
         self.waitForMove()
-            
+
         if self.current_bin == None:
             print "Not located at a bin"
             return False
@@ -356,7 +356,7 @@ class PickingController:
                 #now close the gripper
                 self.controller.commandGripper(self.active_limb,self.active_grasp.gripper_close_command)
                 self.waitForMove()
-                
+
                 self.held_object = self.knowledge.bin_contents[self.current_bin].pop(0)
                 self.state = 'holding'
                 print "Holding object",self.held_object.info.name,"in hand",self.active_limb
@@ -367,7 +367,7 @@ class PickingController:
 
     def ungraspAction(self):
         self.waitForMove()
-            
+
         if self.state != 'holding':
             print "Not holding an object"
             return False
@@ -377,7 +377,7 @@ class PickingController:
                 #now open the gripper
                 self.controller.commandGripper(self.active_limb,self.active_grasp.gripper_open_command)
                 self.waitForMove()
-                
+
                 print "Object",self.held_object.info.name,"placed back in bin"
                 self.knowledge.bin_contents[self.current_bin].append(self.held_object)
                 self.state = 'ready'
@@ -386,7 +386,7 @@ class PickingController:
             else:
                 print "Ungrasp failed"
                 return False
-        
+
     def placeInOrderBinAction(self):
         self.waitForMove()
 
@@ -394,7 +394,7 @@ class PickingController:
             print "Not holding an object"
         else:
             if self.move_to_order_bin(self.held_object):
-                self.waitForMove()                
+                self.waitForMove()
                 #now open the gripper
                 self.controller.commandGripper(self.active_limb,self.active_grasp.gripper_open_command)
                 self.waitForMove()
@@ -529,11 +529,11 @@ class PickingController:
 
         If successful, sends the motion to the low-level controller and
         returns True.
-        
+
         Otherwise, does not modify the low-level controller and returns False.
         """
         world_offset = self.knowledge.bin_vantage_point(bin_name)
-        
+
         #place +z in the +x axis, y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=[0,0,-1,1,0,0,0,1,0],t=world_offset)
         right_goal = ik.objective(self.right_camera_link,R=[0,0,-1,1,0,0,0,1,0],t=world_offset)
@@ -563,20 +563,20 @@ class PickingController:
 
         If successful, sends the motion to the low-level controller and
         returns True.
-        
+
         Otherwise, does not modify the low-level controller and returns False.
         """
         self.waitForMove()
         self.controller.commandGripper(self.active_limb,[1])
         grasps = self.knowledge.grasp_xforms(object)
         qmin,qmax = self.robot.getJointLimits()
-        
+
         #get the end of the commandGripper motion
         qcmd = self.controller.getCommandedConfig()
         self.robot.setConfig(qcmd)
         set_model_gripper_command(self.robot,self.active_limb,[1])
         qcmd = self.robot.getConfig()
-        
+
         #solve an ik solution to one of the grasps
         grasp_goals = []
         pregrasp_goals = []
@@ -632,7 +632,7 @@ class PickingController:
 
         If successful, sends the motion to the low-level controller and
         returns True.
-        
+
         Otherwise, does not modify the low-level controller and returns False.
         """
         assert len(object.info.grasps) > 0,"Object doesn't define any grasps"
@@ -649,7 +649,7 @@ class PickingController:
         centerpos = se3.mul(gripperlink.getTransform(),left_gripper_center_xform)[1]
         move_target = vectorops.add(centerpos,moveVector)
         movegoal = ik.objective(gripperlink,local=[left_gripper_center_xform[1],vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame)],world=[move_target,vectorops.add(move_target,vertical)])
-            
+
         sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=1)
         if len(sortedSolutions) == 0:
             print "No upright-movement config found"
@@ -664,11 +664,11 @@ class PickingController:
 
         If successful, sends the motion to the low-level controller and
         returns True.
-        
+
         Otherwise, does not modify the low-level controller and returns False.
         """
-        
-        qcmd = self.controller.getCommandedConfig()        
+
+        qcmd = self.controller.getCommandedConfig()
         left_target = se3.apply(order_bin_xform,[0.0,0.2,order_bin_bounds[1][2]+0.1])
         right_target = se3.apply(order_bin_xform,[0.0,-0.2,order_bin_bounds[1][2]+0.1])
         #retraction goal -- maintain vertical world axis
@@ -700,7 +700,7 @@ class PickingController:
                 self.waitForMove()
                 self.sendPath(path)
                 return True
-        print "Planning failed"        
+        print "Planning failed"
         return False
 
     def sendPath(self,path):
@@ -778,12 +778,12 @@ def run_controller(controller,command_queue):
             print "Waiting for command..."
             time.sleep(0.1)
     print "Done"
-    
+
 
 class MyGLViewer(GLRealtimeProgram):
     """This class is used to simulate / interact with with the world model
     in hw4.
-    
+
     Pressing 'a-l' runs the view_bin method which should set the robot to a
     configuration that places a hand camera such that it points inside the
     bin.
@@ -803,8 +803,8 @@ class MyGLViewer(GLRealtimeProgram):
         self.planworld = planworld
         self.sim = Simulator(simworld)
         self.simulate = True
-        #self.sim.simulate(0)
-        
+        # self.sim.simulate(0)
+
         #you can set these to true to draw the bins, grasps, and/or gripper/camera frames
         self.draw_bins = False
         self.draw_grasps = True
@@ -854,9 +854,9 @@ class MyGLViewer(GLRealtimeProgram):
             r.setConfig(q)
             r.drawGL(False)
         glDisable(GL_BLEND)
-        
+
         global ground_truth_items
-        
+
         #show bin boxes
         if self.draw_bins:
             glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0,1])
@@ -865,7 +865,7 @@ class MyGLViewer(GLRealtimeProgram):
             for b in apc.bin_names:
                 c = self.picking_controller.knowledge.bin_front_center(b)
                 if c:
-                    glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0.5,1])                    
+                    glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,0.5,1])
                     r = 0.01
                     gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
                 c = self.picking_controller.knowledge.bin_vantage_point(b)
@@ -874,7 +874,7 @@ class MyGLViewer(GLRealtimeProgram):
                     r = 0.01
                     gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
 
-        
+
         #show object state
         for i in ground_truth_items:
             if i.xform == None:
@@ -921,7 +921,7 @@ class MyGLViewer(GLRealtimeProgram):
             gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),left_gripper_center_xform),0.05,0.005,fancy=False)
             gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),right_gripper_center_xform),0.05,0.005,fancy=False)
 
-        #draw order box 
+        #draw order box
         glDisable(GL_LIGHTING)
         glColor3f(1,0,0)
         draw_oriented_wire_box(order_bin_xform,order_bin_bounds[0],order_bin_bounds[1])
@@ -945,21 +945,21 @@ def load_apc_world():
     world = WorldModel()
     #uncomment these lines and comment out the next 2 if you want to use the
     #full Baxter model
-    #print "Loading full Baxter model (be patient, this will take a minute)..."
-    #world.loadElement(os.path.join(model_dir,"baxter.rob"))
+    # print "Loading full Baxter model (be patient, this will take a minute)..."
+    # world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
     world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     print "Loading Kiva pod model..."
     world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
-    
+
     #shift the Baxter up a bit (95cm)
     Rbase,tbase = world.robot(0).getLink(0).getParentTransform()
     world.robot(0).getLink(0).setParentTransform(Rbase,(0,0,0.95))
     world.robot(0).setConfig(world.robot(0).getConfig())
-    
-    #translate pod to be in front of the robot, and rotate the pod by 90 degrees 
+
+    #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     reorient = ([1,0,0,0,0,1,0,-1,0],[0,0,0.01])
     Trel = (so3.rotation((0,0,1),-math.pi/2),[1.4,0,0])
     T = reorient
@@ -1012,7 +1012,7 @@ def main():
     """The main loop that loads the planning / simulation models and
     starts the OpenGL visualizer."""
     world = load_apc_world()
-   
+
     init_ground_truth()
 
     if NO_SIMULATION_COLLISIONS:
@@ -1028,7 +1028,7 @@ def main():
     f.close()
     simworld.robot(0).setConfig(baxter_rest_config)
 
-    
+
     #run the visualizer
     visualizer = MyGLViewer(simworld,world)
     visualizer.run()
