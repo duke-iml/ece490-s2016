@@ -46,6 +46,7 @@ config = 0
 NO_SIMULATION_COLLISIONS = config
 FAKE_SIMULATION = config
 SKIP_PATH_PLANNING = config
+RECORD_TRAJECTORY = 1
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -1247,6 +1248,11 @@ class PickingController:
             q = self.clampJointLimits(q,qmin,qmax)
             self.controller.appendMilestone(q)
 
+            if RECORD_TRAJECTORY:
+                with open("configOutput.txt", "a") as myfile:
+                    myfile.write(str(q))
+                    myfile.write("\n")
+
     def clampJointLimits(self,q,qmin,qmax):
         for i in range(len(q)):
             if (q[i] < qmin[i]) :
@@ -1259,6 +1265,22 @@ class PickingController:
                 print "Changed joint value to its maximum"
                 q[i] = qmax[i]
         return q
+
+    def readFromTrajectoryFile(self, fileName):
+        trajectoryToSend = []
+        with open(fileName) as f:
+            trajectory = f.readlines()
+        for i in range(len(trajectory)):
+            milestone = trajectory[i]
+            milestone = milestone.translate(None, '[]')
+            milestone = milestone.strip()
+            milestone = milestone.split(', ')
+            trajectoryToSend.append(map(float, milestone))
+
+            if i==0:
+                self.controller.setMilestone(trajectoryToSend[0])
+            else:
+                self.controller.appendMilestone(trajectoryToSend[i])
 
 def draw_xformed(xform,localDrawFunc):
     """Draws something given a se3 transformation and a drawing function
@@ -1347,7 +1369,10 @@ def run_controller(controller,command_queue):
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == 'r':
-                restart_program()
+                var = raw_input("Please enter trajectory file name : ")
+                print "Running recorded trajectory... (", var, ")"
+                controller.readFromTrajectoryFile(var)
+                # controller.readFromTrajectoryFile('testConfigOutput.txt')
             elif c == '`':
                 global config
                 config = (not config)
