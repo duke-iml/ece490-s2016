@@ -109,14 +109,10 @@ class FullIntegrationMaster:
                     print se3.apply(self.Tvacuum, [0, 0, 0])
 
                 elif self.state == 'START':
-                    motion.robot.left_mq.setLinear(3, [0, 0, 0, 0, 0, 0, 0])
-                    self.state = 'MOVING_LEFT_TO_0'
-                elif self.state == 'MOVING_LEFT_TO_0':
-                    if not motion.robot.left_mq.moving():
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
-                        self.state = 'MOVING_TO_SCAN_BIN'
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
+                    self.state = 'MOVING_TO_SCAN_BIN'
                 elif self.state == 'MOVING_TO_SCAN_BIN':
                     if not motion.robot.right_mq.moving():
                         self.wait_start_time = time.time()
