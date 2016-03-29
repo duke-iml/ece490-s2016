@@ -26,8 +26,8 @@ def calPointCloud(cloud):
     subtracts their COM from every point in the cloud
     """
     pointsortt = cloud[cloud[:,2].argsort(),]
-    pointth = min(np.mean(pointsortt[1:500,2])*2,max(pointsortt[1:500,2]))
-    pointsort = np.array([pointsortt[1,:]])
+    pointth = min(np.mean(pointsortt[0:500,2])*2,max(pointsortt[0:500,2]))
+    pointsort = np.array([pointsortt[0,:]])
     begin = 0
     while pointsortt[begin,2] <= pointth:
         pointsort = np.append(pointsort,[pointsortt[begin,:]],axis =0)
@@ -42,21 +42,22 @@ def convertPc2ToNp(data):
     Input: PointCloud2 message
     Output: NumPy array of point cloud
     """
-    STEP = 1 # Plot every STEPth point for speed, set to 1 to plot all
+    STEP = 25 # Plot every STEPth point for speed, set to 1 to plot all
 
     # Load cloud data
     xs = []
     ys = []
     zs = []
-    for point in pc2.read_points(data, skip_nans=True):
+    for point in pc2.read_points(data, skip_nans=False):
         xs.append(point[0])
         ys.append(point[1])
         zs.append(point[2])
     print "Point cloud count: " + str(len(xs))
     cloud = np.array([xs,ys,zs])
     cloud = cloud.transpose()
+    nans = np.isnan(cloud)
+    cloud[nans] = 0
     cloud = cloud[::STEP]
-
     return cloud
 
 def subtractShelf(cloud):

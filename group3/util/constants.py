@@ -4,7 +4,7 @@ from klampt import vectorops,so3
 INITIAL_STATE = "START"
 
 REAL_PERCEPTION = True
-REAL_VACUUM = True
+REAL_VACUUM = False
 SHOW_PLOT = False
 
 # Right arm configurations

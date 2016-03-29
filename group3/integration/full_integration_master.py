@@ -27,6 +27,7 @@ class FullIntegrationMaster:
         self.world = world
         self.robotModel = world.robot(0)
         self.state = INITIAL_STATE
+        # self.state = 'SCANNING_BIN'
         self.config = self.robotModel.getConfig()
         self.left_arm_links = [self.robotModel.link(i) for i in LEFT_ARM_LINK_NAMES]
         self.right_arm_links = [self.robotModel.link(i) for i in RIGHT_ARM_LINK_NAMES]
@@ -134,9 +135,9 @@ class FullIntegrationMaster:
                         np_cloud = perception.convertPc2ToNp(cloud)
                         np_cloud, pointmean = perception.calPointCloud(np_cloud)
                         np_cloud = perception.subtractShelf(np_cloud)
-                        #plane = perception.segmentation(np_cloud)
-                        #self.object_com = se3.apply(self.Tcamera, perception.com(plane) + pointmean)
-                        self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud) + pointmean)
+                        plane = perception.segmentation(np_cloud)
+                        self.object_com = se3.apply(self.Tcamera, perception.com(plane) + pointmean)
+                        # self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud) + pointmean)
                         if self.right_arm_ik(self.object_com):
                             destination = self.robotModel.getConfig()
                             motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
