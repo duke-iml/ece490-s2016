@@ -27,28 +27,71 @@ class ClosedLoopCSpaceTest (ClosedLoopRobotCSpace):
         self.eps = 1e-1
 
     def feasible(self,q):
-        if len(q) < self.robot.numLinks:
-            qLimb = q
-            q = self.robot.getConfig()
-            for i in range(len(self.limb_indices)):
-                q[self.limb_indices[i]] = qLimb[i]
-
-        qmin,qmax = self.robot.getJointLimits()
-        for i in range(len(q)):
-            if qmin[i] == qmax[i]:
-                q[i] = qmin[i]
-            if qmin[i] > q[i] or qmax[i] < q[i]:
-                print "joint out of range"
-                print i, qmin[i], q[i], qmax[i]
+        # set robot to given q
+        # get joint 55 orientation
+        # if rotation is not right, return false
+        qcurrent = self.robot.getConfig()
+        if len(q) < len(qcurrent):
+            if len(self.limb_indices) != len(q):
                 return False
+            else:
+                for i in range(len(self.limb_indices)):
+                    qcurrent[self.limb_indices[i]] = q[i]
+                q = qcurrent
+
+
+        # self.robot.setConfig(q)
+        # Rcur = self.robot.link(55).getTransform()[0]
+        # # Rgoal
+
+
+        # if len(q)>len(self.limb_indices): return False
+        # for i in range(len(q)):
+        #     # print "q", i, q[i], self.bound[i][0], self.bound[i][1]
+        #     # print self.limb, self.limb_indices, i, len(q)
+        #     if (q[i] < self.bound[i][0]) :
+        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (min:",self.bound[i][0],")"
+        #         print "Changed joint value to its minimum"
+        #         q[i] = self.bound[i][0]
+
+        #     if (q[i] > self.bound[i][1]) :
+        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (max:",self.bound[i][1],")"
+        #         print "Changed joint value to its maximum"
+        #         q[i] = self.bound[i][1]
+
+        print 1
+        # self.robot.setConfig(q)
+        # return AdaptiveCSpace.feasible(self,q)
+
+        print 2
+        if not self.inJointLimits(q): return False
+
+        print 3
+        self.robot.setConfig(q)
+        if not self.closedLoop(): return False;
+
+        #check extras
+        print 4
+        for f in self.extraFeasibilityTesters:
+            if not f(q): return False
+
+        print 5
+        #check collisions
+        if self.selfCollision(): return False
+
+        print 6
+        if self.envCollision(): return False
+        return True
+
+
 
         if not CSpace.feasible(self,q):
             print "CSpace.feasible: Configuration is out of bounds"
             return False
 
         if not self.planner.check_limb_collision_free(self.limb,q):
-                print "ClosedLoopRobotCSpace.feasible: Configuration is in collision"
-                return False
+            # print "ClosedLoopRobotCSpace.feasible: Configuration is in collision"
+            return False
         return True
 
 
@@ -105,28 +148,27 @@ class LimbCSpace (CSpace):
         self.eps = 1e-1
 
     def feasible(self,q):
-        # for i in range(len(q)):
-        #     # print "q", i, q[i], self.bound[i][0], self.bound[i][1]
-        #     if (q[i] < self.bound[i][0]) :
-        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (min:",self.bound[i][0],")"
-        #         print "Changed joint value to its minimum"
-        #         q[i] = self.bound[i][0]
+        for i in range(len(q)):
+            # print "q", i, q[i], self.bound[i][0], self.bound[i][1]
+            if (q[i] < self.bound[i][0]) :
+                print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (min:",self.bound[i][0],")"
+                print "Changed joint value to its minimum"
+                q[i] = self.bound[i][0]
 
-        #     if (q[i] > self.bound[i][1]) :
-        #         print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (max:",self.bound[i][1],")"
-        #         print "Changed joint value to its maximum"
-        #         q[i] = self.bound[i][1]
+            if (q[i] > self.bound[i][1]) :
+                print "Joint #",self.limb_indices[i],"(",q[i],") out of limits (max:",self.bound[i][1],")"
+                print "Changed joint value to its maximum"
+                q[i] = self.bound[i][1]
 
         if not CSpace.feasible(self,q):
             # print "LimbCSpace.feasible: Configuration is out of bounds"
             return False
 
-        # print "check_limb_collision_free...",
-        cond = self.planner.check_limb_collision_free(self.limb,q)
-        # print "Done"
-        if not cond:
-                # print "LimbCSpace.feasible: Configuration is in collision"
-                return False
+        # cond = self.planner.check_limb_collision_free(self.limb,q)
+        # if not cond:
+        if not self.planner.check_limb_collision_free(self.limb,q):
+            # print "LimbCSpace.feasible: Configuration is in collision"
+            return False
         return True
 
 
@@ -293,7 +335,12 @@ class LimbPlanner:
         # MotionPlan.setOptions(type="rrt*", perturbationRadius = 0.25, connectionThreshold=2, bidirectional = True)
         MotionPlan.setOptions(type="rrt", perturbationRadius = 1, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
         # MotionPlan.setOptions(type="prm",knn=1,connectionThreshold=0.01)
+        # MotionPlan.setOptions(type="rrt", perturbationRadius = 1, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
         # plan = MotionPlan(cspace, type='sbl')
+
+
+        # works best for non-ClosedLoopRobotCSpace
+        # MotionPlan.setOptions(type="rrt", perturbationRadius = 1, connectionThreshold=2, bidirectional = True, shortcut = True, restart=True)
 
         plan = MotionPlan(cspace)
 

@@ -42,11 +42,11 @@ from Queue import Queue
 from operator import itemgetter
 
 # configuration variables
-config = 0
+config = 1
 NO_SIMULATION_COLLISIONS = config
 FAKE_SIMULATION = config
 SKIP_PATH_PLANNING = config
-RECORD_TRAJECTORY = 1
+RECORD_TRAJECTORY = 0
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -391,8 +391,10 @@ class PickingController:
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
 
         # define a list of link indices on both arms
-        self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
-        self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
+        # self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
+        # self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
+        self.left_arm_indices = left_arm_geometry_indices
+        self.right_arm_indices = right_arm_geometry_indices
 
         # frames to draw
         self.frames = []
@@ -737,34 +739,6 @@ class PickingController:
             print "no item in spatula"
             return False
 
-    def ungraspAction(self):
-        self.waitForMove()
-
-        if self.stateRight != 'holding':
-            print "Not holding an object"
-            return False
-        else:
-            if self.move_to_ungrasp_object(self.held_object):
-                self.waitForMove()
-
-                # now open the gripper
-                self.controller.commandGripper(self.active_limb,[1])
-                self.waitForMove()
-
-                # now open the gripper
-                self.move_gripper_to_center()
-                self.waitForMove()
-
-                print "Object",self.held_object.info.name,"placed back in spatula"
-                # knowledge.bin_contents[self.current_bin].append(self.held_object)
-                self.stateRight = 'ready'
-                self.stateLeft = 'holding'
-                # self.held_object = None
-                return True
-            else:
-                print "Ungrasp failed"
-                return False
-
     def placeInOrderBinAction(self):
         self.waitForMove()
 
@@ -930,7 +904,7 @@ class PickingController:
                 self.robot.setConfig(initialConfig)
             # else, initialize with a random q, incrementally perturbing more from inital config
             else:
-                self.randomize_limb_position(limb,center=initialConfig,range=0.05*(numTrials[index]-1))
+                self.randomize_limb_position(limb,center=initialConfig,range=0.005*(numTrials[index]-1))
                 # self.randomize_limb_position(limb,center=initialConfig,range=None)
 
             if ik.solve(goal,tol=tol):
@@ -939,7 +913,8 @@ class PickingController:
                     numColFreeSolutions[index] += 1
                     ikSolutions.append((self.robot.getConfig(),index))
                     if len(ikSolutions) >= maxResults: break
-
+        #     print i
+        # return []
         if printer:
             print "< IK Summary >",
             for i in range(len(goals)):
@@ -956,6 +931,7 @@ class PickingController:
             config = solution[0]
             ind = solution[1]
             sortedSolutions.append( ((dist), (config, ind)) )
+
 
         sortedSolutions = sorted(sortedSolutions, key=itemgetter(0))
 
@@ -977,6 +953,25 @@ class PickingController:
         # R_camera = so3.mul( so3.rotation([0,0,1], -math.pi/2), so3.rotation([1,0,0], -math.pi/2) )
         t_camera = knowledge.bin_vantage_point(bin_name)
 
+
+
+
+        # # R_camera = so3.rotation([0,0,1], -math.pi/2)
+        # # R_camera = so3.mul(so3.rotation([1,0,0], math.pi/2), so3.rotation([0,0,1],math.pi))
+        # R_camera = self.left_camera_link.getTransform()[0]
+        # # R_camera = so3.mul(R_camera, so3.rotation([0,1,0], -math.pi/2))
+        # R_camera = so3.mul(R_camera, so3.rotation([0,0,1], math.pi/10))
+        # # R_camera = so3.identity()
+        # # t_camera = [0.55000000000001, -0.26399999999999996, 1.2]
+        # # t_camera = [0.4000000000001, -0.10399999999999996, 1.1]
+        # # t_camera = [0.5294616047497059, 0.18370393117153525, 0.8255072507623403]
+        # t_camera = [0.5294616047497059, -0.28370393117153525, 0.8255072507623403]
+        # print self.left_camera_link.getTransform()[1]
+        # self.frames.append([R_camera, t_camera])
+        # # return False
+
+
+
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
@@ -988,17 +983,25 @@ class PickingController:
         # temporarily increase collision margin of shelf
         self.world.terrain(0).geometry().setCollisionMargin(0.05)
 
-        # ClosedLoopRobotCSpace IK Constraint
-        # ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
+        # # ClosedLoopRobotCSpace IK Constraint
+        # # ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
         # print "****************"
-        ik_constraint = IKObjective()
-        ik_constraint.setLinks(55)
+        # ik_constraint = IKObjective()
+        # ik_constraint.setLinks(55)
         # print ik_constraint.numRotDims()
-        ik_constraint.setAxialRotConstraint([0,1,0], [0,0,-1])
-        # ik_constraint.setAxialRotConstraint([0,0,1], [0,0,1])
-        # ik_constraint.setAxialRotConstraint([0,1,0], [1,0,0])
+        # ik_constraint.setAxialRotConstraint([0,-1,0], [0,0,1])
+        # # ik_constraint.setAxialRotConstraint([1,0,0], [0,0,1])
+        # # ik_constraint.setAxialRotConstraint([0,0,1], [0,0,1])
+        # # ik_constraint.setAxialRotConstraint([0,-1,0], [0,1,0])
+        # # ik_constraint.setAxialRotConstraint([1,0,0], [0,1,0])
+        # # ik_constraint.setAxialRotConstraint([0,0,1], [0,1,0])
+        # # ik_constraint.setAxialRotConstraint([0,-1,0], [1,0,0])
+        # # ik_constraint.setAxialRotConstraint([1,0,0], [1,0,0])
+        # # ik_constraint.setAxialRotConstraint([0,0,1], [1,0,0])
         # print ik_constraint.numRotDims()
         # print ik_constraint.getRotationAxis()
+        # print ik_constraint.link()
+        # print ik_constraint.destLink()
         # print "****************"
 
         print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
@@ -1096,76 +1099,6 @@ class PickingController:
                         return True
         print "Failed to plan path"
         return False
-
-    def move_to_ungrasp_object(self,object):
-        """Sets the robot's configuration so the gripper ungrasps the object.
-
-        If successful, sends the motion to the low-level controller and
-        returns True.
-
-        Otherwise, does not modify the low-level controller and returns False.
-        """
-        assert len(object.info.grasps) > 0,"Object doesn't define any grasps"
-        return True
-
-    def move_gripper_upright(self,limb,moveVector,collisionchecker = None):
-        vertical = [0,0,0.1]
-        if self.active_limb == 'left':
-            gripperlink = self.left_gripper_link
-        else:
-            gripperlink = self.right_gripper_link
-        qcur = self.robot.getConfig()
-
-        # apply R_gripperLink to the vertical direction vector
-        vertical_in_gripper_frame = so3.apply(so3.inv(gripperlink.getTransform()[0]),vertical)
-        centerpos = se3.mul(gripperlink.getTransform(),left_gripper_center_xform)[1]
-        move_target = vectorops.add(centerpos,moveVector)
-        movegoal = ik.objective(gripperlink,
-                                local=[left_gripper_center_xform[1],vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame)],
-                                world=[move_target,vectorops.add(move_target,vertical)])
-
-        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=100, maxIters = 100)
-        if len(sortedSolutions) == 0:
-            print "No upright-movement config found"
-            return False
-
-        # sortedSolutions[0][0] -> configuration from the first solution (sorted by distance)
-        self.robot.setConfig(sortedSolutions[0][0])
-        return True
-
-    def move_gripper_retract(self,limb,moveVector,collisionchecker = None):
-        vertical = [0,0,0.1]
-        horizontal = [0,0.1,0]
-        if self.active_limb == 'left':
-            gripperlink = self.left_gripper_link
-        else:
-            gripperlink = self.right_gripper_link
-        qcur = self.robot.getConfig()
-
-        # apply R_gripperLink to the vertical direction vector
-        vertical_in_gripper_frame = so3.apply(so3.inv(gripperlink.getTransform()[0]),vertical)
-        horizontal_in_gripper_frame = so3.apply(so3.inv(gripperlink.getTransform()[0]),horizontal)
-        centerpos = se3.mul(gripperlink.getTransform(), left_gripper_center_xform)[1]
-        move_target = vectorops.add(centerpos,moveVector)
-        movegoal = ik.objective(gripperlink,
-                                local=[left_gripper_center_xform[1],
-                                       vectorops.add(left_gripper_center_xform[1],vertical_in_gripper_frame),
-                                       vectorops.add(left_gripper_center_xform[1],horizontal_in_gripper_frame)],
-                                world=[move_target,
-                                       vectorops.add(move_target,vertical),
-                                       vectorops.add(move_target,horizontal)])
-        # movegoal = ik.objective(gripperlink,
-        #                         R = gripperlink.getTransform()[0], t=vectorops.add(gripperlink.getTransform()[1], moveVector))
-
-
-        sortedSolutions = self.get_ik_solutions([movegoal],[self.active_limb],qcur,validity_checker=collisionchecker,maxResults=10, maxIters = 100)
-        if len(sortedSolutions) == 0:
-            print "No upright-movement config found"
-            return False
-
-        # sortedSolutions[0][0] -> configuration from the first solution (sorted by distance)
-        self.robot.setConfig(sortedSolutions[0][0])
-        return True
 
     def move_to_order_bin(self,object):
         """Sets the robot's configuration so the gripper is over the order bin
