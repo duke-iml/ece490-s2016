@@ -1,7 +1,8 @@
+#!/usr/bin/python
 import sys; sys.path.append('.')
 import time
-from Motion import motion
-from Motion import config
+from common.Motion import motion
+import config
 
 #save at 10Hz, by default.  Set to 0 to save by pressing enter
 rate = 20.0

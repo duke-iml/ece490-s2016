@@ -19,7 +19,7 @@ from operator import add
 # motion.robot.arms_mq = LimbMotionQueue(BOTH)
 # motion.robot.planner = Planner()
 # motion.robot.left_planner = LimbPlanner(LEFT)
-# motion.robot.right_planner = LimbPlanner(RIGHT )
+# motion.robot.right_planner = LimbPlanner(RIGHT)
 # motion.robot.arms_planner = LimbPlanner(BOTH)
 
 klampt_model = "common/klampt_models/baxter_col.rob"
@@ -57,7 +57,7 @@ def run():
             elif command[1] =='l':
                 config = map(add, make_tuple(command[2:]), lWrist.getWorldPosition((0,0,0)))
                 print "new:", config
-                iksolve(config, rWrist, pRobot.right_limb, pRobot.right_mq)
+                iksolve(config, lWrist, pRobot.left_limb, pRobot.left_mq)
             else:
                 print "Unknown command"
         else:

@@ -24,7 +24,7 @@ subset = [15,16,17,18,19,20,21,22]
 collider = robotcollide.WorldCollider(world)
 #probably want to ignore collisions beteween other arm/links and the world to make things faster...
 space = robotcspace.RobotSubsetCSpace(world.robot(0),subset,collider)
-planner = cspace.MotionPlan(space)
+planner = cspace.MotionPlan(space, "rrt*")
 #extract out cspace configurations
 start = [q0[i] for i in subset]
 goal = [q1[i] for i in subset]
