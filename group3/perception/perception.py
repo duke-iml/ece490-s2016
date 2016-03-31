@@ -31,11 +31,11 @@ def calPointCloud(cloud):
     pointsort = np.array([pointsortt[0,:]])
     begin = 0
     while pointsortt[begin,2] <= pointth:
-        pointsort = np.append(pointsort,[pointsortt[begin,:]],axis =0)
+        pointsort = np.append(pointsort,[pointsortt[begin,0:3]],axis =0)
         begin = begin+1
     pointmean = np.mean(pointsort,axis = 0)
     print ("COM of shelf edges: ", pointmean)
-    cloud = cloud - pointmean
+    cloud[:,0:3] = cloud[:,0:3] - pointmean
     return (cloud, pointmean)
 
 def convertPc2ToNp(data):
