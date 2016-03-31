@@ -177,7 +177,7 @@ class Milestone1Master:
                         for point in pc2.read_points(cloud, skip_nans=True):
                             cloud_is_good = True
                             break
-                    self.points, self.object_com = perception.getObjectCOM(cloud)
+                    self.points, self.object_com = perception.com(cloud)
                     print len(self.points)
                     # DANGER THESE ARE IN CAMERA FRAME
                     # self.state = 'MOVING_TO_GRASP_OBJECT'
