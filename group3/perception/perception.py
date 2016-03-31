@@ -8,6 +8,8 @@ import sensor_msgs.point_cloud2 as pc2
 from util.constants import *
 from scipy.spatial import KDTree, cKDTree
 import copy
+import ctypes
+import struct
 
 def isCloudValid(cloud):
     """
@@ -18,6 +20,14 @@ def isCloudValid(cloud):
         break
     return False
 
+def isCloudValidtest(cloud):
+    """
+    Returns whether a cloud is valid to be processed by this perception module
+    """
+    for point in pc2.read_points(cloud,skip_nans=False,field_names=("rgb","x","y","z")):
+        return True
+        break
+    return False
 
 def calPointCloud(cloud):
     """
@@ -38,13 +48,58 @@ def calPointCloud(cloud):
     cloud[:,0:3] = cloud[:,0:3] - pointmean
     return (cloud, pointmean)
 
+def convertPc2ToNptest(data):
+    """
+    Input: PointCloud2 message
+    Output: NumPy array of point cloud
+    updata added index as the forth number
+    """
+    STEP = 15 # Plot every STEPth point for speed, set to 1 to plot all
+
+    # Load cloud data
+    xs = []
+    ys = []
+    zs = []
+    idx = []
+    # r = []
+    # g = []
+    # b = []
+    i = 1
+    for point in pc2.read_points(data,skip_nans=False,field_names=("rgb","x","y","z")):
+        # print point
+        xs.append(point[0])
+        ys.append(point[1])
+        zs.append(point[2])
+        test = point[3]
+        # print point[3]
+        # cast float32 to int so that bitwise operations are possible
+        s = struct.pack('>f' ,test)
+        i = struct.unpack('>l',s)[0]
+        # you can get back the float value by the inverse operations
+        pack = ctypes.c_uint32(i).value
+        a = (pack & 0x00FF0000)>> 24
+        r = (pack & 0x00FF0000)>> 16
+        g = (pack & 0x0000FF00)>> 8
+        b = (pack & 0x0000FF00)
+        idx.append(i)
+        i = i+1
+    print "Point cloud count: " + str(len(xs))
+    print r,g,b,a
+    cloud = np.array([xs,ys,zs,idx])
+    cloud = cloud.transpose()
+    # nans = np.isnan(cloud)
+    # cloud[nans] = 0
+    print cloud
+    cloud = cloud[::STEP]
+    return cloud
+
 def convertPc2ToNp(data):
     """
     Input: PointCloud2 message
     Output: NumPy array of point cloud
     updata added index as the forth number
     """
-    STEP = 25 # Plot every STEPth point for speed, set to 1 to plot all
+    STEP = 15 # Plot every STEPth point for speed, set to 1 to plot all
 
     # Load cloud data
     xs = []
@@ -260,6 +315,7 @@ def segmentationtest(cloud):
                 point_list = point_list[(point_list != 0)]
                 sellist = np.append(sellist,[dmin],axis =0)
                 o = o+1
+
                 if len(point_list) == 0:
                     print "break"
                     break
