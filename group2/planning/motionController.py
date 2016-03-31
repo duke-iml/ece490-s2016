@@ -1609,28 +1609,32 @@ def load_apc_world():
     world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
     print "Loading Kiva pod model..."
     # world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
-    world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.stl"))
+    # world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.rob"))
+    world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
+
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
 
     #shift the Baxter up a bit (95cm)
     Rbase,tbase = world.robot(0).link(0).getParentTransform()
-    world.robot(0).link(0).setParentTransform(Rbase,(0,-0.25,0.95))
+    world.robot(0).link(0).setParentTransform(Rbase,(0,0,0.95))
     world.robot(0).setConfig(world.robot(0).getConfig())
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
-    reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
-    # reorient = ([0.1,0,0,0,0,0.1,0,-0.1,0],[0,0.05,0.1])
-    # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.3,0,-0.1])
-    # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.5,0,-0.1])
-    Trel = (so3.rotation((0,0,1),-math.pi/4),[1.2,1.2,-0.1])
-    T = reorient
-    world.terrain(0).geometry().transform(*se3.mul(Trel,T))
-    # world.terrain(0).geometry().transform(*se3.identity())
+    # shelf_xform_from_perception =
+    t_obj_shelf = [0.5,0,0]
+    t_shelf = [-1.5,0,0.1]
+    reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
+    reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
+    Trel = (so3.rotation((0,0,1),-math.pi/4),[2,0.75,-0.1])
+
+    xform = se3.mul(Trel,reorient)
+    xform_with_scale = se3.mul(Trel,reorient_with_scale)
+    world.terrain(0).geometry().transform(xform_with_scale[0], xform_with_scale[1])
 
     #initialize the shelf xform for the visualizer and object
     global ground_truth_shelf_xform
-    ground_truth_shelf_xform = se3.mul(Trel,T)
+    ground_truth_shelf_xform = xform
     return world
 
 def load_baxter_only_world():
@@ -1730,8 +1734,6 @@ if __name__ == "__main__":
     world.robot(0).setConfig(baxter_rest_config)
     # set spatula center point
     knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
-
-    print world.robot(0).getConfig()
 
     #run the visualizer
     visualizer = MyGLViewer(simWorld,world)
