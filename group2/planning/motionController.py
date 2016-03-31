@@ -12,17 +12,11 @@
 #          before reaching the object. Sometimes this doesn't happen the first time the
 #          spatula is actuated.
 #
-#       2) Need to turn off collision detection during tilt_wrist because the planner
-#          thinks the configuration is infeasible (collision checks). Is this collision
-#          check with the object or the shelf? Does the collision checker check shelf model?
-#
-#       3) toggle between simulation modes during run (global config variable)
-#
-#       4) spawn shelf objects a little behind (gets in the spatula during tilt_wrist)
-#
 #       5) Fixing end-effector orientation throughout trajectory?
 #
 #       6) fix 2 points of spatula edge to shelf during wrist tilt
+
+# pkill -f partial_name  kills all processes with matching name...
 
 from klampt import robotsim
 from klampt.glprogram import *
@@ -31,11 +25,7 @@ from klampt.robotsim import Geometry3D
 from klampt import visualization
 from baxter import *
 from motionPlanner import *
-import apc
-import os
-import math
-import random
-import copy
+import apc, os, math, random, copy
 from threading import Thread,Lock
 from Queue import Queue
 from operator import itemgetter
@@ -50,22 +40,16 @@ RECORD_TRAJECTORY = 0
 # The path of the klampt_models directory
 model_dir = "klampt_models/"
 
-# global variable for baxter's restinag configuration
-global baxter_rest_config
-
 # The transformation of the order bin
 order_bin_xform = (so3.identity(),[.65,-0.85,0])
 order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 # Order list. Can be parsed from JSON input
 global orderList
-orderList = ['tall_item', 'med_item',  'tall_item',
+orderList = ['med_item',  'tall_item',
              'med_item',  'tall_item', 'med_item',
              'tall_item', 'med_item',  'tall_item',
              'med_item',  'tall_item', 'med_item']
-
-# Declare the knowledge base
-global knowledge
 
 def init_ground_truth():
     global ground_truth_items
@@ -141,13 +125,6 @@ class KnowledgeBase:
     def __init__(self):
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
-
-        # item = apc.ItemInBin(apc.shelf, 'bin_SHELF')
-        # item.set_in_bin_xform(knowledge.shelf_xform, 0,0,0)
-        # item.info.geometry = load_item_geometry(item)
-        # self.bin_contents['bin_SHELF'] = []
-        # self.bin_contents['bin_SHELF'].append(item)
-        self.shelf = []
         self.center_point = None
 
     def bin_front_center(self,bin_name):
@@ -155,59 +132,32 @@ class KnowledgeBase:
         # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
         local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmax[2]]
 
-        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
-            local_center = vectorops.add(local_center, [0.01,0,0])
-        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
-            local_center = vectorops.add(local_center, [-0.02,0,0])
+        # if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
+        #     local_center = vectorops.add(local_center, [0.0,0,0])
+        # elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
+        #     local_center = vectorops.add(local_center, [-0.0,0,0])
 
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
 
     def bin_vantage_point(self,bin_name):
         world_center = self.bin_front_center(bin_name)
-        # Vantage point has 20cm offset from bin center
-        # world_offset = so3.apply(knowledge.shelf_xform[0],[0,-0.1,0.35])
         world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.03,0.55])
-
         return vectorops.add(world_center,world_offset)
 
     def bin_center_point(self):
-        # bin_name = 'bin_L'
-        # world_center = self.bin_front_center(bin_name)
-        # # Vantage point has 20cm offset from bin center
-        # # world_offset = so3.apply(knowledge.shelf_xform[0],[0,-0.1,0.35])
-        # world_offset = so3.apply(knowledge.shelf_xform[0],[0,0,0.5])
-
-        # return vectorops.add(world_center,world_offset)
         return self.center_point
 
     def bin_vertical_point(self):
         world_center = self.bin_center_point()
-        # Vantage point has 20cm offset from bin center
-        # world_offset = so3.apply(knowledge.shelf_xform[0],[0,-0.1,0.35])
-        world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.5,0])
-
+        # world_offset = [0,-0.25,0.25]
+        world_offset = [0,-0.8,0]
         return vectorops.add(world_center,world_offset)
-
-    def grasp_xforms(self,object):
-        if object.xform == None: return None
-        res = []
-        for g in object.info.grasps:
-            # NOTE: g.grasp_xform: the transformation of the gripper fingers
-            #                      relative to the object's local frame
-            #        object.xform: the transformation of the object center
-            #                      relative to the world frame
-            #   grasp_xform_world: the transformation of the gripper fingers
-            #                      relative to the world frame
-            grasp_xform_world = se3.mul(object.xform,g.grasp_xform)
-            res.append((g,grasp_xform_world))
-        return res
 
 def run_perception_on_shelf(knowledge):
     """This is a fake perception module that simply reveals the shelf
     xform."""
-
-    # knowledge.shelf_xform = input from perception team
+    # NOTE: knowledge.shelf_xform = change to input from perception team
     knowledge.shelf_xform = ground_truth_shelf_xform
 
 def run_perception_on_bin(knowledge,bin_name):
@@ -223,11 +173,7 @@ def run_perception_on_bin(knowledge,bin_name):
                 knowledge.bin_contents[bin_name].append(item)
     return
 
-# TODO
 class LowLevelController:
-    """A low-level interface to the Baxter robot (with parallel jaw
-    grippers).  Does appropriate locking for multi-threaded use.
-    You should use this in your picking controller."""
     def __init__(self,robotModel,robotController):
         self.robotModel = robotModel
         self.controller = robotController
@@ -288,11 +234,8 @@ class LowLevelController:
         set_model_gripper_command(self.robotModel,limb,command)
         self.controller.setMilestone(self.robotModel.getConfig())
         self.lock.release()
-# TODO
+
 class FakeLowLevelController:
-    """A faked low-level interface to the Baxter robot (with parallel jaw
-    grippers).  Does appropriate locking for multi-threaded use.
-    Useful for prototyping."""
     def __init__(self,robotModel,robotController):
         self.robotModel = robotModel
         self.config = robotModel.getConfig()
@@ -350,21 +293,7 @@ class FakeLowLevelController:
         self.lastCommandTime = time.time()
         self.lock.release()
 
-
 class PickingController:
-    """Maintains the robot's knowledge base and internal state.  Most of
-    your code will go here.  Members include:
-    - knowledge: a KnowledgeBase object
-    - planner: an LimbPlanner object, which *you will implement and use*
-    - state: either 'ready', or 'holding'
-    - configuration: the robot's current configuration
-    - active_limb: the limb currently active, either holding or viewing a state
-    - current_bin: the name of the bin where the camera is viewing or the gripper is located
-    - held_object: the held object, if one is held, or None otherwise
-
-    External modules can call viewBinAction(), graspAction(), ungraspAction(),
-    and placeInOrderBinAction()
-    """
     def __init__(self,world,robotController):
         self.world = world
         self.robot = world.robot(0)
@@ -578,30 +507,33 @@ class PickingController:
 
         # tilted angle view for spatula
         if direction == 'down':
-            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 - math.pi/360*10))
+            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*15))
             # [(+Right/-Left), (+Up/-Down), (+In/-Out)
-            world_offset = so3.apply( knowledge.shelf_xform[0],[0,0.0275,0.3325])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.065,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+            self.frames.append((R_camera,t_camera))
 
-            world_offset = so3.apply( knowledge.shelf_xform[0],[0,0.028,0.3325])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0655,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+            self.frames.append((R_camera,t_camera))
 
-            world_offset = so3.apply( knowledge.shelf_xform[0],[0,0.0285,0.3325])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0645,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+            self.frames.append((R_camera,t_camera))
 
         elif direction == 'up':
-            R_camera = so3.mul(so3.rotation([0,0,1], -math.pi/2),so3.rotation([1,0,0], -math.pi/2 + math.pi/360*10))
+            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
             # world_offset = so3.apply( knowledge.shelf_xform[0],[0,-0.02,0.3335])
-            world_offset = so3.apply( knowledge.shelf_xform[0],[0,-0.01,0.4])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015,0.4475])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
 
         # debuggin code
         # self.frames.append([R_camera,t_camera])
-
+        # return False
 
 
         qcmd = self.controller.getCommandedConfig()
@@ -697,9 +629,10 @@ class PickingController:
         self.waitForMove()
 
         if self.stateLeft == 'holding':
-            R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], math.pi))
+            R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], -math.pi/2))
             t_wrist = knowledge.bin_vertical_point()
-
+            self.frames.append((R_wrist, t_wrist))
+            # return False
             # Setup ik objectives for both arms
             # place +z in the +x axis, -y in the +z axis, and x in the -y axis
             right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
@@ -941,15 +874,6 @@ class PickingController:
         return [s[1] for s in sortedSolutions]
 
     def move_camera_to_bin(self,bin_name):
-        """Starts a motion so the camera has a viewpoint that
-        observes bin_name.  Will also change self.active_limb to the
-        appropriate limb.
-
-        If successful, sends the motion to the low-level controller and
-        returns True.
-
-        Otherwise, does not modify the low-level controller and returns False.
-        """
         R_shelf = knowledge.shelf_xform[0]
         R_camera = so3.mul(R_shelf, so3.rotation([1,0,0], math.pi))
         t_camera = knowledge.bin_vantage_point(bin_name)
@@ -1210,11 +1134,9 @@ def draw_xformed(xform,localDrawFunc):
     glMultMatrixf(mat)
     localDrawFunc()
     glPopMatrix()
-
 def draw_oriented_box(xform,bmin,bmax):
     """Helper: draws an oriented box"""
     draw_xformed(xform,lambda:gldraw.box(bmin,bmax))
-
 def draw_wire_box(bmin,bmax):
     """Helper: draws a wireframe box"""
     glBegin(GL_LINE_LOOP)
@@ -1239,15 +1161,12 @@ def draw_wire_box(bmin,bmax):
     glVertex3f(bmin[0],bmax[1],bmin[2])
     glVertex3f(bmax[0],bmax[1],bmin[2])
     glEnd()
-
 def draw_oriented_wire_box(xform,bmin,bmax):
     """Helper: draws an oriented wireframe box"""
     draw_xformed(xform,lambda:draw_wire_box(bmin,bmax))
 
 # this function is called on a thread
 def run_controller(controller,command_queue):
-    # simply reveals the shelf xform
-    run_perception_on_shelf(knowledge)
     while True:
         c = command_queue.get()
         if c != None:
@@ -1271,8 +1190,6 @@ def run_controller(controller,command_queue):
                     controller.move_gripper_to_center()
                     controller.graspAction()
                     controller.placeInOrderBinAction()
-
-
             elif c == 's':
                 controller.scoopAction()
             elif c == 'y':
@@ -1298,75 +1215,40 @@ def run_controller(controller,command_queue):
             time.sleep(0.1)
     print "Done"
 
-def restart_program():
-    """Restarts the current program.
-    Note: this function does not return. Any cleanup action (like
-    saving data) must be done before calling this function."""
-    python = sys.executable
-    os.execl(python, python, * sys.argv)
-
 class MyGLViewer(GLRealtimeProgram):
-    """This class is used to simulate / interact with with the world model
-    in hw4.
-
-    Pressing 'a-l' runs the view_bin method which should set the robot to a
-    configuration that places a hand camera such that it points inside the
-    bin.
-
-    Pressing 's' should pause / unpause the simulation.
-
-    Pressing 'x' should "grasp" an object in the currently pointed-to-bin
-    with either one of the hands at the designated grasp point.
-
-    Pressing 'u' should "ungrasp" an object currently grasped inside a bin.
-
-    Pressing 'p' should "put down" an object in the order bin
-    """
     def __init__(self,simworld,planworld):
         GLRealtimeProgram.__init__(self,"My GL program")
-        # self.camera.dist = 3.0
-        # # #x field of view in degrees
-        # self.fov = 60
-        # self.width *= 2
-        # self.height *= 2
 
         self.simworld = simworld
         self.planworld = planworld
         self.sim = Simulator(simworld)
-
         self.simulate = True
-        # self.sim.simulate(0)
 
-        #you can set these to true to draw the bins, grasps, and/or gripper/camera frames
+        # draw settings
         self.draw_bins = False
-        self.draw_grasps = True
         self.draw_gripper_and_camera = True
         self.drawVE = False
         self.drawPath = True
 
-        # initialize controllers, and starts a thread running "run_controller" with the
-        # specified picking controller and command queue
+        # initialize controllers
         if FAKE_SIMULATION:
             self.low_level_controller = FakeLowLevelController(simworld.robot(0),self.sim.controller(0))
         else:
             self.low_level_controller =     LowLevelController(simworld.robot(0),self.sim.controller(0))
         self.command_queue = Queue()
+
+        # visualize world model
         # visualization.add("world",planworld)
         # visualization.dialog()
+
+        # starts a thread running "run_controller" with the specified picking controller and command queue
         self.picking_controller = PickingController(planworld,self.low_level_controller)
         self.picking_thread = Thread(target=run_controller,args=(self.picking_controller,self.command_queue))
         self.picking_thread.start()
 
-    # where is this function called? somewhere in GLRealtimeProgram in glprogram
     def idle(self):
         if self.simulate:
             self.sim.simulate(self.dt)
-            #for Q2
-            if self.simworld.numRigidObjects() >= len(ground_truth_items):
-                ofs = self.simworld.numRigidObjects()-len(ground_truth_items)
-                for i,item in enumerate(ground_truth_items):
-                    T = self.sim.body(self.simworld.rigidObject(ofs+i)).getTransform()
-                    item.xform = T
             glutPostRedisplay()
 
     def display(self):
@@ -1376,7 +1258,7 @@ class MyGLViewer(GLRealtimeProgram):
         self.sim.updateWorld()
         self.simworld.drawGL()
 
-        #if you're doing question 1, this will draw the shelf and floor
+        # draw the shelf and floor
         if self.simworld.numTerrains()==0:
             for i in range(self.planworld.numTerrains()):
                 self.planworld.terrain(i).drawGL()
@@ -1426,9 +1308,6 @@ class MyGLViewer(GLRealtimeProgram):
             if i.xform == None:
                 continue
 
-            # if i.bin_name == 'order_bin':
-            #     continue
-
             if i.bin_name == 'order_bin':
             # draw in wireframe
                 glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,1,1])
@@ -1445,12 +1324,6 @@ class MyGLViewer(GLRealtimeProgram):
                 glColor3f(1,0.5,0)
                 draw_oriented_wire_box(i.xform,i.info.bmin,i.info.bmax)
                 glEnable(GL_LIGHTING)
-            if self.draw_grasps:
-                #draw grasps, if available
-                g = knowledge.grasp_xforms(i)
-                if g:
-                    for grasp,xform in g:
-                        gldraw.xform_widget(xform,0.02,0.002)
 
         # Draws the object held on gripper
         obj,limb,grasp = self.picking_controller.held_object,self.picking_controller.active_limb,self.picking_controller.active_grasp
@@ -1476,16 +1349,14 @@ class MyGLViewer(GLRealtimeProgram):
             draw_oriented_wire_box(objxform,obj.info.bmin,obj.info.bmax)
             glEnable(GL_LIGHTING)
 
-
-
         #show gripper and camera frames
         if self.draw_gripper_and_camera:
             left_camera_link = self.simworld.robot(0).link(left_camera_link_name)
             right_camera_link = self.simworld.robot(0).link(right_camera_link_name)
             left_gripper_link = self.simworld.robot(0).link(left_gripper_link_name)
             right_gripper_link = self.simworld.robot(0).link(right_gripper_link_name)
-            gldraw.xform_widget(left_camera_link.getTransform(),0.1,0.01,fancy=False)
-            gldraw.xform_widget(right_camera_link.getTransform(),0.1,0.01,fancy=False)
+            # gldraw.xform_widget(left_camera_link.getTransform(),0.1,0.01,fancy=False)
+            # gldraw.xform_widget(right_camera_link.getTransform(),0.1,0.01,fancy=False)
             gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),left_gripper_center_xform),0.05,0.005,fancy=False)
             gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),right_gripper_center_xform),0.05,0.005,fancy=False)
 
@@ -1493,13 +1364,11 @@ class MyGLViewer(GLRealtimeProgram):
         gldraw.xform_widget(knowledge.shelf_xform, 0.1, 0.015, lighting=False, fancy=True)
         gldraw.xform_widget(se3.identity(), 0.2, 0.037, lighting=False, fancy=True)
 
-
         #draw order box
         glDisable(GL_LIGHTING)
         glColor3f(1,0,0)
         draw_oriented_wire_box(order_bin_xform,order_bin_bounds[0],order_bin_bounds[1])
         glEnable(GL_LIGHTING)
-
 
         # draw milestones
         glDisable(GL_LIGHTING)
@@ -1577,12 +1446,10 @@ class MyGLViewer(GLRealtimeProgram):
 
         glEnable(GL_LIGHTING)
 
-
         for frame in self.picking_controller.frames:
             R = frame[0]
             t = frame[1]
             gldraw.xform_widget([R,t], 0.03, 0.0045, lighting=True, fancy=True)
-
         return
 
     def keyboardfunc(self,c,x,y):
@@ -1600,18 +1467,11 @@ class MyGLViewer(GLRealtimeProgram):
 def load_apc_world():
     """Produces a world with only the Baxter, shelf, and ground plane in it."""
     world = robotsim.WorldModel()
-    #uncomment these lines and comment out the next 2 if you want to use the
-    #full Baxter model
-    # print "Loading full Baxter model (be patient, this will take a minute)..."
-    # world.loadElement(os.path.join(model_dir,"baxter.rob"))
+
     print "Loading simplified Baxter model..."
-    # world.loadElement(os.path.join(model_dir,"baxter_with_parallel_gripper_col.rob"))
     world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
     print "Loading Kiva pod model..."
-    # world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
-    # world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.rob"))
     world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
-
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
 
@@ -1621,32 +1481,18 @@ def load_apc_world():
     world.robot(0).setConfig(world.robot(0).getConfig())
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
-    # shelf_xform_from_perception =
-    t_obj_shelf = [0.5,0,0]
-    t_shelf = [-1.5,0,0.1]
+    t_obj_shelf = [0.45,0,0]
+    t_shelf = [-1.5,-0.1,0.1]
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
     reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
     Trel = (so3.rotation((0,0,1),-math.pi/4),[2,0.75,-0.1])
 
-    xform = se3.mul(Trel,reorient)
     xform_with_scale = se3.mul(Trel,reorient_with_scale)
     world.terrain(0).geometry().transform(xform_with_scale[0], xform_with_scale[1])
 
     #initialize the shelf xform for the visualizer and object
     global ground_truth_shelf_xform
-    ground_truth_shelf_xform = xform
-    return world
-
-def load_baxter_only_world():
-    """Produces a world with only the Baxter in it."""
-    world = robotsim.WorldModel()
-    print "Loading simplified Baxter model..."
-    world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
-
-    #shift the Baxter up a bit (95cm)
-    Rbase,tbase = world.robot(0).link(0).getParentTransform()
-    world.robot(0).link(0).setParentTransform(Rbase,(0,0,0.95))
-    world.robot(0).setConfig(world.robot(0).getConfig())
+    ground_truth_shelf_xform = se3.mul(Trel,reorient)
     return world
 
 def spawn_objects_from_ground_truth(world):
@@ -1695,28 +1541,27 @@ def myCameraSettings(visualizer):
     visualizer.height *= 2
     return
 
-
-global simWorld
-
 if __name__ == "__main__":
     """The main loop that loads the planning / simulation models and
     starts the OpenGL visualizer."""
-    world = load_apc_world()
-    init_ground_truth()
-
-    # Instantiate global knowledge base
+    # Declare the knowledge base
+    global knowledge
     knowledge = KnowledgeBase()
 
-    # TODO
-    if NO_SIMULATION_COLLISIONS:
-        # simworld = load_baxter_only_world()
-        simWorld = load_apc_world()
-    else:
-        simWorld = load_apc_world()
-        spawn_objects_from_ground_truth(simWorld)
+    world = load_apc_world()
+    simWorld = load_apc_world()
 
+    # shelf_xform_from_perception goes here
+    # simply reveals the shelf xform
+    run_perception_on_shelf(knowledge)
+
+    # load shelf objects (wire frames)
+    init_ground_truth()
+
+
+    if not NO_SIMULATION_COLLISIONS:
+        spawn_objects_from_ground_truth(simWorld)
         # NOTE: is this necessary?
-        # spawn_shelf(world)
         spawn_objects_from_ground_truth(world)
 
     # load the resting configuration from klampt_models/baxter_rest.config
@@ -1724,19 +1569,19 @@ if __name__ == "__main__":
     f = open(model_dir+'baxter_new_spatula_rest.config','r')
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
-    simWorld.robot(0).setConfig(baxter_rest_config)
 
     # Add initial joint values to additional joints
     n = world.robot(0).numLinks()
     if len(baxter_rest_config) < n:
         baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
         print "# links in rest_config < # links in robot"
+    simWorld.robot(0).setConfig(baxter_rest_config)
     world.robot(0).setConfig(baxter_rest_config)
-    # set spatula center point
+
+    # set spatula center point (comes from baxter rest config)
     knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
 
     #run the visualizer
     visualizer = MyGLViewer(simWorld,world)
     myCameraSettings(visualizer)
     visualizer.run()
-

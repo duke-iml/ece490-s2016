@@ -5,7 +5,7 @@ from klampt import so3, se3
 import math
 
 # bin names
-bin_names = ['bin_'+c for c in ['A','B','C','D','E','F','G','H','I','J','K','L','SHELF']]
+bin_names = ['bin_'+c for c in ['A','B','C','D','E','F','G','H','I','J','K','L']]
 
 # shelf coordinates are centered at the bottom center of the shelf.
 # x: left to right
