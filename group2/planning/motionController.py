@@ -1609,8 +1609,7 @@ def load_apc_world():
     world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
     print "Loading Kiva pod model..."
     # world.loadElement(os.path.join(model_dir,"kiva_pod/meshes/pod_lowres.stl"))
-    world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
-
+    world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.stl"))
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
 
@@ -1621,11 +1620,13 @@ def load_apc_world():
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     reorient = ([1,0,0,0,0,1,0,-1,0],[0,0.05,0.1])
+    # reorient = ([0.1,0,0,0,0,0.1,0,-0.1,0],[0,0.05,0.1])
     # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.3,0,-0.1])
     # Trel = (so3.rotation((0,0,1),-math.pi/2),[1.5,0,-0.1])
     Trel = (so3.rotation((0,0,1),-math.pi/4),[1.2,1.2,-0.1])
     T = reorient
     world.terrain(0).geometry().transform(*se3.mul(Trel,T))
+    # world.terrain(0).geometry().transform(*se3.identity())
 
     #initialize the shelf xform for the visualizer and object
     global ground_truth_shelf_xform
