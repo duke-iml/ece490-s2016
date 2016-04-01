@@ -117,6 +117,8 @@ def random_mode():
         print "You requested", number_of_args,"items, but there are only",len(item_list),"items available.  Capping the number of items added to the shelf at",len(item_list)
 
     initialize_map()
+    global not_used
+    global used
 
     for i in range(0, number_of_args):
         bin_name = random.choice(bin_list)
@@ -129,10 +131,13 @@ def random_mode():
 
 def print_remaining_items():
     print "Items remaining:"
+    not_used.sort()
     for i in range(0, len(not_used)):
         print not_used[i]
 
 def add_new_item_to_shelf():
+    global not_used
+    global used
     completer = autoCompleter(not_used)
     readline.set_completer(completer.complete)
     readline.parse_and_bind('tab: complete')
@@ -142,6 +147,8 @@ def add_new_item_to_shelf():
         item_name = raw_input("Enter an item name: ")
         if item_name in not_used:
             bin_map[bin_name].append(item_name)
+            not_used.remove(item_name)
+            used.append(item_name)
         else:
             print "The item you requested is not available"
     else:
@@ -153,6 +160,12 @@ def see_current_shelf_contents():
         print bin_list[i],":",bin_map[bin_list[i]]
 
 def remove_item_from_shelf():
+    global not_used
+    global used
+    completer = autoCompleter(used)
+    readline.set_completer(completer.complete)
+    readline.parse_and_bind('tab: complete')
+
     if (len(used) == 0):
         print "There's nothing to remove!"
     else:
