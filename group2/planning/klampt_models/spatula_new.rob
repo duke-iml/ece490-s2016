@@ -17,7 +17,7 @@ qmin      0   0      0     0
 qmax      0   0.4    0.4   0.4
 velmax    0   1      1     1
 accmax    0   1      1     1
-torquemax 0   1      1     1
+torquemax 0   Inf    Inf   Inf
 
 geometry "Spatula_Frame.STL" "Spatula_Wide_Surface.STL" "Spatula_Narrow_Surface.STL"  "Spatula_Fence.STL"
 
