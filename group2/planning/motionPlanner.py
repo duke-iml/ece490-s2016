@@ -312,7 +312,6 @@ class LimbPlanner:
             cspace = ClosedLoopCSpaceTest(self,limb,iks)
 
         if not cspace.feasible(limbstart):
-            cspace.feasible(limbstart)
             print "  Start configuration is infeasible!"
             return 1
         if not cspace.feasible(limbgoal):

@@ -7,15 +7,16 @@
 #       unscoop (Y) to place object in spatula back in shelf
 #       ungrasp (U) to place object in gripper back in spatula
 
-
-# TODO: 1) Spatula doesn't push the object. It seems like the spatula gets stuck (?)
+# TODO: - Spatula doesn't push the object. It seems like the spatula gets stuck (?)
 #          before reaching the object. Sometimes this doesn't happen the first time the
 #          spatula is actuated.
 #
-#       5) Fixing end-effector orientation throughout trajectory?
+#       - Fixing end-effector orientation throughout trajectory?
 #
-#       6) fix 2 points of spatula edge to shelf during wrist tilt
-
+#       - fix 2 points of spatula edge to shelf during wrist tilt
+#
+#       - show spatula base moving accordingly before and after tilt wrist
+#
 # pkill -f partial_name  kills all processes with matching name...
 
 from klampt import robotsim
@@ -32,9 +33,9 @@ from operator import itemgetter
 
 # configuration variables
 config = 1
-NO_SIMULATION_COLLISIONS = config
-FAKE_SIMULATION = config
-SKIP_PATH_PLANNING = config
+NO_SIMULATION_COLLISIONS = 1
+FAKE_SIMULATION = 0
+SKIP_PATH_PLANNING = 0
 RECORD_TRAJECTORY = 0
 
 # The path of the klampt_models directory
@@ -436,7 +437,7 @@ class PickingController:
                 # self.controller.commandGripper('left', [0])
                 # self.waitForMove()
 
-                self.move_camera_to_bin(self.current_bin)
+                self.move_camera_to_bin(self.current_bin, colMargin = 0)
                 self.waitForMove()
 
 
@@ -522,8 +523,7 @@ class PickingController:
 
         elif direction == 'up':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
-            # world_offset = so3.apply( knowledge.shelf_xform[0],[0,-0.02,0.3335])
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015,0.4475])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015,0.4575])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
 
@@ -868,7 +868,7 @@ class PickingController:
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
         return [s[1] for s in sortedSolutions]
 
-    def move_camera_to_bin(self,bin_name):
+    def move_camera_to_bin(self,bin_name, colMargin = 0.05):
         R_shelf = knowledge.shelf_xform[0]
         R_camera = so3.mul(R_shelf, so3.rotation([1,0,0], math.pi))
         t_camera = knowledge.bin_vantage_point(bin_name)
@@ -882,7 +882,7 @@ class PickingController:
         limbs = ['left']
 
         # temporarily increase collision margin of shelf
-        self.world.terrain(0).geometry().setCollisionMargin(0.05)
+        self.world.terrain(0).geometry().setCollisionMargin(colMargin)
 
         # # ClosedLoopRobotCSpace IK Constraint
         # # ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
