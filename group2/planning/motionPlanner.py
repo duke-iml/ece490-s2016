@@ -243,6 +243,7 @@ class LimbPlanner:
         else:
             collindices = set(right_arm_geometry_indices+right_hand_geometry_indices)
         armfilter = lambda x:isinstance(x,RobotModelLink) and (x.index in collindices)
+
         #check with objects in world model
         for o1,o2 in self.collider.collisionTests(armfilter,lambda x:True):   # NOTE: what is bb_reject??
             # print "Collision Test: Collision between",o1[0].getName(),o2[0].getName()

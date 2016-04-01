@@ -41,7 +41,7 @@ RECORD_TRAJECTORY = 0
 model_dir = "klampt_models/"
 
 # The transformation of the order bin
-order_bin_xform = (so3.identity(),[.65,-0.85,0])
+order_bin_xform = (so3.identity(),[.65,-0.55,0])
 order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 # Order list. Can be parsed from JSON input
@@ -150,8 +150,7 @@ class KnowledgeBase:
 
     def bin_vertical_point(self):
         world_center = self.bin_center_point()
-        # world_offset = [0,-0.25,0.25]
-        world_offset = [0,-0.8,0]
+        world_offset = [0,-0.25,0.35]
         return vectorops.add(world_center,world_offset)
 
 def run_perception_on_shelf(knowledge):
@@ -512,17 +511,14 @@ class PickingController:
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.065,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-            self.frames.append((R_camera,t_camera))
 
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0655,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-            self.frames.append((R_camera,t_camera))
 
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0645,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-            self.frames.append((R_camera,t_camera))
 
         elif direction == 'up':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
@@ -629,10 +625,9 @@ class PickingController:
         self.waitForMove()
 
         if self.stateLeft == 'holding':
-            R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], -math.pi/2))
+            R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], -math.pi))
             t_wrist = knowledge.bin_vertical_point()
-            self.frames.append((R_wrist, t_wrist))
-            # return False
+
             # Setup ik objectives for both arms
             # place +z in the +x axis, -y in the +z axis, and x in the -y axis
             right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
@@ -967,18 +962,22 @@ class PickingController:
                                     # object xform relative to gripper center xform
                                     [so3.mul(R_obj, so3.rotation([1,0,0],math.pi/2)), t_obj] ))
 
-        Rt = se3.mul(objxform ,se3.inv(right_gripper_center_xform))
+        # Two target poses, differ by 180 deg rotation
+        Rt1 = se3.mul(objxform ,se3.inv(right_gripper_center_xform))
+        Rt2 = [so3.mul(Rt1[0], so3.rotation([0,0,1],math.pi)), Rt1[1]]
 
         # Setup ik objectives for both arms
-        right_goal = ik.objective(self.right_gripper_link,R=Rt[0],t=Rt[1])
+        right_goal = []
+        right_goal.append(ik.objective(self.right_gripper_link,R=Rt1[0],t=Rt1[1]))
+        right_goal.append(ik.objective(self.right_gripper_link,R=Rt2[0],t=Rt2[1]))
 
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
-        limbs = ['right']
+        limbs = ['right','right']
 
         print "\nSolving for GRASP_OBJECT"
         for i in range(100):
-            sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
+            sortedSolutions = self.get_ik_solutions(right_goal, limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
                 continue
@@ -1007,14 +1006,6 @@ class PickingController:
         return False
 
     def move_to_order_bin(self,object):
-        """Sets the robot's configuration so the gripper is over the order bin
-
-        If successful, sends the motion to the low-level controller and
-        returns True.
-
-        Otherwise, does not modify the low-level controller and returns False.
-        """
-
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
         target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.1])
@@ -1071,9 +1062,11 @@ class PickingController:
         qmin,qmax = self.robot.getJointLimits()
 
         q[55] = 0 # don't move spatula
+        q[56] = 0 # don't move spatula
+        q[57] = 0 # don't move spatula
 
         # removing AppendRamp claming error
-        for i in [23,30,31,43,50,51,54,56,57]: q[i] = 0
+        for i in [23,30,31,43,50,51,54,55,56,57]: q[i] = 0
 
         q = self.clampJointLimits(q,qmin,qmax)
 
@@ -1081,7 +1074,9 @@ class PickingController:
 
         for q in path[1:]:
             q[55] = 0 # don't move spatula
-            for i in [23,30,31,43,50,51,54,56,57]:
+            q[56] = 0 # don't move spatula
+            q[57] = 0 # don't move spatula
+            for i in [23,30,31,43,50,51,54,55,56,57]:
                 # print i, qmin[i], q[i], qmax[i]
                 q[i] = 0
             q = self.clampJointLimits(q,qmin,qmax)
@@ -1355,8 +1350,10 @@ class MyGLViewer(GLRealtimeProgram):
             right_camera_link = self.simworld.robot(0).link(right_camera_link_name)
             left_gripper_link = self.simworld.robot(0).link(left_gripper_link_name)
             right_gripper_link = self.simworld.robot(0).link(right_gripper_link_name)
-            # gldraw.xform_widget(left_camera_link.getTransform(),0.1,0.01,fancy=False)
-            # gldraw.xform_widget(right_camera_link.getTransform(),0.1,0.01,fancy=False)
+            gldraw.xform_widget(left_camera_link.getTransform(),0.1,0.01,fancy=False)
+            gldraw.xform_widget(right_camera_link.getTransform(),0.1,0.01,fancy=False)
+            gldraw.xform_widget(left_gripper_link.getTransform(),0.1,0.01,fancy=False)
+            gldraw.xform_widget(right_gripper_link.getTransform(),0.1,0.01,fancy=False)
             gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),left_gripper_center_xform),0.05,0.005,fancy=False)
             gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),right_gripper_center_xform),0.05,0.005,fancy=False)
 
@@ -1449,7 +1446,7 @@ class MyGLViewer(GLRealtimeProgram):
         for frame in self.picking_controller.frames:
             R = frame[0]
             t = frame[1]
-            gldraw.xform_widget([R,t], 0.03, 0.0045, lighting=True, fancy=True)
+            gldraw.xform_widget([R,t], 0.06, 0.009, lighting=True, fancy=True)
         return
 
     def keyboardfunc(self,c,x,y):
