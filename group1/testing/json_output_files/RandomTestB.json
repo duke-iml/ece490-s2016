@@ -1,0 +1,55 @@
+{
+    "bin_contents": {
+        "bin_A": [
+            "scotch_cloth_duct_tape"
+        ], 
+        "bin_B": [
+            "kleenex_viva_paper_towels"
+        ], 
+        "bin_C": [
+            "ticonderoga_#2_pencils_12_count", 
+            "cherokee_easy_tee_t_shirt", 
+            "fitness_gear_3lb_neoprene_dumbbell"
+        ], 
+        "bin_D": [], 
+        "bin_E": [
+            "easter_turtle_figural_sippy_cup", 
+            "command_hooks", 
+            "40w_soft_white_lightbulb"
+        ], 
+        "bin_F": [
+            "dasani_water_bottle", 
+            "kleenex_cool_touch_tissue_box", 
+            "plush_puppies_squeakin_eggs", 
+            "hanes_tube_socks", 
+            "elmers_glue_all"
+        ], 
+        "bin_G": [
+            "cloud_b_plush_bear"
+        ], 
+        "bin_H": [
+            "oral_b_cavity_defense_toothbrush", 
+            "scotch_bubble_mailer", 
+            "staples_3x5_ruled_index_cards"
+        ], 
+        "bin_I": [
+            "rawlings_recreational_use_baseball", 
+            "laugh_out_loud_jokes_for_kids_paperback_book", 
+            "platinum_pets_dog_bowl"
+        ], 
+        "bin_J": [
+            "fiskars_scissors_5inch_blunt_tip_red"
+        ], 
+        "bin_K": [
+            "expo_white_board_care_eraser", 
+            "dr_browns_natural_flow_bottle_brush", 
+            "cool_shot_mini_glue_sticks", 
+            "rolodex_wire_mesh_jumbo_pencil_holder"
+        ], 
+        "bin_L": [
+            "folgers_classic_roast_coffee", 
+            "creativity_street_chenille_stems_100_count"
+        ]
+    }, 
+    "work_order": []
+}
