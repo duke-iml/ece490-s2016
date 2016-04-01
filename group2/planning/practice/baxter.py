@@ -42,7 +42,7 @@ def set_model_gripper_command(robot,limb,command):
     value = command[0]
     if limb=='left':
         # print "Opening left gripper to",value
-        robot.driver(15).setValue(value*0.2)
+        robot.driver(15).setValue(0.2004)
     else:
         # print "Opening right gripper to",value
         robot.driver(16).setValue(value*0.03)

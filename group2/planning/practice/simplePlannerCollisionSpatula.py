@@ -1705,8 +1705,8 @@ def myCameraSettings(visualizer):
     visualizer.camera.rot = [0,0.5,0.9]
     visualizer.camera.dist = 4
     visualizer.fov = 60
-    visualizer.width *= 2
-    visualizer.height *= 2
+    visualizer.width = 960
+    visualizer.height = 720
     return
 
 
