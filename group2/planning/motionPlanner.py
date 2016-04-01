@@ -147,7 +147,7 @@ class LimbCSpace (CSpace):
         self.bound = [(qmin[i]-1e-6,qmax[i]+1e-6) for i in self.limb_indices]
         self.eps = 1e-1
 
-    def feasible(self,q):
+    def feasible(self,q,ignoreColShelfSpatula=False):
         for i in range(len(q)):
             # print "q", i, q[i], self.bound[i][0], self.bound[i][1]
             if (q[i] < self.bound[i][0]) :
@@ -166,7 +166,7 @@ class LimbCSpace (CSpace):
 
         # cond = self.planner.check_limb_collision_free(self.limb,q)
         # if not cond:
-        if not self.planner.check_limb_collision_free(self.limb,q):
+        if not self.planner.check_limb_collision_free(self.limb,q,ignoreColShelfSpatula=ignoreColShelfSpatula):
             # print "LimbCSpace.feasible: Configuration is in collision"
             return False
         return True
@@ -234,9 +234,10 @@ class LimbPlanner:
                 qlimb[i] = q[j]
         return qlimb
 
-    def check_collision_free(self,limb):
+    def check_collision_free(self,limb,ignoreColShelfSpatula=False):
         """Checks whether the given limb is collision free at the robot's
         current configuration"""
+
         armfilter = None
         if limb=='left':
             collindices = set(left_arm_geometry_indices+left_hand_geometry_indices)
@@ -244,21 +245,47 @@ class LimbPlanner:
             collindices = set(right_arm_geometry_indices+right_hand_geometry_indices)
         armfilter = lambda x:isinstance(x,RobotModelLink) and (x.index in collindices)
 
+        ignoreList = ["Amazon_Picking_Shelf", "bin_"]
+        ignoreList = '\t'.join(ignoreList)
+        spatulaIgnoreList = [55,56,57]
+        # if ignoreColShelfSpatula:
+        #     spatulaIgnoreList = [54,55,56,57]
+
         #check with objects in world model
         for o1,o2 in self.collider.collisionTests(armfilter,lambda x:True):   # NOTE: what is bb_reject??
             # print "Collision Test: Collision between",o1[0].getName(),o2[0].getName()
+            # if ignoreColShelfSpatula:
+                # print o1[0].getName()[0:4]
+            if o1[0].getName()[0:3] in ignoreList and o2[0].index in spatulaIgnoreList:
+                # print "ignoring collision between shelf and spautla"
+                continue
+            if o2[0].getName()[0:3] in ignoreList and o1[0].index in spatulaIgnoreList:
+                # print "ignoring collision between shelf and spautla"
+                continue
+            if o1[0].getName()[0:3] in ignoreList:
+                for obj in self.dynamic_objects:
+                    assert obj.info.geometry != None
+                    if o1[1].collides(obj.info.geometry):
+                        continue
+            if o2[0].getName()[0:3] in ignoreList:
+                for obj in self.dynamic_objects:
+                    assert obj.info.geometry != None
+                    if o1[1].collides(obj.info.geometry):
+                        continue
+
             if o1[1].collides(o2[1]):
                 # print "Collision between",o1[0].getName(),o2[0].getName()
                 return False
 
-        for obj in self.dynamic_objects:
-            # print "checking collision with objects"
-            # print obj.info.geometry
-            assert obj.info.geometry != None
-            for link in collindices:
-                if self.robot.link(link).geometry().collides(obj.info.geometry):
-                    # print "Collision between link",self.robot.link(link).getName()," and dynamic object"
-                    return False
+        # for obj in self.dynamic_objects:
+        #     # print "checking collision with objects"
+        #     # print obj.info.geometry
+        #     assert obj.info.geometry != None
+
+        #     for link in collindices:
+        #         if self.robot.link(link).geometry().collides(obj.info.geometry):
+        #             print "Collision between link",self.robot.link(link).getName()," and dynamic object"
+        #             return False
 
         # for link in collindices:
         #     # print "Collision Test: Collision between",self.robot.link(link).getName(),"shelf"
@@ -285,15 +312,15 @@ class LimbPlanner:
                 self.dynamic_objects.append(item)
         return
 
-    def check_limb_collision_free(self,limb,limbconfig):
+    def check_limb_collision_free(self,limb,limbconfig,ignoreColShelfSpatula=False):
         """Checks whether the given 7-DOF limb configuration is collision
         free, keeping the rest of self.robot fixed."""
         q = self.robot.getConfig()
         self.set_limb_config(limb,limbconfig,q)
         self.robot.setConfig(q)
-        return self.check_collision_free(limb)
+        return self.check_collision_free(limb,ignoreColShelfSpatula=ignoreColShelfSpatula)
 
-    def plan_limb(self,limb,limbstart,limbgoal, printer=True, iks = None):
+    def plan_limb(self,limb,limbstart,limbgoal, printer=True, iks = None, ignoreColShelfSpatula=False):
         """Returns a 7-DOF milestone path for the given limb to move from the
         start to the goal, or False if planning failed"""
         self.rebuild_dynamic_objects()
@@ -311,10 +338,10 @@ class LimbPlanner:
             print "Initializing ClosedLoopCSPace"
             cspace = ClosedLoopCSpaceTest(self,limb,iks)
 
-        if not cspace.feasible(limbstart):
+        if not cspace.feasible(limbstart, ignoreColShelfSpatula=ignoreColShelfSpatula):
             print "  Start configuration is infeasible!"
             return 1
-        if not cspace.feasible(limbgoal):
+        if not cspace.feasible(limbgoal, ignoreColShelfSpatula=ignoreColShelfSpatula):
             print "  Goal configuration is infeasible!"
             return 2
 
@@ -345,7 +372,7 @@ class LimbPlanner:
         plan = MotionPlan(cspace)
 
         plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 200
+        maxPlanIters = 20
         maxSmoothIters = 100
 
         print "  Planning.",
@@ -368,7 +395,6 @@ class LimbPlanner:
 
             plan.planMore(10)                                       # 100
 
-
             path = plan.getPath()
             if path != None:
                 if printer:
@@ -383,6 +409,8 @@ class LimbPlanner:
 
                 # testing
                 # print "  Returning path (limb", self.activeLimb,", (",len(self.limb_indices),"/",len(path[0]),"))"
+
+
                 self.pathToDraw = path
 
                 return path
@@ -393,7 +421,7 @@ class LimbPlanner:
 
         return False
 
-    def plan(self,start,goal,limb,printer=True, iks = None):
+    def plan(self,start,goal,limb,printer=True, iks = None, ignoreColShelfSpatula = False):
         """Plans a motion for the robot to move from configuration start
         to configuration goal.  By default, moves the left arm first,
         then the right.  To move the right first, set the 'order' argument
@@ -434,7 +462,7 @@ class LimbPlanner:
                 # print "  Euclidean distance:",math.sqrt(diff)
             self.robot.setConfig(curconfig)
             #do the limb planning
-            limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer, iks=iks)
+            limbpath = self.plan_limb(l,limbstart[l],limbgoal[l],printer=printer, iks=iks, ignoreColShelfSpatula = ignoreColShelfSpatula)
             if limbpath == 1 or limbpath == 2 or limbpath == False:
                 if printer:
                     print "  Failed to plan for limb",l,"\n"

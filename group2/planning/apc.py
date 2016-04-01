@@ -57,7 +57,7 @@ class ItemInfo:
       (with transforms specified in the local coordinates of the object)"""
     def __init__(self,name):
         self.name = name
-        self.mass = 1.1
+        self.mass = 0.01
         self.bmin = [-0.1,-0.1,-0.1]
         self.bmax = [0.1,0.1,0.1]
         self.geometryFile = None

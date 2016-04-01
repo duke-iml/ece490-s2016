@@ -12,8 +12,10 @@ right_gripper_link_name = 'right_gripper'
 
 left_arm_geometry_indices = [15,16,17,18,19,21,22]
 right_arm_geometry_indices = [35,36,37,38,39,41,42]
-left_hand_geometry_indices = [54,55,56,57]
+# left_hand_geometry_indices = [54,55,56,57]
+left_hand_geometry_indices = [54]
 right_hand_geometry_indices = [59,60]
+
 
 #indices of the left and right arms in the Baxter robot file
 left_arm_link_names = ['left_upper_shoulder','left_lower_shoulder','left_upper_elbow','left_lower_elbow','left_upper_forearm','left_lower_forearm','left_wrist']
@@ -28,7 +30,7 @@ right_gripper_center_xform = (so3.from_axis_angle(((0,0,1),math.pi*0.5)),[0,0.0,
 left_gripper_center_xform = (so3.from_axis_angle(((0,0,1),math.pi*0.5)),[0.025,0,0.31])
 
 
-def set_model_gripper_command(robot,limb,command):
+def set_model_gripper_command(robot,limb,command,spatulaPart = None):
     """Given the Baxter RobotModel 'robot' at its current configuration,
     this will set the configuration so the gripper on limb 'limb' is
     placed at the gripper command values 'command'.
@@ -39,9 +41,12 @@ def set_model_gripper_command(robot,limb,command):
     value = command[0]
     if limb=='left':
         # print "Opening left gripper to",value
-        robot.driver(15).setValue(value*0.4) # wide base
-        robot.driver(16).setValue(value*0.4) # narrow base
-        robot.driver(17).setValue(value*0.4) # fence
+        if spatulaPart == "wide_base":
+            robot.driver(15).setValue(value*0.4) # wide base
+        elif spatulaPart == "narrow_base":
+            robot.driver(16).setValue(value*0.385) # narrow base
+        elif spatulaPart == "fence":
+            robot.driver(17).setValue(value*0.375) # fence
     else:
         # print "Opening right gripper to",value
         robot.driver(18).setValue(value*0.03)

@@ -34,8 +34,8 @@ from operator import itemgetter
 # configuration variables
 config = 1
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-SKIP_PATH_PLANNING = 0
+FAKE_SIMULATION = 1
+SKIP_PATH_PLANNING = 1
 RECORD_TRAJECTORY = 0
 
 # The path of the klampt_models directory
@@ -68,8 +68,8 @@ def init_ground_truth():
                           apc.ItemInBin(apc.tall_item,'bin_K'),
                           apc.ItemInBin(apc.med_item,'bin_L')]
     for i in range(len(ground_truth_items)):
-        ux = random.uniform(0.3,0.6)
-        uy = random.uniform(0.1,0.3)
+        ux = random.uniform(0.25,0.5)
+        uy = random.uniform(0.2,0.4)
         if ground_truth_items[i].info.name == 'med_item':
             # theta = random.uniform(math.pi/4, 3*math.pi/4)
             theta = math.pi/2
@@ -133,17 +133,27 @@ class KnowledgeBase:
         # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
         local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmax[2]]
 
-        # if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
-        #     local_center = vectorops.add(local_center, [0.0,0,0])
-        # elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
-        #     local_center = vectorops.add(local_center, [-0.0,0,0])
+        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
+            local_center = vectorops.add(local_center, [0.005,0,0])
+        elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
+            world_offset = vectorops.add(local_center, [-0.04,0,0])
+        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
+            local_center = vectorops.add(local_center, [-0.005,0,0])
 
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
 
     def bin_vantage_point(self,bin_name):
         world_center = self.bin_front_center(bin_name)
-        world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.03,0.55])
+        world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.05,0.5])
+
+        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
+            world_offset = vectorops.add(world_offset, [-0.04,0,0])
+        elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
+            world_offset = vectorops.add(world_offset, [-0.04,0,0])
+        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
+            world_offset = vectorops.add(world_offset, [-0.04,0,0])
+
         return vectorops.add(world_center,world_offset)
 
     def bin_center_point(self):
@@ -224,14 +234,14 @@ class LowLevelController:
         return self.controller.remainingTime()>0
     def remainingTime(self):
         return self.controller.remainingTime()
-    def commandGripper(self,limb,command):
+    def commandGripper(self,limb,command,spatulaPart = None):
         """Sends the command to the indicated gripper.
         For the parallel-jaw gripper, [0] is closed, [1] is open
         Warning: don't do this while moving"""
         self.lock.acquire()
         q = self.controller.getCommandedConfig()
         self.robotModel.setConfig(q)
-        set_model_gripper_command(self.robotModel,limb,command)
+        set_model_gripper_command(self.robotModel,limb,command,spatulaPart)
         self.controller.setMilestone(self.robotModel.getConfig())
         self.lock.release()
 
@@ -282,13 +292,13 @@ class FakeLowLevelController:
         return self.remainingTime() > 0
     def remainingTime(self):
         return (self.lastCommandTime + 0.1) - time.time()
-    def commandGripper(self,limb,command):
+    def commandGripper(self,limb,command,spatulaPart = None):
         """Sends the command to the indicated gripper.
         For the parallel-jaw gripper, [0] is closed, [1] is open
         Warning: don't do this while moving"""
         self.lock.acquire()
         self.robotModel.setConfig(self.config)
-        set_model_gripper_command(self.robotModel,limb,command)
+        set_model_gripper_command(self.robotModel,limb,command,spatulaPart)
         self.config = self.robotModel.getConfig()
         self.lastCommandTime = time.time()
         self.lock.release()
@@ -314,8 +324,8 @@ class PickingController:
         self.right_camera_link = self.robot.link(right_camera_link_name)
         self.left_gripper_link = self.robot.link(left_gripper_link_name)
         self.right_gripper_link = self.robot.link(right_gripper_link_name)
-        self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
-        self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
+        # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
+        # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
 
         # define mapping from "link ID" to "link index"
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
@@ -425,21 +435,21 @@ class PickingController:
         else:
             if self.tilt_wrist('down'):
                 self.waitForMove()
-                # push spatula base
-                # self.controller.commandGripper('left', [1])
-                # self.waitForMove()
 
-                # tilt wrist up
+                while self.incrementalMove('down'):
+                    self.waitForMove()
+
+                self.spatula('out')
+                self.waitForMove()
+
                 self.tilt_wrist('up')
                 self.waitForMove()
 
-                # pull spatula base
-                # self.controller.commandGripper('left', [0])
-                # self.waitForMove()
+                self.spatula('in')
+                self.waitForMove()
 
                 self.move_camera_to_bin(self.current_bin, colMargin = 0)
                 self.waitForMove()
-
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
 
@@ -466,21 +476,17 @@ class PickingController:
             if self.tilt_wrist('up'):
                 self.waitForMove()
 
-                # push spatula base
-                # self.controller.commandGripper('left', [1])
-                # self.waitForMove()
-
-                # tilt wrist up
                 self.tilt_wrist('down')
                 self.waitForMove()
 
-                # pull spatula base
-                # self.controller.commandGripper('left', [0])
-                # self.waitForMove()
-
-                self.move_camera_to_bin(self.current_bin)
+                self.spatula('fence_out')
                 self.waitForMove()
 
+                self.spatula('fence_in')
+                self.waitForMove()
+
+                self.move_camera_to_bin(self.current_bin, colMargin = 0, ignoreColShelfSpatula = True)
+                self.waitForMove()
 
                 print "Object",self.held_object.info.name,"placed back in bin"
                 knowledge.bin_contents[self.current_bin].append(self.held_object)
@@ -490,6 +496,50 @@ class PickingController:
             else:
                 print "Grasp failed"
                 return False
+
+    def incrementalMove(self, direction):
+        self.robot.setConfig(self.controller.getCommandedConfig())
+        currConfig = self.robot.getConfig()
+
+        link = self.robot.link('spatula:frame')
+        currXform = link.getTransform()
+
+        if direction == "down":
+            offset = [0,0,-0.005]
+
+        targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
+
+        goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
+        limbs = ['left']
+        qcmd = self.controller.getCommandedConfig()
+
+        for i in range(50):
+            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,ignoreColShelfSpatula=False,rangeVal=0.00005)
+
+            if len(sortedSolutions)==0:
+                continue
+
+            # prototyping hack: move straight to target
+            if SKIP_PATH_PLANNING:
+                self.controller.setMilestone(sortedSolutions[0][0])
+                self.active_limb = limbs[sortedSolutions[0][1]]
+                return True
+
+            # else, if we want to path plan
+            numSol = 0
+            for solution in sortedSolutions:
+                numSol += 1
+                print numSol, "solutions planned out of", len(sortedSolutions)
+                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula = False)
+                if path == 1 or path == 2 or path == False:
+                    break
+                elif path != None:
+                    self.sendPath(path)
+                    self.active_limb = limbs[solution[1]]
+                    return True
+        # print "Failed to plan path"
+        self.robot.setConfig(currConfig)
+        return False
 
     def tilt_wrist(self,direction):
         """Tilt the robot's wrist before and after actuating the spatula
@@ -509,17 +559,17 @@ class PickingController:
         if direction == 'down':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*15))
             # [(+Right/-Left), (+Up/-Down), (+In/-Out)
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.065,0.4375])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.085,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
 
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0655,0.4375])
-            t_camera = vectorops.add(world_center,world_offset)
-            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+            # world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0655,0.4375])
+            # t_camera = vectorops.add(world_center,world_offset)
+            # left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
 
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0645,0.4375])
-            t_camera = vectorops.add(world_center,world_offset)
-            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+            # world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0645,0.4375])
+            # t_camera = vectorops.add(world_center,world_offset)
+            # left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
 
         elif direction == 'up':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
@@ -539,7 +589,7 @@ class PickingController:
         print "Solving for TILT_WRIST (", direction,")"
 
         for i in range(500):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
+            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,ignoreColShelfSpatula=True,rangeVal=0.0005)
 
             if len(sortedSolutions)==0:
                 continue
@@ -555,7 +605,7 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'left')
+                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula = True)
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -565,13 +615,33 @@ class PickingController:
         print "Failed to plan path"
         return False
 
-    def spatula(self):
+    def spatula(self, direction):
         self.waitForMove()
 
-        self.controller.commandGripper('left', [1])
+        bin_name = self.current_bin
+        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
+            spatulaPart = "narrow_base"
+        elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
+            spatulaPart = "wide_base"
+        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
+            spatulaPart = "narrow_base"
+
+        if direction=="out":
+            direction = 1
+        elif direction=="in":
+            direction = 0
+
+        if direction=="fence_out":
+            direction = 1
+            spatulaPart = "fence"
+        elif direction=="fence_in":
+            direction = 0
+            spatulaPart = "fence"
+
+        self.controller.commandGripper('left', [direction], spatulaPart)
         self.waitForMove()
 
-        self.controller.commandGripper('left', [0])
+        self.controller.commandGripper('left', [direction], spatulaPart)
         self.waitForMove()
 
     def move_spatula_to_center(self):
@@ -674,7 +744,10 @@ class PickingController:
         if self.stateRight != 'holding':
             print "Not holding an object"
         else:
-            if self.move_to_order_bin(self.held_object):
+            if self.move_gripper_to_center():
+                self.waitForMove()
+
+                self.move_to_order_bin(self.held_object)
                 self.waitForMove()
 
                 # now open the gripper
@@ -795,7 +868,7 @@ class PickingController:
             self.robot.setConfig(q)
         return
 
-    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=False):
+    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=False,ignoreColShelfSpatula=False,rangeVal=0.005):
         """Given a list of goals and their associated limbs, returns a list
         of (q,index) pairs, where q is an IK solution for goals[index].
         The results are sorted by distance from initialConfig.
@@ -833,12 +906,11 @@ class PickingController:
                 self.robot.setConfig(initialConfig)
             # else, initialize with a random q, incrementally perturbing more from inital config
             else:
-                self.randomize_limb_position(limb,center=initialConfig,range=0.005*(numTrials[index]-1))
+                self.randomize_limb_position(limb,center=initialConfig,range=rangeVal*(numTrials[index]-1))
                 # self.randomize_limb_position(limb,center=initialConfig,range=None)
-
             if ik.solve(goal,tol=tol):
                 numSolutions[index] += 1
-                if validity_checker(limb):
+                if validity_checker(limb, ignoreColShelfSpatula=ignoreColShelfSpatula):
                     numColFreeSolutions[index] += 1
                     ikSolutions.append((self.robot.getConfig(),index))
                     if len(ikSolutions) >= maxResults: break
@@ -868,7 +940,7 @@ class PickingController:
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
         return [s[1] for s in sortedSolutions]
 
-    def move_camera_to_bin(self,bin_name, colMargin = 0.05):
+    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ignoreColShelfSpatula=False):
         R_shelf = knowledge.shelf_xform[0]
         R_camera = so3.mul(R_shelf, so3.rotation([1,0,0], math.pi))
         t_camera = knowledge.bin_vantage_point(bin_name)
@@ -907,7 +979,7 @@ class PickingController:
 
         print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
         for i in range(100):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
+            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100, ignoreColShelfSpatula=ignoreColShelfSpatula)
 
             if len(sortedSolutions)==0:
                 continue
@@ -923,7 +995,7 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'left')
+                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula=ignoreColShelfSpatula)
                 # path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
                     break
@@ -1057,26 +1129,19 @@ class PickingController:
         print "Planning failed"
         return False
 
-    def sendPath(self,path):
+    def sendPath    (self,path):
         q = path[0]
         qmin,qmax = self.robot.getJointLimits()
 
-        q[55] = 0 # don't move spatula
-        q[56] = 0 # don't move spatula
-        q[57] = 0 # don't move spatula
-
         # removing AppendRamp claming error
-        for i in [23,30,31,43,50,51,54,55,56,57]: q[i] = 0
+        for i in [23,30,31,43,50,51,54]: q[i] = 0
 
         q = self.clampJointLimits(q,qmin,qmax)
 
         self.controller.setMilestone(path[0])
 
         for q in path[1:]:
-            q[55] = 0 # don't move spatula
-            q[56] = 0 # don't move spatula
-            q[57] = 0 # don't move spatula
-            for i in [23,30,31,43,50,51,54,55,56,57]:
+            for i in [23,30,31,43,50,51,54]:
                 # print i, qmin[i], q[i], qmax[i]
                 q[i] = 0
             q = self.clampJointLimits(q,qmin,qmax)
@@ -1514,9 +1579,9 @@ def spawn_objects_from_ground_truth(world):
         c = obj.getContactParameters()
 
         c.kFriction = 0.1
-        c.kRestitution = 0.001;
+        c.kRestitution = 0.1;
         c.kStiffness = 100
-        c.kDamping = 10
+        c.kDamping = 100
         obj.setContactParameters(c)
 
         simgeometry = obj.geometry()
@@ -1524,7 +1589,7 @@ def spawn_objects_from_ground_truth(world):
 
         # Spawn objects a little bit higher than bin floor
         t = item.xform[1]
-        t = [t[0], t[1], t[2]+0.01]
+        t = [t[0], t[1], t[2]+0.0]
         obj.setTransform(item.xform[0],t)
 
     return
