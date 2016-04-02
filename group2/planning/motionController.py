@@ -145,7 +145,7 @@ class KnowledgeBase:
 
     def bin_vantage_point(self,bin_name):
         world_center = self.bin_front_center(bin_name)
-        world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.05,0.55])
+        world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.04,0.65])
 
         if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
             world_offset = vectorops.add(world_offset, [-0.04,0,0])
@@ -433,7 +433,13 @@ class PickingController:
             print "The current bin is empty"
             return False
         else:
-            if self.tilt_wrist('down'):
+            if self.tilt_wrist('down', step = 1):
+                self.waitForMove()
+
+                self.tilt_wrist('down', step = 2)
+                self.waitForMove()
+
+                self.tilt_wrist('down', step = 3)
                 self.waitForMove()
 
                 while self.incrementalMove('down'):
@@ -515,6 +521,7 @@ class PickingController:
         goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
         limbs = ['left']
         qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getSensedConfig()
 
         dist = vectorops.distance(link.getTransform()[1], targetXform[1])
 
@@ -546,7 +553,7 @@ class PickingController:
         self.robot.setConfig(currConfig)
         return False
 
-    def tilt_wrist(self,direction,ignoreColShelfSpatula = False):
+    def tilt_wrist(self,direction, step=0,ignoreColShelfSpatula = False):
         """Tilt the robot's wrist before and after actuating the spatula
         so that the objects are picked up.
         """
@@ -565,32 +572,35 @@ class PickingController:
         if direction == 'down':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*15))
             # [(+Right/-Left), (+Up/-Down), (+In/-Out)
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.085,0.4375])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
-            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-
-            # world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0655,0.4375])
-            # t_camera = vectorops.add(world_center,world_offset)
-            # left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-
-            # world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.0645,0.4375])
-            # t_camera = vectorops.add(world_center,world_offset)
-            # left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+            dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
+            if step == 0:
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+            elif step == 1:
+                print "tilting down (tilt-wrist part 1)"
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=self.left_camera_link.getTransform()[1]))
+                maxSmoothIters=0
+            elif step == 2:
+                print "moving up/side (tilt-wrist part 2)"
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
+                maxSmoothIters=2
+            elif step == 3:
+                print "tilting down (tilt-wrist part 3)"
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+                maxSmoothIters=3
 
         elif direction == 'up':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015,0.4575])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-
-        # debuggin code
-        # self.frames.append([R_camera,t_camera])
-        # return False
+            dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
+            maxSmoothIters = 2
 
         limbs = ['left']
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
-        dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
 
         print "Solving for TILT_WRIST (", direction,")"
 
@@ -615,7 +625,8 @@ class PickingController:
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
-                    self.sendPath(path)
+                    print "path length", len(path)
+                    self.sendPath(path, maxSmoothIters = maxSmoothIters)
                     self.active_limb = limbs[solution[1]]
                     return True
         print "Failed to plan path"
@@ -1138,7 +1149,16 @@ class PickingController:
         print "Planning failed"
         return False
 
-    def sendPath    (self,path):
+    def sendPath(self,path,maxSmoothIters = 0):
+        for smoothIter in range(maxSmoothIters):
+            # path = path
+            smoothePath = [0]*(len(path)*2-1)
+            for i in range(len(path)-1):
+                smoothePath[i*2] = path[i]
+                smoothePath[i*2 +1] = vectorops.div(vectorops.add(path[i],path[i+1]), 2)
+            smoothePath[-1] = path[-1]
+            path = smoothePath
+
         q = path[0]
         qmin,qmax = self.robot.getJointLimits()
 
