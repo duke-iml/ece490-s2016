@@ -375,7 +375,7 @@ class LimbPlanner:
         plan = MotionPlan(cspace)
 
         plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 10
+        maxPlanIters = 20
         maxSmoothIters = 100
 
         print "  Planning.",

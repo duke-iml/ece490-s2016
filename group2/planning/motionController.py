@@ -17,6 +17,8 @@
 #
 #       - show spatula base moving accordingly before and after tilt wrist
 #
+#       - implement selective trajectory recording / playback
+#
 # pkill -f partial_name  kills all processes with matching name...
 
 from klampt import robotsim
@@ -30,12 +32,16 @@ import apc, os, math, random, copy
 from threading import Thread,Lock
 from Queue import Queue
 from operator import itemgetter
+import pickle
 
 # configuration variables
 config = 1
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-SKIP_PATH_PLANNING = 0
+FAKE_SIMULATION = config
+SKIP_PATH_PLANNING = config
+
+SAVE_IK_SOLUTIONS = 0
+LOAD_IK_SOLUTIONS = 1
 RECORD_TRAJECTORY = 0
 
 # The path of the klampt_models directory
@@ -505,6 +511,7 @@ class PickingController:
 
     def incrementalMove(self, direction):
         self.robot.setConfig(self.controller.getCommandedConfig())
+
         currConfig = self.robot.getConfig()
 
         link = self.robot.link('spatula:frame')
@@ -525,7 +532,9 @@ class PickingController:
 
         dist = vectorops.distance(link.getTransform()[1], targetXform[1])
 
-        for i in range(50):
+        print "Solving for INCREMENTAL_MOVE (", direction,")"
+
+        for i in range(500):
             sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,ignoreColShelfSpatula=False,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
@@ -559,6 +568,8 @@ class PickingController:
         """
         self.waitForMove()
         self.world.terrain(0).geometry().setCollisionMargin(0)
+        self.robot.setConfig(self.controller.getCommandedConfig())
+
 
         bin_name = self.current_bin
         world_center = knowledge.bin_front_center(bin_name)
@@ -593,6 +604,7 @@ class PickingController:
         elif direction == 'up':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015,0.4575])
+            # world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
             dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
@@ -604,7 +616,7 @@ class PickingController:
 
         print "Solving for TILT_WRIST (", direction,")"
 
-        for i in range(500):
+        for i in range(50):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
@@ -624,6 +636,7 @@ class PickingController:
                 path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula = ignoreColShelfSpatula)
                 if path == 1 or path == 2 or path == False:
                     break
+                    # continue
                 elif path != None:
                     print "path length", len(path)
                     self.sendPath(path, maxSmoothIters = maxSmoothIters)
@@ -634,6 +647,7 @@ class PickingController:
 
     def spatula(self, direction):
         self.waitForMove()
+        self.robot.setConfig(self.controller.getCommandedConfig())
 
         bin_name = self.current_bin
         if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
@@ -666,6 +680,7 @@ class PickingController:
         so that the objects are picked up.
         """
         self.waitForMove()
+        self.robot.setConfig(self.controller.getCommandedConfig())
         self.world.terrain(0).geometry().setCollisionMargin(0.05)
 
         R_wrist = so3.mul( so3.rotation([0,0,1], -math.pi), so3.rotation([1,0,0], -math.pi/2) )
@@ -682,10 +697,17 @@ class PickingController:
         print "\nSolving for MOVE_SPATULA_TO_CENTER (Left Hand)"
 
         for i in range(100):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
+            if LOAD_IK_SOLUTIONS:
+                sortedSolutions = loadFromFile("IK_Solutions/move_spatula_to_center")
+            else:
+                sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
                 continue
+
+            if SAVE_IK_SOLUTIONS:
+                if int(raw_input("save the IK solution? (Yes=1 / No=0) ")):
+                    saveToFile(sortedSolutions, "IK_Solutions/move_spatula_to_center")
 
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
@@ -711,6 +733,7 @@ class PickingController:
 
     def move_gripper_to_center(self):
         self.waitForMove()
+        self.robot.setConfig(self.controller.getCommandedConfig())
 
         if self.stateLeft == 'holding':
             R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], -math.pi))
@@ -726,10 +749,18 @@ class PickingController:
 
             print "\nSolving for MOVE_GRIPPER_TO_CENTER (Right Hand)"
             for i in range(100):
-                sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
+
+                if LOAD_IK_SOLUTIONS:
+                    sortedSolutions = loadFromFile("IK_Solutions/move_gripper_to_center")
+                else:
+                    sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
                 if len(sortedSolutions)==0:
                     continue
+
+                if SAVE_IK_SOLUTIONS:
+                    if int(raw_input("save the IK solution? (Yes=1 / No=0) ")):
+                        saveToFile(sortedSolutions, "IK_Solutions/move_gripper_to_center")
 
                 # prototyping hack: move straight to target
                 if SKIP_PATH_PLANNING:
@@ -758,6 +789,7 @@ class PickingController:
 
     def placeInOrderBinAction(self):
         self.waitForMove()
+        self.robot.setConfig(self.controller.getCommandedConfig())
 
         if self.stateRight != 'holding':
             print "Not holding an object"
@@ -765,9 +797,11 @@ class PickingController:
             if self.move_gripper_to_center():
                 self.waitForMove()
 
-                self.move_to_order_bin(self.held_object)
+                self.move_to_order_bin(self.held_object,step=1)
                 self.waitForMove()
 
+                self.move_to_order_bin(self.held_object,step=2)
+                self.waitForMove()
                 # now open the gripper
                 self.controller.commandGripper(self.active_limb,[1])
                 self.waitForMove()
@@ -851,7 +885,7 @@ class PickingController:
         print "These items are remaining from the order:", objectList
         return False
 
-    def randomize_limb_position(self,limb,center=None, range=None):
+    def randomize_limb_position(self,limb,center=None, rangeVal=None):
         """Helper: randomizes the limb configuration in self.robot.
         limb can be 'left' or 'right'.  If range is provided, then
         this samples in a range around the config center.  If center is not
@@ -866,7 +900,7 @@ class PickingController:
         #     q = baxter_rest_config[:]
         q = self.controller.getCommandedConfig()
 
-        if range == None:
+        if rangeVal == None:
             if limb == 'left':
                 for j in self.left_arm_indices:
                     q[j] = random.uniform(qmin[j],qmax[j])
@@ -879,14 +913,21 @@ class PickingController:
                 center = self.controller.getCommandedConfig()
             if limb == 'left':
                 for j in self.left_arm_indices:
-                    q[j] = random.uniform(max(qmin[j],center[j]-range),min(qmax[j],center[j]+range))
+                    q[j] = random.uniform(max(qmin[j],center[j]-rangeVal),min(qmax[j],center[j]+rangeVal))
             else:
                 for j in self.right_arm_indices:
-                    q[j] = random.uniform(max(qmin[j],center[j]-range),min(qmax[j],center[j]+range))
+                    q[j] = random.uniform(max(qmin[j],center[j]-rangeVal),min(qmax[j],center[j]+rangeVal))
             self.robot.setConfig(q)
+
+        # for i in range(len(q)):
+        #     inv = (so3.inv(self.robot.link(i).getTransform()[0]), 5)
+        #     transpose = (self.robot.link(i).getTransform()[0], 5)
+        #     for j in range(len(inv)):
+        #         if inv[j] != transpose[j]:
+        #             "print ****************"
         return
 
-    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=False,ignoreColShelfSpatula=False,rangeVal=0.005):
+    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=True,ignoreColShelfSpatula=False,rangeVal=0.005):
         """Given a list of goals and their associated limbs, returns a list
         of (q,index) pairs, where q is an IK solution for goals[index].
         The results are sorted by distance from initialConfig.
@@ -924,7 +965,7 @@ class PickingController:
                 self.robot.setConfig(initialConfig)
             # else, initialize with a random q, incrementally perturbing more from inital config
             else:
-                self.randomize_limb_position(limb,center=initialConfig,range=rangeVal*(numTrials[index]-1))
+                self.randomize_limb_position(limb,center=initialConfig,rangeVal=rangeVal*(numTrials[index]-1))
                 # self.randomize_limb_position(limb,center=initialConfig,range=None)
             if ik.solve(goal,tol=tol):
                 numSolutions[index] += 1
@@ -959,6 +1000,8 @@ class PickingController:
         return [s[1] for s in sortedSolutions]
 
     def move_camera_to_bin(self,bin_name, colMargin = 0.05, ignoreColShelfSpatula=False):
+        self.robot.setConfig(self.controller.getCommandedConfig())
+
         R_shelf = knowledge.shelf_xform[0]
         R_camera = so3.mul(R_shelf, so3.rotation([1,0,0], math.pi))
         t_camera = knowledge.bin_vantage_point(bin_name)
@@ -999,10 +1042,21 @@ class PickingController:
 
         print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
         for i in range(100):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100, ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/1000)
+            if LOAD_IK_SOLUTIONS:
+                sortedSolutions = loadFromFile("IK_Solutions/"+bin_name)
+            else:
+                sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100, ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/5000)
+
+
 
             if len(sortedSolutions)==0:
                 continue
+
+            if SAVE_IK_SOLUTIONS:
+                if int(raw_input("save the IK solution? (Yes=1 / No=0) ")):
+                    saveToFile(sortedSolutions, "IK_Solutions/"+str(bin_name))
+
+
 
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
@@ -1042,6 +1096,7 @@ class PickingController:
         so that the objects are picked up.
         """
         self.waitForMove()
+        self.robot.setConfig(self.controller.getCommandedConfig())
 
         R_obj = object.randRt[0]
         t_obj = object.randRt[1]
@@ -1097,11 +1152,15 @@ class PickingController:
         print "Failed to plan path"
         return False
 
-    def move_to_order_bin(self,object):
+    def move_to_order_bin(self,object,step):
+        self.robot.setConfig(self.controller.getCommandedConfig())
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
-        target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.1])
 
+        if step == 1:
+            target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.4])
+        elif step == 2:
+            target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.1])
         R_obj = object.randRt[0]
         t_obj = object.randRt[1]
 
@@ -1633,6 +1692,17 @@ def myCameraSettings(visualizer):
     visualizer.width *= 2
     visualizer.height *= 2
     return
+
+def saveToFile(variable, fileName):
+    # Saving the objects:
+    with open(fileName, 'w') as f:
+        pickle.dump(variable, f)
+
+def loadFromFile(fileName):
+    # Getting back the objects:
+    with open(fileName) as f:
+        return pickle.load(f)
+
 
 if __name__ == "__main__":
     """The main loop that loads the planning / simulation models and
