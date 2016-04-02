@@ -39,6 +39,7 @@ class FullIntegrationMaster:
         self.Tvacuum = se3.identity()
         self.object_com = [0, 0, 0]
         self.points = []
+        self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 
         # Set up serial
         if REAL_VACUUM:
@@ -104,6 +105,46 @@ class FullIntegrationMaster:
         else:
             print "Fake vacuum is off"
 
+    def calibrateCamera(self):
+        print self.cameraCalibration
+
+        calibrateR = self.cameraCalibration[0];
+        calibrateT = self.cameraCalibration[1];
+
+        try:
+            input_var = raw_input("Enter joint and angle to change to separated by a comma: ").split(',');
+            #translational transformation
+            if(input_var[0] == "x" ):
+                calibrateT[0] = calibrateT[0] + float(input_var[1])
+            elif(input_var[0] == "y" ):
+                calibrateT[1] = calibrateT[1] + float(input_var[1])
+            elif(input_var[0] == "z" ):
+                calibrateT[2] = calibrateT[2] + float(input_var[1])
+            #rotational transformations
+            elif(input_var[0] == "xr" ):
+                calibrateR = so3.mul(calibrateR, so3.rotation([1, 0, 0], float(input_var[1])))
+            elif(input_var[0] == "yr" ):
+                calibrateR = so3.mul(calibrateR, so3.rotation([0, 1, 0], float(input_var[1])))
+            elif(input_var[0] == "zr" ):
+                calibrateR = so3.mul(calibrateR, so3.rotation([0, 0, 1], float(input_var[1])))
+
+            time.sleep(0.1);
+
+            self.cameraCalibration = (calibrateR, calibrateT)
+
+        except: 
+            print "input error\n"
+
+            print "printing camera calibration"
+            print self.cameraCalibration
+
+        try: 
+            move = raw_input("Do you want to move? (y or n)");
+            if move == "y":
+                self.state = 'MOVING_TO_GRASP_OBJECT'
+        except:
+            print "input error\n"
+
     def loop(self):
         try:
             while True:
@@ -118,7 +159,6 @@ class FullIntegrationMaster:
 
                 elif self.state == 'START':
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
                     self.state = 'MOVING_TO_SCAN_BIN'
                 elif self.state == 'MOVING_TO_SCAN_BIN':
@@ -133,18 +173,24 @@ class FullIntegrationMaster:
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     if perception.isCloudValid(cloud):
                         np_cloud = perception.convertPc2ToNp(cloud)
-                        np_cloud, pointmean = perception.calPointCloud(np_cloud)
-                        np_cloud = perception.subtractShelf(np_cloud)
-                        plane = perception.segmentation(np_cloud)
-                        self.object_com = se3.apply(self.Tcamera, perception.com(plane) + pointmean)
-                        # self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud) + pointmean)
-                        if self.right_arm_ik(self.object_com):
-                            destination = self.robotModel.getConfig()
-                            motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                            self.state = 'MOVING_TO_GRASP_OBJECT'
+                        #np_cloud, pointmean = perception.calPointCloud(np_cloud)
+                        #np_cloud = perception.subtractShelf(np_cloud)
+                        #plane = perception.segmentation(np_cloud)
+                        #self.object_com = se3.apply(self.Tcamera, perception.com(plane) + pointmean)
+                        self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
+                        if CALIBRATE: 
+                            self.calibrateCamera()
+
                         else:
-                            print "Got an invalid cloud, trying again"
+                            if self.right_arm_ik(self.object_com):
+                                destination = self.robotModel.getConfig()
+                                motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
+                                motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
+                                motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                                print planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
+                                self.state = 'DONE'
+                    else:
+                        print "Got an invalid cloud, trying again"
                 elif self.state == 'FAKE_SCANNING_BIN':
                     self.object_com = [1.174, -0.097, 1.151]
                     self.points = [self.object_com]
