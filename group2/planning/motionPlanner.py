@@ -240,7 +240,10 @@ class LimbPlanner:
 
         armfilter = None
         if limb=='left':
-            collindices = set(left_arm_geometry_indices+left_hand_geometry_indices)
+            if ignoreColShelfSpatula:
+                collindices = set(left_arm_geometry_indices)
+            else:
+                collindices = set(left_arm_geometry_indices+left_hand_geometry_indices)
         else:
             collindices = set(right_arm_geometry_indices+right_hand_geometry_indices)
         armfilter = lambda x:isinstance(x,RobotModelLink) and (x.index in collindices)
@@ -372,7 +375,7 @@ class LimbPlanner:
         plan = MotionPlan(cspace)
 
         plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 20
+        maxPlanIters = 10
         maxSmoothIters = 100
 
         print "  Planning.",

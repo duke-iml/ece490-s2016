@@ -34,8 +34,8 @@ from operator import itemgetter
 # configuration variables
 config = 1
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-SKIP_PATH_PLANNING = 1
+FAKE_SIMULATION = 0
+SKIP_PATH_PLANNING = 0
 RECORD_TRAJECTORY = 0
 
 # The path of the klampt_models directory
@@ -145,7 +145,7 @@ class KnowledgeBase:
 
     def bin_vantage_point(self,bin_name):
         world_center = self.bin_front_center(bin_name)
-        world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.05,0.5])
+        world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.05,0.55])
 
         if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
             world_offset = vectorops.add(world_offset, [-0.04,0,0])
@@ -442,13 +442,13 @@ class PickingController:
                 self.spatula('out')
                 self.waitForMove()
 
-                self.tilt_wrist('up')
+                self.tilt_wrist('up',ignoreColShelfSpatula = True)
                 self.waitForMove()
 
                 self.spatula('in')
                 self.waitForMove()
 
-                self.move_camera_to_bin(self.current_bin, colMargin = 0)
+                self.move_camera_to_bin(self.current_bin, colMargin = 0,ignoreColShelfSpatula=True)
                 self.waitForMove()
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
@@ -485,7 +485,7 @@ class PickingController:
                 self.spatula('fence_in')
                 self.waitForMove()
 
-                self.move_camera_to_bin(self.current_bin, colMargin = 0, ignoreColShelfSpatula = True)
+                self.move_camera_to_bin(self.current_bin, colMargin = 0)
                 self.waitForMove()
 
                 print "Object",self.held_object.info.name,"placed back in bin"
@@ -504,6 +504,9 @@ class PickingController:
         link = self.robot.link('spatula:frame')
         currXform = link.getTransform()
 
+        self.world.terrain(0).geometry().setCollisionMargin(0)
+        link.geometry().setCollisionMargin(0)
+
         if direction == "down":
             offset = [0,0,-0.005]
 
@@ -513,8 +516,10 @@ class PickingController:
         limbs = ['left']
         qcmd = self.controller.getCommandedConfig()
 
+        dist = vectorops.distance(link.getTransform()[1], targetXform[1])
+
         for i in range(50):
-            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,ignoreColShelfSpatula=False,rangeVal=0.00005)
+            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,ignoreColShelfSpatula=False,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
                 continue
@@ -541,12 +546,13 @@ class PickingController:
         self.robot.setConfig(currConfig)
         return False
 
-    def tilt_wrist(self,direction):
+    def tilt_wrist(self,direction,ignoreColShelfSpatula = False):
         """Tilt the robot's wrist before and after actuating the spatula
         so that the objects are picked up.
         """
         self.waitForMove()
         self.world.terrain(0).geometry().setCollisionMargin(0)
+
         bin_name = self.current_bin
         world_center = knowledge.bin_front_center(bin_name)
 
@@ -581,15 +587,15 @@ class PickingController:
         # self.frames.append([R_camera,t_camera])
         # return False
 
-
+        limbs = ['left']
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
-        limbs = ['left']
+        dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
 
         print "Solving for TILT_WRIST (", direction,")"
 
         for i in range(500):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,ignoreColShelfSpatula=True,rangeVal=0.0005)
+            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
                 continue
@@ -605,7 +611,7 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula = True)
+                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula = ignoreColShelfSpatula)
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -649,6 +655,7 @@ class PickingController:
         so that the objects are picked up.
         """
         self.waitForMove()
+        self.world.terrain(0).geometry().setCollisionMargin(0.05)
 
         R_wrist = so3.mul( so3.rotation([0,0,1], -math.pi), so3.rotation([1,0,0], -math.pi/2) )
         t_wrist = knowledge.bin_center_point()
@@ -755,16 +762,16 @@ class PickingController:
                 self.waitForMove()
 
                 knowledge.order_bin_contents.append(self.held_object)
+                print "Successfully placed",self.held_object.info.name,"into order bin"
+                self.drop_in_order_bin(self.held_object)
                 self.active_limb = 'left'
                 self.active_grasp = None
-                self.held_object.xform = None
-                self.held_object.bin_name = 'order_bin'
-                self.drop_in_order_bin(self.held_object)
+                self.held_object = None
+                # self.held_object.xform = None
+                # self.held_object.bin_name = 'order_bin'
                 self.stateRight = 'ready'
                 self.stateLeft = 'ready'
-                print "Successfully placed",self.held_object.info.name,"into order bin"
 
-                self.held_object = None
                 return True
             else:
                 print "Move to order bin failed"
@@ -948,10 +955,11 @@ class PickingController:
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
-
+        limbs = ['left']
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
-        limbs = ['left']
+        dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
+
 
         # temporarily increase collision margin of shelf
         self.world.terrain(0).geometry().setCollisionMargin(colMargin)
@@ -977,9 +985,10 @@ class PickingController:
         # print ik_constraint.destLink()
         # print "****************"
 
+
         print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
         for i in range(100):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100, ignoreColShelfSpatula=ignoreColShelfSpatula)
+            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100, ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
                 continue
@@ -1544,10 +1553,12 @@ def load_apc_world():
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     t_obj_shelf = [0.45,0,0]
-    t_shelf = [-1.5,-0.1,0.1]
+    # t_shelf = [-1.5,-0.1,0.1]
+    t_shelf = [-1,-0.2,0.1]
+
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
     reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
-    Trel = (so3.rotation((0,0,1),-math.pi/4),[2,0.75,-0.1])
+    Trel = (so3.rotation((0,0,1),-math.pi/3),[2,0.75,-0.1])
 
     xform_with_scale = se3.mul(Trel,reorient_with_scale)
     world.terrain(0).geometry().transform(xform_with_scale[0], xform_with_scale[1])
