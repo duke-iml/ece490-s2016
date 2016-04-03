@@ -53,7 +53,7 @@ order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 # Order list. Can be parsed from JSON input
 global orderList
-orderList = ['med_item',  'tall_item',
+orderList = ['tall_item', 'med_item',  'tall_item',
              'med_item',  'tall_item', 'med_item',
              'tall_item', 'med_item',  'tall_item',
              'med_item',  'tall_item', 'med_item']
@@ -61,7 +61,7 @@ orderList = ['med_item',  'tall_item',
 def init_ground_truth():
     global ground_truth_items
     ground_truth_items = [
-                          # apc.ItemInBin(apc.tall_item,'bin_A'),
+                          apc.ItemInBin(apc.tall_item,'bin_A'),
                           apc.ItemInBin(apc.med_item,'bin_B'),
                           apc.ItemInBin(apc.tall_item,'bin_C'),
                           apc.ItemInBin(apc.med_item,'bin_D'),
@@ -534,7 +534,7 @@ class PickingController:
 
         print "Solving for INCREMENTAL_MOVE (", direction,")"
 
-        for i in range(500):
+        for i in range(50):
             sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,ignoreColShelfSpatula=False,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
@@ -617,10 +617,20 @@ class PickingController:
         print "Solving for TILT_WRIST (", direction,")"
 
         for i in range(50):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/1000)
+
+            if LOAD_IK_SOLUTIONS:
+                sortedSolutions = loadFromFile("IK_Solutions/"+bin_name+"_tilt_wrist_"+direction+"_step"+str(step)+"_"+self.stateLeft)
+            else:
+                sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/1000)
+
 
             if len(sortedSolutions)==0:
                 continue
+
+            if SAVE_IK_SOLUTIONS:
+                if int(raw_input("save the IK solution? (Yes=1 / No=0) ")):
+                    saveToFile(sortedSolutions, "IK_Solutions/"+bin_name+"_tilt_wrist_"+direction+"_step"+str(step)+"_"+self.stateLeft)
+
 
             # prototyping hack: move straight to target
             if SKIP_PATH_PLANNING:
@@ -1633,7 +1643,8 @@ def load_apc_world():
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     t_obj_shelf = [0.45,0,0]
     # t_shelf = [-1.5,-0.1,0.1]
-    t_shelf = [-1,-0.2,0.1]
+    # t_shelf = [-1,-0.2,0.1]
+    t_shelf = [-0.9,-0.3,0.1]
 
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
     reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
