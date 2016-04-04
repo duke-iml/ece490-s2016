@@ -77,10 +77,10 @@ def convertPc2ToNptest(data):
         i = struct.unpack('>l',s)[0]
         # you can get back the float value by the inverse operations
         pack = ctypes.c_uint32(i).value
-        a = (pack & 0x00FF0000)>> 24
+        a = (pack & 0xFF000000)>> 24
         r = (pack & 0x00FF0000)>> 16
         g = (pack & 0x0000FF00)>> 8
-        b = (pack & 0x0000FF00)
+        b = (pack & 0x000000FF)
         idx.append(i)
         i = i+1
     print "Point cloud count: " + str(len(xs))
