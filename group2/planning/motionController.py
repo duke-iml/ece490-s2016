@@ -20,6 +20,9 @@
 #       - implement selective trajectory recording / playback
 #
 # pkill -f partial_name  kills all processes with matching name...
+#
+# full run took 38m30s without any precomputation
+#               39m04s with precomputed trajectory (between bin and spatula center pos)
 
 from klampt import robotsim
 from klampt.glprogram import *
@@ -27,7 +30,7 @@ from klampt import vectorops, se3, so3, loader, gldraw, ik
 from klampt.robotsim import Geometry3D
 from klampt import visualization,trajectory
 from baxter import *
-from motionPlanner2 import *
+from motionPlanner import *
 import apc, os, math, random, copy
 from threading import Thread,Lock
 from Queue import Queue
@@ -43,7 +46,7 @@ SKIP_PATH_PLANNING = 0
 SAVE_IK_SOLUTIONS = 0
 LOAD_IK_SOLUTIONS = 0
 RECORD_TRAJECTORY = 0
-LOAD_TRAJECTORY = 0
+LOAD_TRAJECTORY = 1
 
 
 # The path of the klampt_models directory
@@ -393,7 +396,7 @@ class PickingController:
             if b in apc.bin_names:
                 # print "Valid bin (", b, ")"
 
-                if self.move_camera_to_bin(b):
+                if self.move_camera_to_bin(b, LOAD_TRAJECTORY=LOAD_TRAJECTORY, RECORD_TRAJECTORY=RECORD_TRAJECTORY):
                     self.waitForMove()
                     self.current_bin = b
                     run_perception_on_bin(knowledge, b)
@@ -473,13 +476,18 @@ class PickingController:
                 self.spatula('out')
                 self.waitForMove()
 
+                for i in range(5):
+                    self.incrementalMove('up')
+                    self.waitForMove()
+
+                # for i in range(3):
+                #     self.tilt_wrist('up', step =3)
+                #     self.waitForMove()
+
                 self.tilt_wrist('up')
                 self.waitForMove()
 
                 self.spatula('in')
-                self.waitForMove()
-
-                self.move_camera_to_bin(self.current_bin, colMargin = 0, ik_constrain = False)
                 self.waitForMove()
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
@@ -488,6 +496,10 @@ class PickingController:
                                             [random.uniform(-0.07,0.07) , 0.005+(self.held_object.info.bmax[1]-self.held_object.info.bmin[1])/2 , random.uniform(-0.05, -0.25)]]
 
                 self.stateLeft = 'holding'
+
+                self.move_camera_to_bin(self.current_bin, colMargin = 0, ik_constrain = False, ignoreColShelfSpatula=True)
+                self.waitForMove()
+
                 print "Holding object",self.held_object.info.name,"in spatula"
                 return True
             else:
@@ -504,7 +516,7 @@ class PickingController:
             print "Not holding an object"
             return False
         else:
-            if self.tilt_wrist('up'):
+            if self.tilt_wrist('up',step=3):
                 self.waitForMove()
 
                 self.tilt_wrist('down')
@@ -541,6 +553,8 @@ class PickingController:
 
         if direction == "down":
             offset = [0,0,-0.005]
+        if direction == "up":
+            offset = [0,0,0.005]
 
         targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
 
@@ -572,8 +586,12 @@ class PickingController:
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 path = self.planner.plan(qcmd,solution[0],'left')
                 if path == 1 or path == 2 or path == False:
-                    break
+                    continue
                 elif path != None:
+                    # throw away solution if it deviates too much from initial config
+                    for i in range(len(path)):
+                        if vectorops.distance(qcmd, path[i]) > 0.05:
+                            return False
                     self.sendPath(path)
                     self.active_limb = limbs[solution[1]]
                     return True
@@ -581,31 +599,18 @@ class PickingController:
         self.robot.setConfig(currConfig)
         return False
 
-    def tilt_wrist(self,direction, step=0):
-        """Tilt the robot's wrist before and after actuating the spatula
-        so that the objects are picked up.
-        """
+    def tilt_wrist(self,direction, step=0, ignoreColShelfSpatula = True):
         self.waitForMove()
         self.world.terrain(0).geometry().setCollisionMargin(0)
         self.robot.setConfig(self.controller.getCommandedConfig())
-
 
         bin_name = self.current_bin
         world_center = knowledge.bin_front_center(bin_name)
 
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
-        # left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
         left_goal = []
         ik_constraint = None
-
-        # ik_constraint = IKObjective()
-        # ik_constraint.setLinks(55)
-        # xform = self.robot.link(55).getTransform()
-        # localAxis = [0,1,0]
-        # worldAxis = so3.apply(xform[0],localAxis)
-        # ik_constraint.setAxialRotConstraint(localAxis, worldAxis)
-
 
         # tilted angle view for spatula
         if direction == 'down':
@@ -616,6 +621,7 @@ class PickingController:
             dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
             if step == 0:
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+                maxSmoothIters=0
             elif step == 1:
                 print "tilting down (tilt-wrist part 1)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=self.left_camera_link.getTransform()[1]))
@@ -631,29 +637,26 @@ class PickingController:
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
                 maxSmoothIters=3
 
-
         elif direction == 'up':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015,0.4575])
-            # world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
+
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
             dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
             maxSmoothIters = 1
-
+            ignoreColShelfSpatula = False
 
         limbs = ['left']
         qcmd = self.controller.getCommandedConfig()
 
         print "Solving for TILT_WRIST (", direction,")"
-
         for i in range(50):
 
             if LOAD_IK_SOLUTIONS:
                 sortedSolutions = loadFromFile("IK_Solutions/"+bin_name+"_tilt_wrist_"+direction+"_step"+str(step)+"_"+self.stateLeft)
             else:
                 sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,rangeVal=dist/1000)
-
 
             if len(sortedSolutions)==0:
                 continue
@@ -675,11 +678,11 @@ class PickingController:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 if ik_constraint==None:
-                    path = self.planner.plan(qcmd,solution[0],'left')
+                    path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula=ignoreColShelfSpatula)
                 else:
                     path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
-                    break
+                    continue
                 elif path != None:
                     if ik_constraint==None:
                         self.sendPath(path, maxSmoothIters = maxSmoothIters)
@@ -732,6 +735,14 @@ class PickingController:
         so that the objects are picked up.
         """
         self.waitForMove()
+
+        if LOAD_TRAJECTORY:
+            print "Loading Trajectory..."
+            path = loadFromFile("Trajectories/"+str(self.current_bin)+"_spatula_to_center")
+            self.sendPathClosedLoop(path)
+            self.active_limb = 'left'
+            return True
+
         self.robot.setConfig(self.controller.getCommandedConfig())
         self.world.terrain(0).geometry().setCollisionMargin(0.05)
 
@@ -792,8 +803,10 @@ class PickingController:
                             self.sendPathClosedLoop(path)
 
                             if RECORD_TRAJECTORY:
-                                if int(raw_input("save the Trajectory? (Yes=1 / No=0) ")):
-                                    saveToFile(sortedSolutions, "Trajectories/"+self.current_bin+"_move_spatula_to_center")
+                                # if int(raw_input("save the Trajectory? (Yes=1 / No=0) ")):
+                                #     saveToFile(path, "Trajectories/"+str(bin_name))
+                                print "Recording Trajectory..."
+                                saveToFile(path, "Trajectories/"+str(self.current_bin)+"_spatula_to_center")
 
                         self.active_limb = limbs[solution[1]]
                         return True
@@ -1068,8 +1081,15 @@ class PickingController:
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
         return [s[1] for s in sortedSolutions]
 
-    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ik_constrain=True):
+    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ik_constrain=True,ignoreColShelfSpatula=True, LOAD_TRAJECTORY=False, RECORD_TRAJECTORY=False):
         self.robot.setConfig(self.controller.getCommandedConfig())
+
+        if LOAD_TRAJECTORY:
+            print "Loading Trajectory..."
+            path = loadFromFile("Trajectories/"+str(bin_name))
+            self.sendPathClosedLoop(path)
+            self.active_limb = 'left'
+            return True
 
         R_shelf = knowledge.shelf_xform[0]
         R_camera = so3.mul(R_shelf, so3.rotation([1,0,0], math.pi))
@@ -1082,7 +1102,6 @@ class PickingController:
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
         dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
-
 
         # temporarily increase collision margin of shelf
         self.world.terrain(0).geometry().setCollisionMargin(colMargin)
@@ -1122,12 +1141,12 @@ class PickingController:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 if ik_constraint==None:
-                    path = self.planner.plan(qcmd,solution[0],'left')
+                    path = self.planner.plan(qcmd,solution[0],'left', ignoreColShelfSpatula=ignoreColShelfSpatula)
                 else:
                     path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
 
                 if path == 1 or path == 2 or path == False:
-                    break
+                    continue
                 elif path != None:
                     if ik_constraint==None:
                         self.sendPath(path)
@@ -1135,8 +1154,10 @@ class PickingController:
                         self.sendPathClosedLoop(path)
 
                         if RECORD_TRAJECTORY:
-                            if int(raw_input("save the Trajectory? (Yes=1 / No=0) ")):
-                                saveToFile(sortedSolutions, "Trajectories/"+str(bin_name))
+                            # if int(raw_input("save the Trajectory? (Yes=1 / No=0) ")):
+                            #     saveToFile(path, "Trajectories/"+str(bin_name))
+                            print "Recording Trajectory..."
+                            saveToFile(path, "Trajectories/"+str(bin_name))
 
                     self.active_limb = limbs[solution[1]]
                     return True
@@ -1328,7 +1349,7 @@ class PickingController:
             # print dt
 
             self.waitForMove()
-            self.controller.appendLinear(q,dt)
+            self.controller.appendLinear(q,dt*3)
             qPrev = q
         self.waitForMove()
 
@@ -1345,21 +1366,21 @@ class PickingController:
                 q[i] = qmax[i]
         return q
 
-    def readFromTrajectoryFile(self, fileName):
-        trajectoryToSend = []
-        with open(fileName) as f:
-            trajectory = f.readlines()
-        for i in range(len(trajectory)):
-            milestone = trajectory[i]
-            milestone = milestone.translate(None, '[]')
-            milestone = milestone.strip()
-            milestone = milestone.split(', ')
-            trajectoryToSend.append(map(float, milestone))
+    # def readFromTrajectoryFile(self, fileName):
+    #     trajectoryToSend = []
+    #     with open(fileName) as f:
+    #         trajectory = f.readlines()
+    #     for i in range(len(trajectory)):
+    #         milestone = trajectory[i]
+    #         milestone = milestone.translate(None, '[]')
+    #         milestone = milestone.strip()
+    #         milestone = milestone.split(', ')
+    #         trajectoryToSend.append(map(float, milestone))
 
-            if i==0:
-                self.controller.setMilestone(trajectoryToSend[0])
-            else:
-                self.controller.appendMilestone(trajectoryToSend[i])
+    #         if i==0:
+    #             self.controller.setMilestone(trajectoryToSend[0])
+    #         else:
+    #             self.controller.appendMilestone(trajectoryToSend[i])
 
 def draw_xformed(xform,localDrawFunc):
     """Draws something given a se3 transformation and a drawing function
@@ -1468,7 +1489,7 @@ class MyGLViewer(GLRealtimeProgram):
         self.draw_bins = False
         self.draw_gripper_and_camera = True
         self.drawVE = False
-        self.drawPath = True
+        self.drawPath = False
 
         # initialize controllers
         if FAKE_SIMULATION:
@@ -1794,12 +1815,12 @@ def myCameraSettings(visualizer):
 
 def saveToFile(variable, fileName):
     # Saving the objects:
-    with open(fileName, 'w') as f:
+    with open(fileName, 'wb') as f:
         pickle.dump(variable, f)
 
 def loadFromFile(fileName):
     # Getting back the objects:
-    with open(fileName) as f:
+    with open(fileName, 'rb') as f:
         return pickle.load(f)
 
 
