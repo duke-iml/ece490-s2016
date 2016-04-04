@@ -2,6 +2,8 @@
 # and run this file to put the empty shelf point cloud 
 # in the place full_integration_master expects
 
+# Usage: python save_calibrated_shelf.py shelf
+
 import sys
 import rospy
 import numpy as np
@@ -13,6 +15,15 @@ import perception
 
 STEP = 25
 ROS_TOPIC = "/realsense/pc"
+
+print sys.argv
+
+if len(sys.argv) >= 2:
+    SAVE_LOCATION = sys.argv[1]
+else:
+    print "ERROR: You must supply a path (no need for .npz extension) to save to"
+    print "Usage: python save_calibrated_shelf.py myfile"
+    sys.exit(0)
 
 class SaveF200DepthSnapshot:
     def __init__(self):
@@ -49,8 +60,9 @@ class SaveF200DepthSnapshot:
             print "length after down sample: "+str(len(zs))
             if len(xs) > 0:
                 self.show = False
-                np.savez('shelf', xs, ys, zs)
-                print 'done saving, you can exit now'
+                print "Saving to file: " + SAVE_LOCATION
+                np.savez(SAVE_LOCATION, xs, ys, zs)
+                print 'done saving, you can exit now with CTRL-C'
 
     def listener(self):
         rospy.init_node("listener", anonymous=True)
