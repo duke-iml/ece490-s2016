@@ -53,9 +53,9 @@ def convertPc2ToNp(data):
     ys = []
     zs = []
     idx = []
-    # r = []
-    # g = []
-    # b = []
+    r = []
+    g = []
+    b = []
     i = 1
     for point in pc2.read_points(data,skip_nans=False,field_names=("rgb","x","y","z")):
         # print point
@@ -125,10 +125,15 @@ def segmentation(cloud):
     object = copy.copy(cloud[:,0:3])
     tree = cKDTree(object)
     dist1,idx1 = tree.query(object,k=20, eps=0, p=2, distance_upper_bound=5)
-    dmin = round(0.5*len(object))
+
+    dmin = len(object)/2
+    print "dmin"
+    print dmin
     point_list = np.array([dmin])#index number of points in each iteration
     sellist = np.array([dmin])#selected points for one area
     edthall = np.median(dist1)
+    print "edthall is "
+    print edthall
     leftpoint = np.ones(len(object))
     listall = [point_list]
     show = 1
@@ -138,10 +143,12 @@ def segmentation(cloud):
         while len(point_list) >0 and oo<=5000:
             print "segmentation loop..."
             number = len(point_list)
+            print("length of point list", number)
             for k in range(0,number):
                 dmin = point_list[0]
                 edth = np.median(dist1[dmin-1])
                 n,v,p = np.linalg.svd(object[idx1[dmin-1,:],:])
+                p = p.transpose()
                 dminmean = np.mean(object[idx1[dmin-1,:],:], axis=0)
                 odth1 = np.zeros((20,1))
                 for i in range(0,20):
@@ -149,8 +156,9 @@ def segmentation(cloud):
                 odth = np.median(odth1)
                 pointss = np.zeros((20,4))
                 pointnum = np.zeros(20)
+                pointnum1 = np.zeros(20)
                 for i in range(0,20): 
-                    if dist1[dmin-1,i]<=min(edth,edthall) and np.dot((object[idx1[dmin-1,i],:] - dminmean),p[:,2])<odth:
+                    if dist1[dmin-1,i]<=abs(edthall) and dist1[dmin-1,i] <= abs(edth) and np.dot((object[idx1[dmin-1,i],:] - dminmean),p[:,2])<odth:
                         pointss [i,:] = cloud[idx1[dmin-1,i],:]
                         pointnum[i] = idx1[dmin-1,i]
                         leftpoint[idx1[dmin-1,i]] = 0
@@ -161,8 +169,10 @@ def segmentation(cloud):
                 pointnum1 = pointnum1[mask]
                 for i in range(0,len(pointnum1)):
                     if len((point_list == pointnum1[i]).ravel().nonzero()[0]):
-                        if len((sellist == pointnum1[i]).ravel().nonzero()[0]):
-                            point_list = point_list[(point_list != pointnum1[i])]
+                        curr_number = pointnum1[i]
+                        pointnum1[i] =0
+                        if len((sellist == curr_number).ravel().nonzero()[0]):
+                            point_list = point_list[(point_list != curr_number)]
                             pointnum1[i] = 0
                     if len((sellist == pointnum1[i]).ravel().nonzero()[0]):
                         point_list = point_list[(point_list != pointnum1[i])]
@@ -173,30 +183,34 @@ def segmentation(cloud):
                 point_list =np.append(point_list,pointnum1,axis =0)
                 point_list = point_list[1:(len(point_list))]
                 point_list = point_list[(point_list != 0)]
-                sellist = np.append(sellist,[dmin],axis =0)
+                if not len((sellist == dmin).ravel().nonzero()[0]):
+                    sellist = np.append(sellist,[dmin],axis =0)
                 o = o+1
-
                 if len(point_list) == 0:
                     print "break"
-                    break
+                    break# end of for loop
             if len(point_list) == 0:
                 print "break"
-                break
+                break                  
             else:
                 oo = oo+1
-                listall.append(point_list)
-        if len(r) > 1:
+                listall.append(point_list)# end of inside while loop
+        if len(r) > 1 :
             print np.size(r,axis= 0)
             print np.size(r,axis= 1)
-            np.savez('plane1', r[:,0],r[:,1],r[:,2])
-            show = 0
+            a = 'plane'+str(ooo)
+            np.savez(a, r[:,0],r[:,1],r[:,2])
         o =1
         oo =1
+        #clear these three in case
+        pointss = np.zeros((20,4))
+        pointnum = np.zeros(20)
+        pointnum1 = np.zeros(20)
         object = object[object[:,2]!=0]
         tree = cKDTree(object)
-        dist1,idx1 = tree.query(object,k=20, eps=0, p=2, distance_upper_bound=1)
+        dist1,idx1 = tree.query(object,k=20, eps=0, p=2, distance_upper_bound=5)
         leftpoint = np.ones(len(object))
-        dmin = round(0.5*len(object))
+        dmin = len(object)/2
         point_list = np.array([dmin])
         sellist = np.array([dmin])
         edthall = np.median(dist1)
@@ -205,7 +219,7 @@ def segmentation(cloud):
         r = r[r[:,1]!=0 , :]
         print len(r)
         print ("plane from segmentation: ", r)
-        return r
+    return r
 
 def com(cloud):
     return np.mean(cloud,axis = 0)
