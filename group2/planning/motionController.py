@@ -43,7 +43,7 @@ SKIP_PATH_PLANNING = 0
 SAVE_IK_SOLUTIONS = 0
 LOAD_IK_SOLUTIONS = 0
 RECORD_TRAJECTORY = 0
-# RECORD_TRAJECTORY = 0
+LOAD_TRAJECTORY = 0
 
 
 # The path of the klampt_models directory
@@ -1297,11 +1297,6 @@ class PickingController:
                 q[i] = 0
             q = self.clampJointLimits(q,qmin,qmax)
             self.controller.appendMilestone(q)
-
-            if RECORD_TRAJECTORY:
-                with open("configOutput.txt", "a") as myfile:
-                    myfile.write(str(q))
-                    myfile.write("\n")
 
     def sendPathClosedLoop(self,path):
         # removing AppendRamp claming error
