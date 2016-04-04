@@ -25,9 +25,9 @@ from klampt import robotsim
 from klampt.glprogram import *
 from klampt import vectorops, se3, so3, loader, gldraw, ik
 from klampt.robotsim import Geometry3D
-from klampt import visualization
+from klampt import visualization,trajectory
 from baxter import *
-from motionPlanner import *
+from motionPlanner2 import *
 import apc, os, math, random, copy
 from threading import Thread,Lock
 from Queue import Queue
@@ -37,12 +37,14 @@ import pickle
 # configuration variables
 config = 1
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = config
-SKIP_PATH_PLANNING = config
+FAKE_SIMULATION = 0
+SKIP_PATH_PLANNING = 0
 
 SAVE_IK_SOLUTIONS = 0
-LOAD_IK_SOLUTIONS = 1
+LOAD_IK_SOLUTIONS = 0
 RECORD_TRAJECTORY = 0
+# RECORD_TRAJECTORY = 0
+
 
 # The path of the klampt_models directory
 model_dir = "klampt_models/"
@@ -235,6 +237,21 @@ class LowLevelController:
         self.lock.acquire()
         if endvelocity == None: self.controller.addMilestoneLinear(destination)
         else: self.controller.addMilestone(destination,endvelocity)
+        self.lock.release()
+    def setLinear(self,destination,dt=0.1):
+        """Immediately sets the motion queue to move to the given
+        milestone.  If endvelocity is given, then the end of the
+        queue will be moving at that velocity.  Otherwise, the end
+        velocity will be zero."""
+        self.lock.acquire()
+        self.controller.setLinear(destination,dt)
+        self.lock.release()
+    def appendLinear(self,destination,dt=0.1):
+        """Appends a milestone to the motion queue.  If endvelocity
+        is given, then the end of the queue will be moving at that velocity.
+        Otherwise, the end velocity will be zero."""
+        self.lock.acquire()
+        self.controller.appendLinear(destination,dt)
         self.lock.release()
     def isMoving(self):
         return self.controller.remainingTime()>0
@@ -439,14 +456,16 @@ class PickingController:
             print "The current bin is empty"
             return False
         else:
+            # print self.robot.getConfig()
             if self.tilt_wrist('down', step = 1):
                 self.waitForMove()
-
+                # print self.robot.getConfig()
                 self.tilt_wrist('down', step = 2)
                 self.waitForMove()
-
+                # print self.robot.getConfig()
                 self.tilt_wrist('down', step = 3)
                 self.waitForMove()
+                # print self.robot.getConfig()
 
                 while self.incrementalMove('down'):
                     self.waitForMove()
@@ -454,13 +473,13 @@ class PickingController:
                 self.spatula('out')
                 self.waitForMove()
 
-                self.tilt_wrist('up',ignoreColShelfSpatula = True)
+                self.tilt_wrist('up')
                 self.waitForMove()
 
                 self.spatula('in')
                 self.waitForMove()
 
-                self.move_camera_to_bin(self.current_bin, colMargin = 0,ignoreColShelfSpatula=True)
+                self.move_camera_to_bin(self.current_bin, colMargin = 0, ik_constrain = False)
                 self.waitForMove()
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
@@ -497,7 +516,7 @@ class PickingController:
                 self.spatula('fence_in')
                 self.waitForMove()
 
-                self.move_camera_to_bin(self.current_bin, colMargin = 0)
+                self.move_camera_to_bin(self.current_bin, colMargin = 0,ik_constrain = False)
                 self.waitForMove()
 
                 print "Object",self.held_object.info.name,"placed back in bin"
@@ -535,7 +554,7 @@ class PickingController:
         print "Solving for INCREMENTAL_MOVE (", direction,")"
 
         for i in range(50):
-            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,ignoreColShelfSpatula=False,rangeVal=dist/1000)
+            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
                 continue
@@ -551,7 +570,7 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula = False)
+                path = self.planner.plan(qcmd,solution[0],'left')
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -562,7 +581,7 @@ class PickingController:
         self.robot.setConfig(currConfig)
         return False
 
-    def tilt_wrist(self,direction, step=0,ignoreColShelfSpatula = False):
+    def tilt_wrist(self,direction, step=0):
         """Tilt the robot's wrist before and after actuating the spatula
         so that the objects are picked up.
         """
@@ -578,6 +597,15 @@ class PickingController:
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         # left_goal = ik.objective(self.left_camera_link,R=R_camera,t=t_camera)
         left_goal = []
+        ik_constraint = None
+
+        # ik_constraint = IKObjective()
+        # ik_constraint.setLinks(55)
+        # xform = self.robot.link(55).getTransform()
+        # localAxis = [0,1,0]
+        # worldAxis = so3.apply(xform[0],localAxis)
+        # ik_constraint.setAxialRotConstraint(localAxis, worldAxis)
+
 
         # tilted angle view for spatula
         if direction == 'down':
@@ -592,14 +620,17 @@ class PickingController:
                 print "tilting down (tilt-wrist part 1)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=self.left_camera_link.getTransform()[1]))
                 maxSmoothIters=0
+
             elif step == 2:
                 print "moving up/side (tilt-wrist part 2)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
-                maxSmoothIters=2
+                maxSmoothIters=1
+
             elif step == 3:
                 print "tilting down (tilt-wrist part 3)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
                 maxSmoothIters=3
+
 
         elif direction == 'up':
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*15))
@@ -608,11 +639,11 @@ class PickingController:
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
             dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
-            maxSmoothIters = 2
+            maxSmoothIters = 1
+
 
         limbs = ['left']
         qcmd = self.controller.getCommandedConfig()
-        # qcmd = self.controller.getSensedConfig()
 
         print "Solving for TILT_WRIST (", direction,")"
 
@@ -621,7 +652,7 @@ class PickingController:
             if LOAD_IK_SOLUTIONS:
                 sortedSolutions = loadFromFile("IK_Solutions/"+bin_name+"_tilt_wrist_"+direction+"_step"+str(step)+"_"+self.stateLeft)
             else:
-                sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/1000)
+                sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,rangeVal=dist/1000)
 
 
             if len(sortedSolutions)==0:
@@ -643,15 +674,26 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula = ignoreColShelfSpatula)
+                if ik_constraint==None:
+                    path = self.planner.plan(qcmd,solution[0],'left')
+                else:
+                    path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
                 if path == 1 or path == 2 or path == False:
                     break
-                    # continue
                 elif path != None:
-                    print "path length", len(path)
-                    self.sendPath(path, maxSmoothIters = maxSmoothIters)
+                    if ik_constraint==None:
+                        self.sendPath(path, maxSmoothIters = maxSmoothIters)
+                    else:
+                        self.sendPathClosedLoop(path)
+
+                        if RECORD_TRAJECTORY:
+                            if int(raw_input("save the Trajectory? (Yes=1 / No=0) ")):
+                                saveToFile(sortedSolutions, "Trajectories/"+self.current_bin+"_move_spatula_to_center")
+
                     self.active_limb = limbs[solution[1]]
                     return True
+
+
         print "Failed to plan path"
         return False
 
@@ -685,7 +727,7 @@ class PickingController:
         self.controller.commandGripper('left', [direction], spatulaPart)
         self.waitForMove()
 
-    def move_spatula_to_center(self):
+    def move_spatula_to_center(self, ik_constrain=True):
         """Tilt the robot's wrist before and after actuating the spatula
         so that the objects are picked up.
         """
@@ -703,6 +745,12 @@ class PickingController:
         qcmd = self.controller.getCommandedConfig()
         # qcmd = self.controller.getSensedConfig()
         limbs = ['left']
+
+        ik_constraint = None
+        if ik_constrain:
+            ik_constraint = IKObjective()
+            ik_constraint.setLinks(55)
+            ik_constraint.setAxialRotConstraint([-1,0,0], [0,0,1])
 
         print "\nSolving for MOVE_SPATULA_TO_CENTER (Left Hand)"
 
@@ -731,11 +779,22 @@ class PickingController:
                 for solution in sortedSolutions:
                     numSol += 1
                     print numSol, "solutions planned out of", len(sortedSolutions)
-                    path = self.planner.plan(qcmd,solution[0],'left')
+                    if ik_constraint==None:
+                        path = self.planner.plan(qcmd,solution[0],'left')
+                    else:
+                        path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
                     if path == 1 or path == 2 or path == False:
                         break
                     elif path != None:
-                        self.sendPath(path)
+                        if ik_constraint==None:
+                            self.sendPath(path)
+                        else:
+                            self.sendPathClosedLoop(path)
+
+                            if RECORD_TRAJECTORY:
+                                if int(raw_input("save the Trajectory? (Yes=1 / No=0) ")):
+                                    saveToFile(sortedSolutions, "Trajectories/"+self.current_bin+"_move_spatula_to_center")
+
                         self.active_limb = limbs[solution[1]]
                         return True
         print "Failed to plan path"
@@ -937,7 +996,7 @@ class PickingController:
         #             "print ****************"
         return
 
-    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=True,ignoreColShelfSpatula=False,rangeVal=0.005):
+    def get_ik_solutions(self,goals,limbs,initialConfig=None,maxResults=10,maxIters=1000,tol=1e-3,validity_checker=None,printer=False,rangeVal=0.005):
         """Given a list of goals and their associated limbs, returns a list
         of (q,index) pairs, where q is an IK solution for goals[index].
         The results are sorted by distance from initialConfig.
@@ -979,7 +1038,7 @@ class PickingController:
                 # self.randomize_limb_position(limb,center=initialConfig,range=None)
             if ik.solve(goal,tol=tol):
                 numSolutions[index] += 1
-                if validity_checker(limb, ignoreColShelfSpatula=ignoreColShelfSpatula):
+                if validity_checker(limb):
                     numColFreeSolutions[index] += 1
                     ikSolutions.append((self.robot.getConfig(),index))
                     if len(ikSolutions) >= maxResults: break
@@ -1009,7 +1068,7 @@ class PickingController:
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
         return [s[1] for s in sortedSolutions]
 
-    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ignoreColShelfSpatula=False):
+    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ik_constrain=True):
         self.robot.setConfig(self.controller.getCommandedConfig())
 
         R_shelf = knowledge.shelf_xform[0]
@@ -1028,26 +1087,11 @@ class PickingController:
         # temporarily increase collision margin of shelf
         self.world.terrain(0).geometry().setCollisionMargin(colMargin)
 
-        # # ClosedLoopRobotCSpace IK Constraint
-        # # ik_constraint = ik.objective(self.robot.link(54), R=so3.identity(), t=[0,0,0])
-        # print "****************"
-        # ik_constraint = IKObjective()
-        # ik_constraint.setLinks(55)
-        # print ik_constraint.numRotDims()
-        # ik_constraint.setAxialRotConstraint([0,-1,0], [0,0,1])
-        # # ik_constraint.setAxialRotConstraint([1,0,0], [0,0,1])
-        # # ik_constraint.setAxialRotConstraint([0,0,1], [0,0,1])
-        # # ik_constraint.setAxialRotConstraint([0,-1,0], [0,1,0])
-        # # ik_constraint.setAxialRotConstraint([1,0,0], [0,1,0])
-        # # ik_constraint.setAxialRotConstraint([0,0,1], [0,1,0])
-        # # ik_constraint.setAxialRotConstraint([0,-1,0], [1,0,0])
-        # # ik_constraint.setAxialRotConstraint([1,0,0], [1,0,0])
-        # # ik_constraint.setAxialRotConstraint([0,0,1], [1,0,0])
-        # print ik_constraint.numRotDims()
-        # print ik_constraint.getRotationAxis()
-        # print ik_constraint.link()
-        # print ik_constraint.destLink()
-        # print "****************"
+        ik_constraint = None
+        if ik_constrain:
+            ik_constraint = IKObjective()
+            ik_constraint.setLinks(55)
+            ik_constraint.setAxialRotConstraint([-1,0,0], [0,0,1])
 
 
         print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
@@ -1055,8 +1099,7 @@ class PickingController:
             if LOAD_IK_SOLUTIONS:
                 sortedSolutions = loadFromFile("IK_Solutions/"+bin_name)
             else:
-                sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100, ignoreColShelfSpatula=ignoreColShelfSpatula,rangeVal=dist/5000)
-
+                sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,rangeVal=dist/1000)
 
 
             if len(sortedSolutions)==0:
@@ -1065,7 +1108,6 @@ class PickingController:
             if SAVE_IK_SOLUTIONS:
                 if int(raw_input("save the IK solution? (Yes=1 / No=0) ")):
                     saveToFile(sortedSolutions, "IK_Solutions/"+str(bin_name))
-
 
 
             # prototyping hack: move straight to target
@@ -1079,12 +1121,23 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula=ignoreColShelfSpatula)
-                # path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
+                if ik_constraint==None:
+                    path = self.planner.plan(qcmd,solution[0],'left')
+                else:
+                    path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
+
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
-                    self.sendPath(path)
+                    if ik_constraint==None:
+                        self.sendPath(path)
+                    else:
+                        self.sendPathClosedLoop(path)
+
+                        if RECORD_TRAJECTORY:
+                            if int(raw_input("save the Trajectory? (Yes=1 / No=0) ")):
+                                saveToFile(sortedSolutions, "Trajectories/"+str(bin_name))
+
                     self.active_limb = limbs[solution[1]]
                     return True
         print "Failed to plan path"
@@ -1250,16 +1303,50 @@ class PickingController:
                     myfile.write(str(q))
                     myfile.write("\n")
 
+    def sendPathClosedLoop(self,path):
+        # removing AppendRamp claming error
+        q = path[0]
+        for i in [23,30,31,43,50,51,54]: q[i] = 0
+
+        qmin,qmax = self.robot.getJointLimits()
+        q = self.clampJointLimits(q,qmin,qmax)
+
+        self.controller.setLinear(q,0.1)
+        spatulaConfig = q[55:58]
+
+        qPrev = q
+        for q in path[1:]:
+            for i in [23,30,31,43,50,51,54]:
+                # print i, qmin[i], q[i], qmax[i]
+                q[i] = 0
+            q = self.clampJointLimits(q,qmin,qmax)
+
+            #restore spatulaConfig
+            q[55:58] = spatulaConfig[0:3]
+
+            dt = vectorops.distance(q,qPrev)
+
+            # remove spikes in trajectory
+            if dt<1e-5 or dt>0.02:
+                qPrev = q
+                continue
+            # print dt
+
+            self.waitForMove()
+            self.controller.appendLinear(q,dt)
+            qPrev = q
+        self.waitForMove()
+
     def clampJointLimits(self,q,qmin,qmax):
         for i in range(len(q)):
             if (q[i] < qmin[i]) :
-                print "Joint #",i,"(",q[i],") out of limits (min:",qmin[i],")"
-                print "Changed joint value to its minimum"
+                # print "Joint #",i,"(",q[i],") out of limits (min:",qmin[i],")"
+                # print "Changed joint value to its minimum"
                 q[i] = qmin[i]
 
             if (q[i] > qmax[i]) :
-                print "Joint #",i,"(",q[i],") out of limits (max:",qmax[i],")"
-                print "Changed joint value to its maximum"
+                # print "Joint #",i,"(",q[i],") out of limits (max:",qmax[i],")"
+                # print "Changed joint value to its maximum"
                 q[i] = qmax[i]
         return q
 
@@ -1585,10 +1672,13 @@ class MyGLViewer(GLRealtimeProgram):
                 glBegin(GL_LINE_STRIP)
                 # print "Drawing path (limb", self.picking_controller.planner.activeLimb,"(",len(self.picking_controller.planner.limb_indices),"/",len(path[0]),"))"
                 for q in path:
-                    for k in range(len(self.picking_controller.planner.limb_indices)):
-                        if k>len(q): print "Index Out of Range: (k,len(q),q)", k,len(q),q
-                        qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
-                    self.planworld.robot(0).setConfig(qcmd)
+                    if len(q)<len(qcmd):
+                        for k in range(len(self.picking_controller.planner.limb_indices)):
+                            if k>len(q): print "Index Out of Range: (k,len(q),q)", k,len(q),q
+                            qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
+                        self.planworld.robot(0).setConfig(qcmd)
+                    else:
+                        self.planworld.robot(0).setConfig(q)
                     glVertex3f(*self.planworld.robot(0).link(23).getTransform()[1])
                 glEnd()
 
@@ -1596,9 +1686,12 @@ class MyGLViewer(GLRealtimeProgram):
                 glLineWidth(5.0)
                 glBegin(GL_LINE_STRIP)
                 for q in path:
-                    for k in range(len(self.picking_controller.planner.limb_indices)):
-                        qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
-                    self.planworld.robot(0).setConfig(qcmd)
+                    if len(q)<len(qcmd):
+                        for k in range(len(self.picking_controller.planner.limb_indices)):
+                            qcmd[self.picking_controller.planner.limb_indices[k]] = q[k]
+                        self.planworld.robot(0).setConfig(qcmd)
+                    else:
+                        self.planworld.robot(0).setConfig(q)
                     glVertex3f(*self.planworld.robot(0).link(43).getTransform()[1])
                 glEnd()
 
