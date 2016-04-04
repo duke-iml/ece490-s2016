@@ -1,4 +1,6 @@
-# Reads a point cloud from ROS_TOPIC and then saves it to a numpy file
+# Put the robot in Q_SCAN_BIN, make sure shelf is empty,
+# and run this file to put the empty shelf point cloud 
+# in the place full_integration_master expects
 
 import sys
 import rospy
@@ -10,7 +12,7 @@ import matplotlib.pyplot as plt
 import perception
 
 STEP = 25
-ROS_TOPIC = "/camera/depth/points"
+ROS_TOPIC = "/realsense/pc"
 
 class SaveF200DepthSnapshot:
     def __init__(self):
@@ -21,7 +23,8 @@ class SaveF200DepthSnapshot:
             xs = []
             ys = []
             zs = []
-            for point in pc2.read_points(data, skip_nans=False):
+            # For some reason, returns x in [0], y in  [1], z in [2], rgb in [3]
+            for point in pc2.read_points(data,skip_nans=False,field_names=("rgb","x","y","z")):
                 xs.append(point[0])
                 ys.append(point[1])
                 zs.append(point[2])

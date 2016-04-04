@@ -173,14 +173,12 @@ class FullIntegrationMaster:
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     if perception.isCloudValid(cloud):
                         np_cloud = perception.convertPc2ToNp(cloud)
-                        #np_cloud, pointmean = perception.calPointCloud(np_cloud)
-                        #np_cloud = perception.subtractShelf(np_cloud)
-                        #plane = perception.segmentation(np_cloud)
-                        #self.object_com = se3.apply(self.Tcamera, perception.com(plane) + pointmean)
+                        np_cloud = perception.subtractShelf(np_cloud)
+                        # plane = perception.segmentationtest(np_cloud) # TODO chenyu is fixing
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
-                        if CALIBRATE: 
+                        time.sleep(234444)
+                        if CALIBRATE:
                             self.calibrateCamera()
-
                         else:
                             if self.right_arm_ik(self.object_com):
                                 destination = self.robotModel.getConfig()

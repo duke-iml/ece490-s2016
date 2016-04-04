@@ -1,12 +1,12 @@
 import math
 from klampt import vectorops,so3
 
-INITIAL_STATE = "START"
+INITIAL_STATE = "SCANNING_BIN"
 
 REAL_PERCEPTION = True
 REAL_VACUUM = False
 SHOW_PLOT = False
-CALIBRATE = True
+CALIBRATE = False
 
 # Right arm configurations
 Q_INTERMEDIATE_1 = [0.6, -1.1, 0.0, 2.3, 0.0, -.9, 0.0]
@@ -52,7 +52,7 @@ VACUUM_POINT_XFORM = (so3.identity(), [.083+0.0635, 0, .32])
 
 # Sys admin stuff
 ARDUINO_SERIAL_PORT = "/dev/ttyACM0"
-ROS_DEPTH_TOPIC = "/camera/depth/points"
+ROS_DEPTH_TOPIC = "/realsense/pc"
 
 # Distances (meters)
 GRASP_MOVE_DISTANCE = .03
