@@ -12,7 +12,7 @@ bin_names = ['bin_'+c for c in ['A','B','C','D','E','F','G','H','I','J','K','L']
 #z: back to front.
 
 #map of bin names to bounding boxes ([ax,ay,az],[bx,by,bz]) in local frame of
-#shelf object.  
+#shelf object.
 bin_bounds = {
     'bin_A' : ([-0.41,1.55,0],[-0.158,1.78,0.42]),
     'bin_B' : ([-0.149,1.55,0],[0.149,1.78,0.42]),
@@ -88,7 +88,7 @@ class ItemInBin:
         return self.xform != None
     def set_in_bin_xform(self,shelf_xform,ux,uy,theta):
         """A utility convenience function for setting up virtual shelves.
-        
+
         Sets self.xform assuming the object is resting in the bin
         with its center's translational parameters (ux,uy) in the
         range [0,1]x[0,1] and orientation theta about the z axis.
@@ -187,6 +187,6 @@ for g in med_item.grasps[:]:
 #flip 180 about z axis
 for g in med_item.grasps[:]:
     med_item.grasps.append(ItemGrasp((so3.mul(g.grasp_xform[0],XYflip),g.grasp_xform[1])))
-    
+
 #a list of possible items
 item_info = [tall_item, small_item, med_item]

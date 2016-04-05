@@ -464,6 +464,7 @@ DECLSEND_VA(BOOL,sendLimbRawPosition,int,double,NumLimbDofs(arg1));
 DECLSEND_VA(BOOL,sendLimbVelocity,int,double,NumLimbDofs(arg1));
 DECLSEND_VA(BOOL,sendLimbEffort,int,double,NumLimbDofs(arg1));
 
+DECLSEND_VA(BOOL,setEndEffectorOffset,int,double,3);
 DECLSEND_V_RECV_AA(BOOL,getEndEffectorSensedTransform,int,double,9,double,3);
 DECLSEND_V_RECV_AA(BOOL,getEndEffectorSensedVelocity,int,double,3,double,3);
 DECLSEND_V_RECV_AA(BOOL,getEndEffectorCommandedTransform,int,double,9,double,3);

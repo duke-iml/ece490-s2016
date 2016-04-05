@@ -5,6 +5,7 @@ class MyControllerUpdateData : public ControllerUpdateData
 public:
   double lastSensorTime;
   virtual bool MyStartup() {
+    ScopedLock lock(mutex);
     if(!robotModel) {
       printf("Motion(Kinematic): Klamp't model is not provided, cannot start\n");
       return false;
@@ -78,6 +79,7 @@ public:
     return true;
   }
   virtual bool MyProcessSensors() {
+    ScopedLock lock(mutex);
     double dt = t - lastSensorTime;
     //limb sensors
     if(dt > 0) {
@@ -101,6 +103,7 @@ public:
     return true;
   }
   virtual void MySendCommands() {
+    ScopedLock lock(mutex);
     double dt = t - last_t;
     //advance limbs
     if(robotState.leftLimb.sendCommand) {
