@@ -38,7 +38,8 @@ class FullIntegrationMaster:
         self.Tcamera = se3.identity()
         self.Tvacuum = se3.identity()
         self.object_com = [0, 0, 0]
-        self.points = []
+        self.points1 = []
+	self.points2 = []
         self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 
         # Set up serial
@@ -81,13 +82,18 @@ class FullIntegrationMaster:
         gldraw.xform_widget(self.Tcamera,0.1,0.01)
 
         glPointSize(5.0)
-        glColor3b(0,0,1)
         glBegin(GL_POINTS)
-        for point in self.points[::100]:
-            transformed = se3.apply(self.Tcamera, point)
-            glVertex3f(transformed[0], transformed[1], transformed[2])
+        for point in self.points1[::25]:
+            glVertex3f(point[0], point[1], point[2])
         glEnd()
 
+	glColor3b(255,255,50)
+        glBegin(GL_POINTS)
+        for point in self.points2[::25]:
+            glVertex3f(point[0], point[1], point[2])
+        glEnd()
+
+	glPointSize(20.0)
         glColor3b(1,0,0);
         glBegin(GL_POINTS)
         glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
@@ -173,17 +179,28 @@ class FullIntegrationMaster:
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                     if perception.isCloudValid(cloud):
                         np_cloud = perception.convertPc2ToNp(cloud)
+
+			self.points1 = []
+			for point in np_cloud:
+				transformed = se3.apply(self.Tcamera, point)
+	 			self.points1.append(transformed)
+
                         np_cloud = perception.subtractShelf(np_cloud)
+			self.points2 = []
+			for point in np_cloud:
+				transformed = se3.apply(self.Tcamera, point)
+	 			self.points2.append(transformed)
+
                         # plane = perception.segmentationtest(np_cloud) # TODO chenyu is fixing
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
-                        time.sleep(234444)
+                        #time.sleep(234444)
                         if CALIBRATE:
                             self.calibrateCamera()
                         else:
                             if self.right_arm_ik(self.object_com):
                                 destination = self.robotModel.getConfig()
-                                motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
-                                motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
+                                #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
+                                #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
                                 motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                                 print planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
                                 self.state = 'DONE'
