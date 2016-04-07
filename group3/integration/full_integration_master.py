@@ -39,7 +39,7 @@ class FullIntegrationMaster:
         self.Tvacuum = se3.identity()
         self.object_com = [0, 0, 0]
         self.points1 = []
-	self.points2 = []
+        self.points2 = []
         self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 
         # Set up serial
@@ -78,23 +78,24 @@ class FullIntegrationMaster:
         self.loop()
 
     def drawStuff(self):
+        glDisable(GL_LIGHTING)
         gldraw.xform_widget(self.Tvacuum,0.1,0.01)
         gldraw.xform_widget(self.Tcamera,0.1,0.01)
 
         glPointSize(5.0)
+        glColor3f(0.0,0.0,1.0)
         glBegin(GL_POINTS)
         for point in self.points1[::25]:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
-	glColor3b(255,255,50)
         glBegin(GL_POINTS)
         for point in self.points2[::25]:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
-	glPointSize(20.0)
-        glColor3b(1,0,0);
+        glPointSize(20.0)
+        glColor3f(1.0,1.0,1.0)
         glBegin(GL_POINTS)
         glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
         glEnd()
@@ -151,6 +152,49 @@ class FullIntegrationMaster:
         except:
             print "input error\n"
 
+   
+    def motionPlanArm(self, start, goal, subset):
+    
+    #start = robot arm configuration
+    #end = end arm configuration
+
+    # subset - list of links to worry about collision
+    # 15-22 for left arm 
+    # 35-42 for right arm
+
+    # lock the wrist? 
+
+    collider = robotcollide.WorldCollider(self.world)
+    # make this global
+
+    #probably want to ignore collisions beteween other arm/links and the world to make things faster...
+    # comment copied from eariler ^
+
+    # all this stuff is local because we could use this for left arm or right arm
+    space = robotcspace.RobotSubsetCSpace(self.world.robot(0),subset,collider)
+    planner = cspace.MotionPlan(space, "rrt*")
+
+
+    #extract out cspace configurations
+
+    print "Goal config",goal
+    planner.setEndpoints(start,goal)
+    for iters in xrange(10000):
+        planner.planMore(1)
+        #make one iteration of planning
+        if planner.getPath() != None:
+        print "Planning succeeded"
+        cspacepath = planner.getPath()  
+        # get total path
+        #convert back to robot joint space
+        for qcspace in cspacepath:
+            # append total path in motion
+            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(qcspace))   
+        return True
+    return False
+
+
+
     def loop(self):
         try:
             while True:
@@ -180,16 +224,16 @@ class FullIntegrationMaster:
                     if perception.isCloudValid(cloud):
                         np_cloud = perception.convertPc2ToNp(cloud)
 
-			self.points1 = []
-			for point in np_cloud:
-				transformed = se3.apply(self.Tcamera, point)
-	 			self.points1.append(transformed)
+            self.points1 = []
+            for point in np_cloud:
+                transformed = se3.apply(self.Tcamera, point)
+                self.points1.append(transformed)
 
                         np_cloud = perception.subtractShelf(np_cloud)
-			self.points2 = []
-			for point in np_cloud:
-				transformed = se3.apply(self.Tcamera, point)
-	 			self.points2.append(transformed)
+            self.points2 = []
+            for point in np_cloud:
+                transformed = se3.apply(self.Tcamera, point)
+                self.points2.append(transformed)
 
                         # plane = perception.segmentationtest(np_cloud) # TODO chenyu is fixing
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
