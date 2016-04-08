@@ -14,16 +14,16 @@ from operator import itemgetter
 import pickle
 
 # these two go together usually
-FAKE_SIMULATION = 1
-SKIP_PATH_VIEWING = 1
+FAKE_SIMULATION = 0
+SKIP_PATH_VIEWING = 0
 
 SAVE_MOVE_TO_BIN_IK = 0
-SAVE_MOVE_TO_BIN_TRAJECTORY = 1
+SAVE_MOVE_TO_BIN_TRAJECTORY = 0
 
-SAVE_MOVE_SPATULA_TO_CENTER_TRAJECTORY = 1
+SAVE_MOVE_SPATULA_TO_CENTER_TRAJECTORY = 0
 
-SAVE_MOVE_GRIPPER_TO_CENTER_IK = 0
-SAVE_MOVE_GRIPPER_TO_CENTER_TRAJECTORY = 0
+SAVE_MOVE_GRIPPER_TO_CENTER_IK = 1
+SAVE_MOVE_GRIPPER_TO_CENTER_TRAJECTORY = 1
 
 SAVE_MOVE_GRIPPER_TO_ORDER_BIN_TRAJECTORY = 0
 
@@ -798,7 +798,7 @@ class PickingController:
                 print "loading the IK soluton to gripper center"
                 sortedSolutions = [loadFromFile("IK_Solutions/"+"gripper_to_center"), 0]
             else:
-                sortedSolutions = [self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)]
+                sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
             if len(sortedSolutions)==0:
                 continue
@@ -1064,7 +1064,7 @@ class PickingController:
                 sortedSolutions = [loadFromFile("IK_Solutions/"+bin_name), 0]
             else:
                 sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=1000,rangeVal=dist/2500)
-
+            print sortedSolutions
             if len(sortedSolutions)==0:
                 continue
 
@@ -1072,6 +1072,8 @@ class PickingController:
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
+                # print len(qcmd), len(solution[0])
+                # print solution[0], solution[0][0]
                 if ik_constraint==None:
                     path = self.planner.plan(qcmd,solution[0],'left', ignoreColShelfSpatula=ignoreColShelfSpatula)
                 else:

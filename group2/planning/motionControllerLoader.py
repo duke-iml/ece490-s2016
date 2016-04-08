@@ -376,6 +376,12 @@ class PickingController:
         # print "--> done\n"
         return True
 
+    def moveToRestConfig(self):
+        baxter_startup_config = self.robot.getConfig()
+        path = [baxter_startup_config, baxter_rest_config]
+        self.sendPath(path)
+
+
     def viewBinAction(self,b):
         self.waitForMove()
 
@@ -466,7 +472,7 @@ class PickingController:
                 self.waitForMove()
 
                 # method 1
-                for i in range(5):
+                for i in range(3):
                     self.tilt_wrist('up', step=2*(i+1))
                     self.waitForMove()
 
@@ -576,8 +582,12 @@ class PickingController:
             numSol = 0
             for solution in sortedSolutions:
                 numSol += 1
-                print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'left')
+                # print numSol, "solutions planned out of", len(sortedSolutions)
+                # path = self.planner.plan(qcmd,solution[0],'left')
+
+                path = [qcmd, solution[0]]
+
+
                 if path == 1 or path == 2 or path == False:
                     continue
                 elif path != None:
@@ -681,11 +691,14 @@ class PickingController:
             numSol = 0
             for solution in sortedSolutions:
                 numSol += 1
-                print numSol, "solutions planned out of", len(sortedSolutions)
-                if ik_constraint==None:
-                    path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula=ignoreColShelfSpatula)
-                else:
-                    path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
+                # print numSol, "solutions planned out of", len(sortedSolutions)
+                # if ik_constraint==None:
+                #     path = self.planner.plan(qcmd,solution[0],'left',ignoreColShelfSpatula=ignoreColShelfSpatula)
+                # else:
+                #     path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
+
+                path = [qcmd, solution[0]]
+
                 if path == 1 or path == 2 or path == False:
                     continue
                 elif path != None:
@@ -808,17 +821,18 @@ class PickingController:
         # print "Failed to plan path"
         # return False
 
-    def move_gripper_to_center(self):
+    def move_gripper_to_center(self, FROM_ORDER_BIN=1):
         self.waitForMove()
 
-        print "Loading gripper_to_center Trajectory..."
-        path = loaded_trajectory["gripper_to_center"]
-        if FAKE_SIMULATION:
-            self.controller.setMilestone(path[-1])
+        if FROM_ORDER_BIN:
+            print "Loading gripper_to_center Trajectory..."
+            path = loaded_trajectory["gripper_to_center"]
+            if FAKE_SIMULATION:
+                self.controller.setMilestone(path[-1])
+            else:
+                self.sendPath(path)
+            return True
         else:
-            self.sendPathClosedLoop(path)
-        return True
-
         # if LOAD_TRAJECTORY and not FAKE_SIMULATION:
         #     print "Loading Trajectory..."
         #     path = loaded_trajectory['gripper_to_center']
@@ -844,33 +858,32 @@ class PickingController:
         #     for i in range(100):
 
         #         # if LOAD_IK_SOLUTIONS:
-        #         #     sortedSolutions = loadFromFile("IK_Solutions/move_gripper_to_center")
+            sortedSolutions = [loadFromFile("IK_Solutions/gripper_to_center"),0]
         #         # else:
         #         #     sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
         #         sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
 
-        #         if len(sortedSolutions)==0:
-        #             continue
-
+            if len(sortedSolutions)==0:
+                print "Failed to plan path"
+                return False
         #         # prototyping hack: move straight to target
-        #         if FAKE_SIMULATION:
-        #             self.controller.setMilestone(sortedSolutions[0][0])
-        #             return True
+            if FAKE_SIMULATION:
+                self.controller.setMilestone(sortedSolutions[0][0])
+                return True
 
-        #         # else, if we want to path plan
-        #         else:
-        #             numSol = 0
-        #             for solution in sortedSolutions:
-        #                 numSol += 1
-        #                 print numSol, "solutions planned out of", len(sortedSolutions)
-        #                 path = self.planner.plan(qcmd,solution[0],'right')
-        #                 if path == 1 or path == 2 or path == False:
-        #                     break
-        #                 elif path != None:
-        #                     self.sendPath(path)
-        #                     return True
-        #     print "Failed to plan path"
-        #     return False
+            qcmd = self.controller.getCommandedConfig()
+            numSol = 0
+            for solution in sortedSolutions:
+                numSol += 1
+                print numSol, "solutions planned out of", len(sortedSolutions)
+                path = self.planner.plan(qcmd,solution[0],'right')
+                if path == 1 or path == 2 or path == False:
+                    break
+                elif path != None:
+                    self.sendPath(path)
+                    return True
+            print "Failed to plan path"
+            return False
         # else:
         #     print "no item in spatula"
         #     return False
@@ -882,7 +895,7 @@ class PickingController:
         if self.stateRight != 'holding':
             print "Not holding an object"
         else:
-            if self.move_gripper_to_center():
+            if self.move_gripper_to_center(FROM_ORDER_BIN=False):
                 self.waitForMove()
 
                 self.move_to_order_bin(self.held_object,step=1)
@@ -1095,43 +1108,12 @@ class PickingController:
             else:
                 self.sendPathClosedLoop(path)
             return True
+
+        # If we are backing off from bin to view camera
         else:
             print "Loading "+bin_name+" IK Solution..."
-        # self.robot.setConfig(self.controller.getCommandedConfig())
-
-        # if LOAD_TRAJECTORY and not FAKE_SIMULATION and self.current_bin == None:
-        #     print "Loading Trajectory..."
-        #     path = loaded_trajectory[bin_name]
-        #     # print path
-        #     self.sendPathClosedLoop(path)
-        #     return True
-
-        # R_shelf = knowledge.shelf_xform[0]
-        # R_camera = so3.mul(R_shelf, so3.rotation([1,0,0], math.pi))
-        # t_camera = knowledge.bin_vantage_point(bin_name)
-
-        # # Setup ik objectives for both arms
-        # # place +z in the +x axis, -y in the +z axis, and x in the -y axis
-        # left_goal = []
-        # left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-        # # left_goal.append(ik.objective(self.left_camera_link,R=R_camera,))
-        # limbs = ['left']
-        # qcmd = self.controller.getCommandedConfig()
-        # # qcmd = self.controller.getSensedConfig()
-        # dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
-
-        # # temporarily increase collision margin of shelf
-        # self.world.terrain(0).geometry().setCollisionMargin(colMargin)
 
             ik_constraint = None
-        # if ik_constrain:
-        #     ik_constraint = IKObjective()
-        #     ik_constraint.setLinks(55)
-        #     ik_constraint.setAxialRotConstraint([-1,0,0], [0,0,1])
-
-
-        # print "\nSolving for MOVE_CAMERA_TO_BIN (", bin_name, ")"
-        # for i in range(100):
             sortedSolutions = [loadFromFile("IK_Solutions/"+bin_name), 0]
 
             if len(sortedSolutions)==0:
@@ -1143,17 +1125,11 @@ class PickingController:
                 self.controller.setMilestone(sortedSolutions[0][0])
                 return True
 
-        #     # else, if we want to path plan
             qcmd = self.controller.getCommandedConfig()
             numSol = 0
             for solution in sortedSolutions:
                 numSol += 1
-                print numSol, "solutions planned out of", len(sortedSolutions)
-                if ik_constraint==None:
-                    path = self.planner.plan(qcmd,solution[0],'left', ignoreColShelfSpatula=ignoreColShelfSpatula)
-                else:
-                    path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
-
+                path = [qcmd, solution[0]]
                 if path == 1 or path == 2 or path == False:
                     break
                 elif path != None:
@@ -1221,65 +1197,6 @@ class PickingController:
         print "Failed to plan path"
         return False
 
-    def move_to_grasp_object_backup(self,object):
-        '''
-        This method considers the object orientation when grasping (for vacuum + parallel gripper)
-        '''
-        self.waitForMove()
-        self.robot.setConfig(self.controller.getCommandedConfig())
-
-        R_obj = object.randRt[0]
-        t_obj = object.randRt[1]
-
-        # object xform relative to world frame
-        objxform = se3.mul( self.left_gripper_link.getTransform() ,
-                            # object xform relative to gripper link =
-                            # gripper center xform relative to gripper link (X) obj xform relative to gripper center
-                            se3.mul(left_gripper_center_xform,
-                                    # object xform relative to gripper center xform
-                                    [so3.mul(R_obj, so3.rotation([1,0,0],math.pi/2)), t_obj] ))
-
-        # Two target poses, differ by 180 deg rotation
-        Rt1 = se3.mul(objxform ,se3.inv(right_gripper_center_xform))
-        Rt2 = [so3.mul(Rt1[0], so3.rotation([0,0,1],math.pi)), Rt1[1]]
-
-        # Setup ik objectives for both arms
-        right_goal = []
-        right_goal.append(ik.objective(self.right_gripper_link,R=Rt1[0],t=Rt1[1]))
-        right_goal.append(ik.objective(self.right_gripper_link,R=Rt2[0],t=Rt2[1]))
-
-        qcmd = self.controller.getCommandedConfig()
-        # qcmd = self.controller.getSensedConfig()
-        limbs = ['right','right']
-
-        print "\nSolving for GRASP_OBJECT"
-        for i in range(100):
-            sortedSolutions = self.get_ik_solutions(right_goal, limbs, qcmd, maxResults=100, maxIters=100)
-
-            if len(sortedSolutions)==0:
-                continue
-
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                self.controller.setMilestone(sortedSolutions[0][0])
-                return True
-
-            # else, if we want to path plan
-            else:
-                numSol = 0
-                for solution in sortedSolutions:
-                    numSol += 1
-                    print numSol, "solutions planned out of", len(sortedSolutions)
-                    path = self.planner.plan(qcmd,solution[0],'right')
-                    if path == 1 or path == 2 or path == False:
-                        break
-                    # elif path != None:
-                    else:
-                        self.sendPath(path)
-                        return True
-        print "Failed to plan path"
-        return False
-
     def move_to_order_bin(self,object,step):
         if step == 2:
             print "Loading move_to_order_bin Trajectory..."
@@ -1291,39 +1208,14 @@ class PickingController:
             return True
 
         elif step == 1:
-            # self.robot.setConfig(self.controller.getCommandedConfig())
-            # qcmd = self.controller.getCommandedConfig()
-
-            # R_obj = object.randRt[0]
-            # t_obj = object.randRt[1]
-
-            # # object xform relative to world frame
-            # objxform = se3.mul( self.left_gripper_link.getTransform() ,
-            #                     # object xform relative to gripper link =
-            #                     # gripper center xform relative to gripper link (X) obj xform relative to gripper center
-            #                     se3.mul(left_gripper_center_xform,
-            #                             # object xform relative to gripper center xform
-            #                             [so3.mul(R_obj, so3.rotation([1,0,0],math.pi/2)), t_obj] ))
-
-            # Rt = se3.mul(objxform ,se3.inv(right_gripper_center_xform))
-
-        # if step == 1:
-        #     target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.4])
-        #     placegoal = ik.objective(self.right_gripper_link,R=Rt[0],t=target)
-        # if step == 2:
-        #     # target = se3.apply(order_bin_xform,[0,0, order_bin_bounds[1][2]+0.1])
-        #     # placegoal = ik.objective(self.right_gripper_link,R=so3.rotation([0,1,0],math.pi),t=target)
-        #     for i in right_hand_geometry_indices+right_arm_geometry_indices:
-        #         qcmd[i] = baxter_rest_config[i]
-        #     self.controller.setMilestone(qcmd)
-        #     return True
-
             print "solving MOVE_TO_ORDER_BIN ..."
+            qcmd = self.controller.getCommandedConfig()
             for i in range(100):
                 # sortedSolutions = self.get_ik_solutions([placegoal],['right'],qcmd,tol=1e-2, maxIters=100, maxResults = 100)
                 sortedSolutions = [loadFromFile("IK_Solutions/gripper_to_center"), 0]
 
                 if len(sortedSolutions)==0:
+                    print "Failed to plan path"
                     continue
 
                 # prototyping hack: move straight to target
@@ -1332,18 +1224,18 @@ class PickingController:
                     return True
 
                 # else, if we want to path plan
-                else:
-                    numSol = 0
-                    for solution in sortedSolutions:
-                        numSol+=1
-                        path = self.planner.plan(qcmd,solution[0],'right')
-                        if path == 1 or path == 2 or path == False:
-                            if path==1:
-                                break
-                        elif path != None:
-                            self.waitForMove()
-                            self.sendPath(path)
-                            return True
+                numSol = 0
+                for solution in sortedSolutions:
+                    numSol+=1
+                    print numSol, "solutions planned out of", len(sortedSolutions)
+                    path = self.planner.plan(qcmd,solution[0],'right')
+                    if path == 1 or path == 2 or path == False:
+                        if path==1:
+                            break
+                    elif path != None:
+                        self.waitForMove()
+                        self.sendPath(path)
+                        return True
             print "Planning failed"
             return False
 
@@ -1508,6 +1400,8 @@ def run_controller(controller,command_queue):
             print "Running command",c
             if c >= 'a' and c <= 'l':
                 controller.viewBinAction('bin_'+c.upper())
+            elif c == 'r':
+                controller.moveToRestConfig()
             elif c == 'x':
                 controller.graspAction()
             elif c == 'u':
@@ -1536,11 +1430,6 @@ def run_controller(controller,command_queue):
                 controller.move_spatula_to_center()
             elif c == 'm':
                 controller.move_gripper_to_center()
-            elif c == 'r':
-                var = raw_input("Please enter trajectory file name : ")
-                print "Running recorded trajectory... (", var, ")"
-                controller.readFromTrajectoryFile(var)
-                # controller.readFromTrajectoryFile('testConfigOutput.txt')
             elif c == '`':
                 global config
                 config = (not config)
@@ -1940,8 +1829,24 @@ if __name__ == "__main__":
     if len(baxter_rest_config) < n:
         baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
         print "# links in rest_config < # links in robot"
-    simWorld.robot(0).setConfig(baxter_rest_config)
-    world.robot(0).setConfig(baxter_rest_config)
+
+    # simWorld.robot(0).setConfig(baxter_rest_config)
+    # world.robot(0).setConfig(baxter_rest_config)
+
+    # load the resting configuration from klampt_models/baxter_rest.config
+    global baxter_startup_config
+    f = open(model_dir+'baxter_rest.config','r')
+    baxter_startup_config = loader.readVector(f.readline())
+    f.close()
+
+    # Add initial joint values to additional joints
+    n = world.robot(0).numLinks()
+    if len(baxter_startup_config) < n:
+        baxter_startup_config += [0.0]*(n-len(baxter_rest_config))
+        print "# links in rest_config < # links in robot"
+
+    simWorld.robot(0).setConfig(baxter_startup_config)
+    world.robot(0).setConfig(baxter_startup_config)
 
     # set spatula center point (comes from baxter rest config)
     knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
