@@ -1842,7 +1842,7 @@ if __name__ == "__main__":
     # Add initial joint values to additional joints
     n = world.robot(0).numLinks()
     if len(baxter_startup_config) < n:
-        baxter_startup_config += [0.0]*(n-len(baxter_rest_config))
+        baxter_startup_config += [0.0]*(n-len(baxter_startup_config))
         print "# links in rest_config < # links in robot"
 
     simWorld.robot(0).setConfig(baxter_startup_config)

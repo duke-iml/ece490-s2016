@@ -1583,7 +1583,7 @@ class MyGLViewer(GLRealtimeProgram):
         if FAKE_SIMULATION:
             self.low_level_controller = FakeLowLevelController(simworld.robot(0),self.sim.controller(0))
         else:
-            self.low_level_controller =     LowLevelController(simworld.robot(0),self.sim.controller(0))
+            self.low_level_controller = LowLevelController(simworld.robot(0),self.sim.controller(0))
         self.command_queue = Queue()
 
         # visualize world model
@@ -1947,7 +1947,6 @@ if __name__ == "__main__":
     f = open(model_dir+'baxter_new_spatula_rest2.config','r')
     baxter_rest_config = loader.readVector(f.readline())
     f.close()
-
     # Add initial joint values to additional joints
     n = world.robot(0).numLinks()
     if len(baxter_rest_config) < n:
@@ -1955,9 +1954,10 @@ if __name__ == "__main__":
         print "# links in rest_config < # links in robot"
     simWorld.robot(0).setConfig(baxter_rest_config)
     world.robot(0).setConfig(baxter_rest_config)
+    
 
     # set spatula center point (comes from baxter rest config)
-    knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
+    # knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
 
     if LOAD_TRAJECTORY:
         print "Loading precomputed trajectories... (this may take a while)"
@@ -1969,7 +1969,7 @@ if __name__ == "__main__":
             loaded_trajectory[bin_name] = loadFromFile("Trajectories/"+str(bin_name))
             loaded_trajectory[bin_name+"_spatula_to_center"] = loadFromFile("Trajectories/"+str(bin_name)+"_spatula_to_center")
         loaded_trajectory['gripper_to_center'] = loadFromFile("Trajectories/gripper_to_center")
-
+    
     #run the visualizer
     visualizer = MyGLViewer(simWorld,world)
     myCameraSettings(visualizer)
