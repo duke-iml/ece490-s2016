@@ -1,0 +1,10 @@
+CMakeFiles
+CMakeCache.txt
+Makefile
+*.cmake
+*.so
+RealSense_ROS_Emitter
+RealSense_ROS_Emitter_PCL
+ComplicatedRGBVisualizer
+Kinect2_ROS_Emitter
+Makefile
