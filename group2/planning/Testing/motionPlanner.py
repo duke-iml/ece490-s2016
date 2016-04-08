@@ -142,8 +142,10 @@ class LimbPlanner:
         armfilter = None
         if limb=='left':
             collindices = set(left_arm_geometry_indices+left_hand_geometry_indices)
+            # collindices = set(self.left_arm_indices)
         else:
             collindices = set(right_arm_geometry_indices+right_hand_geometry_indices)
+        #print "collindices", collindices
         armfilter = lambda x:isinstance(x,RobotModelLink) and (x.index in collindices)
 
         ignoreList = ["Amazon_Picking_Shelf", "bin_"]
@@ -152,7 +154,10 @@ class LimbPlanner:
 
         #check with objects in world model
         for o1,o2 in self.collider.collisionTests(armfilter,lambda x:True):   # NOTE: what is bb_reject??
-            # print "Collision Test: Collision between",o1[0].getName(),o2[0].getName()
+            #print "Collision Test: Collision between",o1[0].getName(),o2[0].getName()
+            #print "Collision Test: Collision for ",o2[0].getName()
+            #print o1[0].index, o2[0].index
+
             if o1[0].getName()[0:3] in ignoreList and o2[0].index in spatulaIgnoreList:
                 # print "ignoring collision between shelf and spautla"
                 continue
@@ -169,24 +174,30 @@ class LimbPlanner:
                     assert obj.info.geometry != None
                     if o1[1].collides(obj.info.geometry):
                         continue
+            if (o1[0].index == 15 and o2[0].index == 33) or (o2[0].index == 15 and o1[0].index == 33):
+                continue
+            if (o1[0].index == 35 and o2[0].index == 33) or (o2[0].index == 35 and o1[0].index == 33):
+                continue
 
             if o1[1].collides(o2[1]):
-                # print "Collision between",o1[0].getName(),o2[0].getName()
+                print "Collision between",o1[0].getName(),o2[0].getName()
+                print "Collision between",o1[0].index,o2[0].index
+
                 return False
 
         return True
 
     def rebuild_dynamic_objects(self):
-        self.dynamic_objects = []
-        #check with objects in knowledge
-        for (k,objList) in self.knowledge.bin_contents.iteritems():
-            if objList == None:
-                #not sensed
-                continue
-            for item in objList:
-                assert item.info.geometry != None
-                item.info.geometry.setCurrentTransform(*item.xform)
-                self.dynamic_objects.append(item)
+        # self.dynamic_objects = []
+        # #check with objects in knowledge
+        # for (k,objList) in self.knowledge.bin_contents.iteritems():
+        #     if objList == None:
+        #         #not sensed
+        #         continue
+        #     for item in objList:
+        #         assert item.info.geometry != None
+        #         item.info.geometry.setCurrentTransform(*item.xform)
+        #         self.dynamic_objects.append(item)
         return
 
     def check_limb_collision_free(self,limb,limbconfig):
@@ -226,9 +237,10 @@ class LimbPlanner:
         plan = MotionPlan(cspace)
 
         plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 20
+        # maxPlanIters = 20
+        # maxSmoothIters = 100
+        maxPlanIters = 10
         maxSmoothIters = 100
-
         print "  Planning.",
         for iters in xrange(maxPlanIters):
             # print iters
@@ -321,11 +333,10 @@ class LimbPlanner:
         if printer:
             print "starting config: ", qstart
             print "goal config: ", qgoal
-
-        self.world.terrain(0).geometry().setCollisionMargin(0.075)
+        self.world.terrain(0).geometry().setCollisionMargin(0.05)
 
         cspace = robotcspace.ClosedLoopRobotCSpace(self.robot, iks, self.collider)
-        cspace.eps = 1e-1
+        cspace.eps = 1e-3
         cspace.setup()
 
         configs=[]
@@ -369,7 +380,8 @@ class LimbPlanner:
             self.pathToDraw = path
 
             #the path is currently a set of milestones: discretize it so that it stays near the contact surface
-            path = cspace.discretizePath(path,epsilon=1e-4)
+            path = cspace.discretizePath(path,epsilon=1e-2)
+            # path = cspace.discretizePath(path,epsilon=1e-4)
             wholepath += path[1:]
 
             #to be nice to the C++ module, do this to free up memory

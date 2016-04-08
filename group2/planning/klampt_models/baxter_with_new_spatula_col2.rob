@@ -147,7 +147,7 @@ noselfcollision	39 42
 #noselfcollision 15 31  16 31 17 31 18 31  19 30  19 31 21 30  22 30   35 51  36 51 37 51   38 51  39 50  39 51 41 50  42 50
 
 noselfcollision 6 8  7 8  18 31  19 30  21 30  23 54  38 51  39 50  41 50  43 58  15 17  19 31  22 30  35 37  39 51  42 50
-noselfcollision 55 59 55 60  56 59 56 60  57 59  57 60
+noselfcollision 55 59 55 60  56 59 56 60  57 59  57 60  15 33
 #noselfcollision 7 18 7 31
 
 

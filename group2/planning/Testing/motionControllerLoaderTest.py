@@ -46,6 +46,8 @@ NO_SIMULATION_COLLISIONS = 1
 FAKE_SIMULATION = 0
 PHYSICAL_SIMULATION = 1
 
+SPEED = 8
+
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
 
@@ -328,16 +330,16 @@ class FakeLowLevelController:
 
 class PhysicalLowLevelController(LowLevelController):
     """A low-level controller for the real robot."""
-    def __init__(self,robotModel,klampt_model="baxter_with_new_spatula_col.rob"):
+    def __init__(self,robotModel,klampt_model="baxter_with_new_spatula_col2.rob"):
         print "Setting up motion_physical library with model",klampt_model
         #motion.setup(klampt_model = "../klampt_models/"+klampt_model)
-        motion.setup(mode="physical",libpath="", klampt_model = klampt_model)
+        #motion.setup(mode="physical",libpath="", klampt_model = klampt_model)
         #self.left_arm_indices = [robotModel.getLink(i).index for i in baxter.left_arm_link_names]
         #self.right_arm_indices = [robotModel.getLink(i).index for i in baxter.right_arm_link_names]
         self.left_arm_indices = left_arm_geometry_indices + left_hand_geometry_indices
         self.right_arm_indices = right_arm_geometry_indices + right_hand_geometry_indices       
-        if not motion.robot.startup():
-            raise RuntimeError("Robot could not be started")
+        #if not motion.robot.startup():
+        #    raise RuntimeError("Robot could not be started")
             
         motion.robot.left_limb.enableSelfCollisionAvoidance(True)
         motion.robot.right_limb.enableSelfCollisionAvoidance(True)
@@ -377,16 +379,22 @@ class PhysicalLowLevelController(LowLevelController):
     def setMilestone(self,destination,endvelocity=None):
         #if not motion.robot.left_mq.setRamp([destination[v] for v in self.left_arm_indices]): raise RuntimeError()
         #if not motion.robot.right_mq.setRamp([destination[v] for v in self.right_arm_indices]): raise RuntimeError()
+
         #new debounced code
-        motion_debouncer.send_debounced_motion_command(motion,'left',[destination[v] for v in self.left_arm_indices],append=False)
-        motion_debouncer.send_debounced_motion_command(motion,'right',[destination[v] for v in self.right_arm_indices],append=False)
+        #motion_debouncer.send_debounced_motion_command(motion,'left',[destination[v] for v in self.left_arm_indices],append=False)
+        #motion_debouncer.send_debounced_motion_command(motion,'right',[destination[v] for v in self.right_arm_indices],append=False)
+        
+        self.setConfig(destination,endvelocity)
         return True        
     def appendMilestone(self,destination,endvelocity=None):
         #if not motion.robot.left_mq.appendRamp([destination[v] for v in self.left_arm_indices]): raise RuntimeError()
         #if not motion.robot.right_mq.appendRamp([destination[v] for v in self.right_arm_indices]): raise RuntimeError()
+        
         #new debounced code
-        motion_debouncer.send_debounced_motion_command(motion,'left',[destination[v] for v in self.left_arm_indices],append=True)
-        motion_debouncer.send_debounced_motion_command(motion,'right',[destination[v] for v in self.right_arm_indices],append=True)
+        #motion_debouncer.send_debounced_motion_command(motion,'left',[destination[v] for v in self.left_arm_indices],append=True)
+        #motion_debouncer.send_debounced_motion_command(motion,'right',[destination[v] for v in self.right_arm_indices],append=True)
+        
+        self.appendConfig(destination,endvelocity)
         return True      
     def setLinear(self,destination,dt=0.1):
         self.setConfig(destination,dt)
@@ -395,22 +403,25 @@ class PhysicalLowLevelController(LowLevelController):
     def isMoving(self):
         return motion.robot.moving()
     def remainingTime(self):
-        return max(motion.robot.left_mq.moveTime(),motion.robot.right_mq.moveTime())
-    def commandGripper(self,limb,command):
-        if limb=="left":
-            if command==[0]:
-                motion.robot.left_gripper.close()
-            elif command==[1]:
-                motion.robot.left_gripper.open()
-            else:
-                motion.robot.left_gripper.command(command,[1]*len(command),[1]*len(command))
-        else:
-            if command==[0]:
-                motion.robot.right_gripper.close()
-            elif command==[1]:
-                motion.robot.right_gripper.open()
-            else:
-                motion.robot.right_gripper.command(command,[1]*len(command),[1]*len(command))
+        return max(motion.robot.left_mq.moveTime(),motion.robot.right_mq.moveTime())   
+    def commandGripper(self,limb,command,spatulaPart = None):
+        return 
+        # Communication with arduino 
+
+        #if limb=="left":
+        #    if command==[0]:
+        #        motion.robot.left_gripper.close()
+        #    elif command==[1]:
+        #        motion.robot.left_gripper.open()
+        #    else:
+        #        motion.robot.left_gripper.command(command,[1]*len(command),[1]*len(command))
+        #else:
+        #    if command==[0]:
+        #        motion.robot.right_gripper.close()
+        #    elif command==[1]:
+        #        motion.robot.right_gripper.open()
+        #    else:
+        #        motion.robot.right_gripper.command(command,[1]*len(command),[1]*len(command))
 
 class PickingController:
     def __init__(self,world,robotController):
@@ -691,7 +702,7 @@ class PickingController:
                     for i in range(len(path)):
                         if vectorops.distance(qcmd, path[i]) > 0.05:
                             return False
-                    self.sendPath(path)
+                    self.sendPath(path, INCREMENTAL = True)
                     return True
         # print "Failed to plan path"
         self.robot.setConfig(currConfig)
@@ -700,7 +711,7 @@ class PickingController:
     def tilt_wrist(self,direction, step=0, ignoreColShelfSpatula = True):
         self.waitForMove()
         self.world.terrain(0).geometry().setCollisionMargin(0)
-        self.robot.setConfig(self.controller.getCommandedConfig())
+        #self.robot.setConfig(self.controller.getCommandedConfig())
 
         bin_name = self.current_bin
         world_center = knowledge.bin_front_center(bin_name)
@@ -724,9 +735,6 @@ class PickingController:
                 print "tilting down (tilt-wrist part 1)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=self.left_camera_link.getTransform()[1]))
                 maxSmoothIters=0
-                print R_camera
-                print self.left_camera_link.getTransform()[1]
-                self.frames.append((R_camera, self.left_camera_link.getTransform()[1]))
 
             elif step == 2:
                 print "moving up/side (tilt-wrist part 2)"
@@ -767,7 +775,7 @@ class PickingController:
             ignoreColShelfSpatula = True
 
         limbs = ['left']
-
+        qcmd = self.controller.getCommandedConfig()
         print "Solving for TILT_WRIST (", direction,")"
         for i in range(50):
 
@@ -1116,6 +1124,10 @@ class PickingController:
                     q[j] = random.uniform(max(qmin[j],center[j]-rangeVal),min(qmax[j],center[j]+rangeVal))
             self.robot.setConfig(q)
 
+        #R = self.left_camera_link.getTransform()[0]
+        #t = self.left_camera_link.getTransform()[1]
+        #self.frames.append((R,t))
+        
         # for i in range(len(q)):
         #     inv = (so3.inv(self.robot.link(i).getTransform()[0]), 5)
         #     transpose = (self.robot.link(i).getTransform()[0], 5)
@@ -1167,6 +1179,8 @@ class PickingController:
             #print self.robot.getConfig()
             if ik.solve(goal,tol=tol):
                 numSolutions[index] += 1
+                #print "validity checker(limb) = ",
+                validity_checker(limb)
                 if validity_checker(limb):
                     numColFreeSolutions[index] += 1
                     ikSolutions.append((self.robot.getConfig(),index))
@@ -1338,7 +1352,7 @@ class PickingController:
             print "Planning failed"
             return False
 
-    def sendPath(self,path,maxSmoothIters = 0):
+    def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False):
         for smoothIter in range(maxSmoothIters):
             # path = path
             smoothePath = [0]*(len(path)*2-1)
@@ -1358,13 +1372,44 @@ class PickingController:
 
         self.controller.setMilestone(path[0])
 
+        counter = 0
         for q in path[1:]:
             for i in [23,30,31,43,50,51,54]:
                 # print i, qmin[i], q[i], qmax[i]
                 q[i] = 0
             q = self.clampJointLimits(q,qmin,qmax)
-            self.controller.controller.setVelocity([1]*61,0.1)
-            self.controller.appendMilestone(q)
+
+
+
+
+        # clean up trajectory by skipping configurations where the spatula isn't parallel to ground
+        i = 0
+        endIndex = len(path)
+        counter = 0
+        while i < endIndex-1:
+            # print i, endIndex
+            q = path[i]
+            qNext = path[i+1]
+            dt = vectorops.distance(q,qNext)
+
+            # smooth trajectory by interpolating between two consecutive configurations
+            # if the distance between the two is big
+            if dt>0.01:
+                qInterp = vectorops.div(vectorops.add(q, qNext), 2)
+                path.insert(i+1, qInterp)
+                endIndex +=1
+                continue
+            else:
+                i += 1
+                self.waitForMove()
+                if not PHYSICAL_SIMULATION:
+                    self.controller.controller.setVelocity([1]*61,0.1)
+                if counter%SPEED == 0 or INCREMENTAL:
+                    self.controller.appendMilestone(q)
+                counter +=1
+        # print "pathlength ending =",endIndex
+        self.waitForMove()
+
 
     def sendPathClosedLoop(self,path):
         # print "pathlength starting =", len(path)
@@ -1401,6 +1446,7 @@ class PickingController:
         u = vectorops.sub(p1,p0)    # x-axis of spatula base (-z axis in world frame)
         # print u[2]
 
+        counter = 0
         while i < endIndex-1:
             # print i, endIndex
             q = path[i]
@@ -1429,7 +1475,9 @@ class PickingController:
             else:
                 i += 1
                 self.waitForMove()
-                self.controller.appendLinear(q,dt*3)
+                if counter%SPEED == 0:
+                    self.controller.appendLinear(q,dt*3)
+                counter += 1
         # print "pathlength ending =",endIndex
         self.waitForMove()
 
