@@ -142,6 +142,7 @@ class LimbPlanner:
         armfilter = None
         if limb=='left':
             collindices = set(left_arm_geometry_indices+left_hand_geometry_indices)
+            # collindices = set(self.left_arm_indices)
         else:
             collindices = set(right_arm_geometry_indices+right_hand_geometry_indices)
         armfilter = lambda x:isinstance(x,RobotModelLink) and (x.index in collindices)
@@ -177,16 +178,16 @@ class LimbPlanner:
         return True
 
     def rebuild_dynamic_objects(self):
-        self.dynamic_objects = []
-        #check with objects in knowledge
-        for (k,objList) in self.knowledge.bin_contents.iteritems():
-            if objList == None:
-                #not sensed
-                continue
-            for item in objList:
-                assert item.info.geometry != None
-                item.info.geometry.setCurrentTransform(*item.xform)
-                self.dynamic_objects.append(item)
+        # self.dynamic_objects = []
+        # #check with objects in knowledge
+        # for (k,objList) in self.knowledge.bin_contents.iteritems():
+        #     if objList == None:
+        #         #not sensed
+        #         continue
+        #     for item in objList:
+        #         assert item.info.geometry != None
+        #         item.info.geometry.setCurrentTransform(*item.xform)
+        #         self.dynamic_objects.append(item)
         return
 
     def check_limb_collision_free(self,limb,limbconfig):
@@ -226,9 +227,10 @@ class LimbPlanner:
         plan = MotionPlan(cspace)
 
         plan.setEndpoints(limbstart,limbgoal)
-        maxPlanIters = 20
+        # maxPlanIters = 20
+        # maxSmoothIters = 100
+        maxPlanIters = 10
         maxSmoothIters = 100
-
         print "  Planning.",
         for iters in xrange(maxPlanIters):
             # print iters
@@ -321,11 +323,10 @@ class LimbPlanner:
         if printer:
             print "starting config: ", qstart
             print "goal config: ", qgoal
-
-        self.world.terrain(0).geometry().setCollisionMargin(0.075)
+        self.world.terrain(0).geometry().setCollisionMargin(0.05)
 
         cspace = robotcspace.ClosedLoopRobotCSpace(self.robot, iks, self.collider)
-        cspace.eps = 1e-1
+        cspace.eps = 1e-3
         cspace.setup()
 
         configs=[]
@@ -369,7 +370,8 @@ class LimbPlanner:
             self.pathToDraw = path
 
             #the path is currently a set of milestones: discretize it so that it stays near the contact surface
-            path = cspace.discretizePath(path,epsilon=1e-4)
+            path = cspace.discretizePath(path,epsilon=1e-2)
+            # path = cspace.discretizePath(path,epsilon=1e-4)
             wholepath += path[1:]
 
             #to be nice to the C++ module, do this to free up memory
