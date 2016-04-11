@@ -46,30 +46,73 @@ class Bumper:
         res = world.readFile(klampt_model)
         if not res:
             raise RuntimeError("Unable to load Klamp't model", klampt_model)
-        #self.robotPoser = RobotPoser(world.robot(0))
         self.kRobot = world.robot(0)
         self.pRobot = motion.robot
 
+    ##
+    # @brief Returns the coordinates of the left arm (x, y, z)
+    #
+    # @return the coordinates
+    ##
     def getLeftArmCoords(self):
         return self.kRobot.link("left_wrist").getWorldPosition((0,0,0))
 
+    ##
+    # @brief Returns the coordinates of the right arm (x, y, z)
+    #
+    # @return the coordinates
+    ##
     def getRightArmCoords(self):
         return self.kRobot.link("right_wrist").getWorldPosition((0,0,0))
 
+    ##
+    # @brief Bumps the left arm to the specified coordinates (in end effector coordinates)
+    #
+    # This function is the basis of the bumper and is responsible for moving the end effector
+    # a specific amount in a specified direction, given by the coords parameter
+    #
+    # @param The coordinates to move to (in relative coordinates)
+    ##
     def bumpLeft(self, coords):
         config = map(add, coords, self.getLeftArmCoords())
         self.moveLeftArmTo(config)
 
+    ##
+    # @brief Bumps the right arm to the specified coordinates (in end effector coordinates)
+    #
+    # This function is the basis of the bumper and is responsible for moving the end effector
+    # a specific amount in a specified direction, given by the coords parameter
+    #
+    # @param The coordinates to move to (in relative coordinates)
+    ##
     def bumpRight(self, coords):
         config = map(add, coords, self.getRightArmCoords())
         self.moveRightArmTo(config)
 
+    ##
+    # @brief Moves the right arm to the specified coordinates
+    #
+    # @param The coordinates to move to
+    ##
     def moveRightArmTo(self, coords):
         self.iksolve(coords, self.kRobot.link("right_wrist"), self.pRobot.right_limb, self.pRobot.right_mq)
 
+    ##
+    # @brief Moves the left arm to the specified coordinates
+    #
+    # @param The coordinates to move to
+    ##
     def moveLeftArmTo(self, coords):
         self.iksolve(coords, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
 
+    ##
+    # @brief Performs IK on a position and moves baxter there
+    #
+    # @param config The world coordinates to perform IK on
+    # @param kEE The Kinematic end effector
+    # @param pEE The Physical end effector
+    # @param mq The motion queue for the particular end effector
+    ##
     def iksolve(self, config, kEE, pEE, mq):
         goal = ik.objective(kEE,local=(0,0,0), world=config)
         q = self.pRobot.getKlamptSensedPosition()
@@ -81,6 +124,11 @@ class Bumper:
         else:
             print "failed. Residual:", ik.solver(goal).getResidual()
 
+##
+# @brief Command line tester function
+#
+# @param bump a Bumper object
+##
 def run(bump):
         while True:
             command = raw_input("Command: ")
@@ -104,6 +152,9 @@ def run(bump):
             else:
                 print "Unknown command"
 
+##
+# @brief Main method.  Creates a Bumper and runs the test method run()
+##
 if __name__ == "__main__":
     global robotPoser
     print "bump.py: bumps the robot arm a specified distance"
