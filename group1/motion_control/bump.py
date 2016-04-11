@@ -22,7 +22,15 @@ from operator import add
 # motion.robot.right_planner = LimbPlanner(RIGHT)
 # motion.robot.arms_planner = LimbPlanner(BOTH)
 
+##
+# @brief Bumper a class that will bump the robot arm to a point
+# in space relative to world coordinates or current end effector
+# coordinates
+##
 class Bumper:
+    ##
+    # @brief Constructor
+    #
     def __init__(self):
         klampt_model = "common/klampt_models/baxter_col.rob"
         mode = "client"
@@ -41,33 +49,6 @@ class Bumper:
         #self.robotPoser = RobotPoser(world.robot(0))
         self.kRobot = world.robot(0)
         self.pRobot = motion.robot
-
-    def run(self):
-        while True:
-            command = raw_input("Command: ")
-            l = pRobot.left_limb.sensedPosition()
-            r = pRobot.right_limb.sensedPosition()
-            q = pRobot.getKlamptSensedPosition()
-            kRobot.setConfig(q)
-            if command == 'q':
-                exit(0)
-            elif command == 'c':
-                print "right:", getRightArmCoords()
-                print "left:", getLeftArmCoords()
-            elif command[0] == 'l':
-                moveLeftArmTo(make_tuple(command[1:]))
-            elif command[0] == 'r':
-                moveRightArmTo(make_tuple(command[1:]))
-            elif command[0] == 'b':
-                coords = make_tuple(command[2:])
-                if command[1] =='r':
-                    bumpRight(coords)
-                elif command[1] =='l':
-                    bumpLeft(coords)
-                else:
-                    print "Unknown command"
-            else:
-                print "Unknown command"
 
     def getLeftArmCoords(self):
         return self.kRobot.link("left_wrist").getWorldPosition((0,0,0))
@@ -100,10 +81,32 @@ class Bumper:
         else:
             print "failed. Residual:", ik.solver(goal).getResidual()
 
+def run(bump):
+        while True:
+            command = raw_input("Command: ")
+            if command == 'q':
+                exit(0)
+            elif command == 'c':
+                print "right:", bump.getRightArmCoords()
+                print "left:", bump.getLeftArmCoords()
+            elif command[0] == 'l':
+                bump.moveLeftArmTo(make_tuple(command[1:]))
+            elif command[0] == 'r':
+                bump.moveRightArmTo(make_tuple(command[1:]))
+            elif command[0] == 'b':
+                coords = make_tuple(command[2:])
+                if command[1] =='r':
+                    bump.bumpRight(coords)
+                elif command[1] =='l':
+                    bump.bumpLeft(coords)
+                else:
+                    print "Unknown command"
+            else:
+                print "Unknown command"
 
 if __name__ == "__main__":
     global robotPoser
     print "bump.py: bumps the robot arm a specified distance"
     print
     bump = Bumper()
-    bump.run()
+    run(bump)
