@@ -63,3 +63,11 @@ group3/data
 group4/data
 group5/data
 group6/data
+
+# Mac DS Store
+.DS_Store
+._.DS_Store
+
+# Images
+*.png
+*.jpg
