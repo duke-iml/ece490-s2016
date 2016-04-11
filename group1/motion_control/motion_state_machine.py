@@ -14,16 +14,19 @@ joint_reader_utility - provided the files are named correctly when using the joi
 no need to change the code in this class
 
 Shelf diagram:
-----------------------------------------
-|Shelf 1 | Shelf 2 | Shelf 3 | Shelf 4 | -> Row 1
-|        |         |         |         |
-----------------------------------------
-|Shelf 5 | Shelf 6 | Shelf 7 | Shelf 8 | -> Row 2
-|        |         |         |         |
-----------------------------------------
-|Shelf 9 | Shelf 10| Shelf 11| Shelf 12| -> Row 3
-|        |         |         |         |
-----------------------------------------
+------------------------------
+|Shelf 1 | Shelf 2 | Shelf 3 | -> Row 1
+|        |         |         |
+------------------------------
+|Shelf 4 | Shelf 5 | Shelf 6 | -> Row 2
+|        |         |         |
+------------------------------
+|Shelf 7 | Shelf 8 | Shelf 9 | -> Row 3
+|        |         |         |
+------------------------------
+|Shelf 10| Shelf 11| Shelf 12| -> Row 4
+|        |         |         |
+------------------------------
 
 Motion State Machine API:
     load_configs():
@@ -64,19 +67,21 @@ Dennis Lynch
 class motion_state_machine:
 
     # The default intilization method for the motion state machine class
-    def __init__:
+    def __init__(self):
         # Initializes a ROS node to use baxter commands
         rospy.init_node('motion_state_machine_node')
         
         # Load configurations into appropriate variable names
-        load_configs()
+        self.load_configs()
 
         # Assign Baxter's limbs to variables
+        global right_limb
+        global left_limb
         right_limb = baxter_interface.Limb('right')
         left_limb = baxter_interface.Limb('left')
 
 
-    def load_configs():
+    def load_configs(self):
         # Define the global variables used by the motion functions
         # The tote
         global bin_right
@@ -87,6 +92,8 @@ class motion_state_machine:
         global rbin_inter_r2_b
         global rbin_inter_r3_a
         global rbin_inter_r3_b
+        global rbin_inter_r4_a
+        global rbin_inter_r4_b
         # The generalized center points for each of the twelve shelves
         global rbin_shelf_1
         global rbin_shelf_2
@@ -122,6 +129,12 @@ class motion_state_machine:
 
         with open("state_json_files/rbin_inter_r3_b.json") as file:
             rbin_inter_r3_b = json.load(file)
+
+        with open("state_json_files/rbin_inter_r4_a.json") as file:
+            rbin_inter_r4_a = json.load(file)
+
+        with open("state_json_files/rbin_inter_r4_b.json") as file:
+            rbin_inter_r4_b = json.load(file)
 
         with open("state_json_files/rbin_shelf_1.json") as file:
             rbin_shelf_1 = json.load(file)
@@ -161,73 +174,84 @@ class motion_state_machine:
 
     # Begins a move from the tote to a specific row configuration - This will NOT bring the arm right
     # up to the generalized center-point for a shelf, but a generalized location for a particular row
-    def start_move_to_config(row):
+    def start_move_to_config(self, row):
         if row==1:
             right_limb.move_to_joint_positions(rbin_inter_r1_a)
             right_limb.move_to_joint_positions(rbin_inter_r1_b)
         elif row==2:
             right_limb.move_to_joint_positions(rbin_inter_r2_a)
             right_limb.move_to_joint_positions(rbin_inter_r2_b)
-        else:
+        elif row==3:
             right_limb.move_to_joint_positions(rbin_inter_r3_a)
             right_limb.move_to_joint_positions(rbin_inter_r3_b)
+        else:
+            right_limb.move_to_joint_positions(rbin_inter_r4_a)
+            right_limb.move_to_joint_positions(rbin_inter_r4_b)
 
     # Completes a full move from a particular shelf to the tote.  Need to only define the row, however,
     # as every shelf on a particular row shares the same intermediate positions before going to the
     # single tote
-    def move_to_bin_from_config(row):
+    def move_to_bin_from_config(self, row):
+        print "Moving to the bin from the config"
         if row==1:
             right_limb.move_to_joint_positions(rbin_inter_r1_b)
             right_limb.move_to_joint_positions(rbin_inter_r1_a)
             right_limb.move_to_joint_positions(bin_right)
         elif row==2:
+            print "Moving to the intermediate b"
+            print rbin_inter_r2_b
             right_limb.move_to_joint_positions(rbin_inter_r2_b)
+            print "Moving to the intermediate a"
             right_limb.move_to_joint_positions(rbin_inter_r2_a)
             right_limb.move_to_joint_positions(bin_right)
-        else:
+        elif row==3:
             right_limb.move_to_joint_positions(rbin_inter_r3_b)
             right_limb.move_to_joint_positions(rbin_inter_r3_a)
+            right_limb.move_to_joint_positions(bin_right)
+        else:
+            right_limb.move_to_joint_positions(rbin_inter_r4_b)
+            right_limb.move_to_joint_positions(rbin_inter_r4_a)
             right_limb.move_to_joint_positions(bin_right)
 
     # Completes a full move from the tote to one of the 12 shelves in the APC configuration.  This calls
     # start_move_to_config based on the row associated with a shelf, and finalizes the motion by calling
     # the config directly associated with a generalized center point.  Moving to the shelf config directly
     # will increase the probabilty of hitting the shelf.
-    def move_to_shelf(shelf):
+    def move_to_shelf(self, shelf):
         if shelf == 1:
-            start_move_to_config(1)
+            self.start_move_to_config(1)
             right_limb.move_to_joint_positions(rbin_shelf_1)
         elif shelf == 2:
-            start_move_to_config(1)
+            self.start_move_to_config(1)
             right_limb.move_to_joint_positions(rbin_shelf_2)
         elif shelf == 3:
-            start_move_to_config(1)
+            self.start_move_to_config(1)
             right_limb.move_to_joint_positions(rbin_shelf_3)
         elif shelf == 4:
-            start_move_to_config(1)
+            self.start_move_to_config(2)
             right_limb.move_to_joint_positions(rbin_shelf_4)
         elif shelf == 5:
-            start_move_to_config(2)
+            self.start_move_to_config(2)
             right_limb.move_to_joint_positions(rbin_shelf_5)
         elif shelf == 6:
-            start_move_to_config(2)
+            self.start_move_to_config(2)
             right_limb.move_to_joint_positions(rbin_shelf_6)
         elif shelf == 7:
-            start_move_to_config(2)
+            self.start_move_to_config(3)
             right_limb.move_to_joint_positions(rbin_shelf_7)
         elif shelf == 8:
-            start_move_to_config(2)
+            self.start_move_to_config(3)
             right_limb.move_to_joint_positions(rbin_shelf_8)
         elif shelf == 9:
-            start_move_to_config(3)
+            self.start_move_to_config(3)
             right_limb.move_to_joint_positions(rbin_shelf_9)
         elif shelf == 10:
-            start_move_to_config(3)
+            self.start_move_to_config(4)
             right_limb.move_to_joint_positions(rbin_shelf_10)
         elif shelf == 11:
-            start_move_to_config(3)
+            self.start_move_to_config(4)
             right_limb.move_to_joint_positions(rbin_shelf_11)
         else:
-            start_move_to_config(3)
+            self.start_move_to_config(4)
             right_limb.move_to_joint_positions(rbin_shelf_12)
         

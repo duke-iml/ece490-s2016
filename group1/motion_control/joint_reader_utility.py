@@ -34,6 +34,8 @@ rbin_inter_r2_a
 rbin_inter_r2_b
 rbin_inter_r3_a
 rbin_inter_r3_b
+rbin_inter_r4_a
+rbin_inter_r4_b
 
 Shelf file names:
 rbin_shelf_1
