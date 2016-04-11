@@ -62,7 +62,7 @@ class Bumper:
 
     def bumpRight(self, coords):
         config = map(add, coords, self.getRightArmCoords())
-        moveRightArmTo(config)
+        self.moveRightArmTo(config)
 
     def moveRightArmTo(self, coords):
         self.iksolve(coords, self.kRobot.link("right_wrist"), self.pRobot.right_limb, self.pRobot.right_mq)
