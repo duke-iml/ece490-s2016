@@ -57,26 +57,26 @@ class Bumper:
         return self.kRobot.link("right_wrist").getWorldPosition((0,0,0))
 
     def bumpLeft(self, coords):
-        config = map(add, coords, getLeftArmCoords())
-        moveLeftArmTo(config)
+        config = map(add, coords, self.getLeftArmCoords())
+        self.moveLeftArmTo(config)
 
     def bumpRight(self, coords):
-        config = map(add, coords, getRightArmCoords())
+        config = map(add, coords, self.getRightArmCoords())
         moveRightArmTo(config)
 
     def moveRightArmTo(self, coords):
-        iksolve(coords, self.kRobot.link("right_wrist"), self.pRobot.right_limb, self.pRobot.right_mq)
+        self.iksolve(coords, self.kRobot.link("right_wrist"), self.pRobot.right_limb, self.pRobot.right_mq)
 
     def moveLeftArmTo(self, coords):
-        iksolve(coords, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
+        self.iksolve(coords, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
 
     def iksolve(self, config, kEE, pEE, mq):
         goal = ik.objective(kEE,local=(0,0,0), world=config)
-        q = pRobot.getKlamptSensedPosition()
-        kRobot.setConfig(q)
+        q = self.pRobot.getKlamptSensedPosition()
+        self.kRobot.setConfig(q)
         if ik.solve(goal):
             print "success!"
-            q = kRobot.getConfig()
+            q = self.kRobot.getConfig()
             mq.setRamp(pEE.configFromKlampt(q))
         else:
             print "failed. Residual:", ik.solver(goal).getResidual()
