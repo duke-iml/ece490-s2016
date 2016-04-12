@@ -7,6 +7,8 @@ REAL_PERCEPTION = True
 REAL_VACUUM = False
 SHOW_PLOT = False
 CALIBRATE = False
+REAL_PLANNING = False
+
 
 # Right arm configurations
 Q_INTERMEDIATE_1 = [0.6, -1.1, 0.0, 2.3, 0.0, -.9, 0.0]

@@ -154,44 +154,62 @@ class FullIntegrationMaster:
 
    
     def motionPlanArm(self, start, goal, subset):
-    
-    #start = robot arm configuration
-    #end = end arm configuration
+        #note: we're probably going to want this to be called from ik in case ik generates a
+        #poor configuration and we end up needing a different one
 
-    # subset - list of links to worry about collision
-    # 15-22 for left arm 
-    # 35-42 for right arm
+        #start = robot arm configuration
+        #end = end arm configuration
 
-    # lock the wrist? 
+        # subset - list of links to worry about collision
+        # 15-22 for left arm 
+        # 35-42 for right arm
 
-    collider = robotcollide.WorldCollider(self.world)
-    # make this global
+        # lock the wrist? 
+        if len(start) > len(subset):
+            try:
+                start = [start[v] for v in subset]
+            except:
+                print "start is neither in local nor global coordinates"
 
-    #probably want to ignore collisions beteween other arm/links and the world to make things faster...
-    # comment copied from eariler ^
+        if len(goal) > len(subset):
+            try: 
+                goal = [goal[v] for v in subset]
+            except:
+                print "goal is neihter in local nor global coordinates"
 
-    # all this stuff is local because we could use this for left arm or right arm
-    space = robotcspace.RobotSubsetCSpace(self.world.robot(0),subset,collider)
-    planner = cspace.MotionPlan(space, "rrt*")
+
+        collider = robotcollide.WorldCollider(self.world)
+        # make this global
+
+        #probably want to ignore collisions beteween other arm/links and the world to make things faster...
+        # comment copied from eariler ^
+
+        # all this stuff is local because we could use this for left arm or right arm
+        space = robotcspace.RobotSubsetCSpace(self.world.robot(0),subset,collider)
+        planner = cspace.MotionPlan(space, "rrt*")
 
 
-    #extract out cspace configurations
+        #extract out cspace configurations
 
-    print "Goal config",goal
-    planner.setEndpoints(start,goal)
-    for iters in xrange(10000):
-        planner.planMore(1)
-        #make one iteration of planning
-        if planner.getPath() != None:
-        print "Planning succeeded"
-        cspacepath = planner.getPath()  
-        # get total path
-        #convert back to robot joint space
-        for qcspace in cspacepath:
-            # append total path in motion
-            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(qcspace))   
-        return True
-    return False
+        
+        print "Goal config",goal
+        planner.setEndpoints(start,goal)
+        for iters in xrange(10000):
+            planner.planMore(1)
+            #make one iteration of planning
+            if planner.getPath() != None:
+                print "Planning succeeded"
+                cspacepath = planner.getPath()  
+            # get total path
+            #convert back to robot joint space
+                print cspacepath
+                for qcspace in cspacepath:
+
+                    #makes sure path has wrist stay at 0
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(qcspace))  
+                print "done with loop" 
+                return True
+        return False
 
 
 
@@ -217,23 +235,31 @@ class FullIntegrationMaster:
                         self.state = 'WAITING_TO_SCAN_BIN'
                 elif self.state == 'WAITING_TO_SCAN_BIN':
                     if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
-                        self.state = 'SCANNING_BIN' if REAL_PERCEPTION else 'FAKE_SCANNING_BIN'
+                        if REAL_PERCEPTION and REAL_PLANNING:
+                            self.state = 'SCANNING_BIN'
+                        elif not REAL_PLANNING:
+                            self.state = 'FAKE_PATH_PLANNING'
+                        else:
+                            self.state = 'FAKE_SCANNING_BIN'
                 elif self.state == 'SCANNING_BIN':
-                    print "Waiting for message from camera"
+                    print "Waiting for message from camera"    
+
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
+                   
                     if perception.isCloudValid(cloud):
                         np_cloud = perception.convertPc2ToNp(cloud)
 
-            self.points1 = []
-            for point in np_cloud:
-                transformed = se3.apply(self.Tcamera, point)
-                self.points1.append(transformed)
+                        self.points1 = []
+                        for point in np_cloud:
+                            transformed = se3.apply(self.Tcamera, point)
+                            self.points1.append(transformed)
 
                         np_cloud = perception.subtractShelf(np_cloud)
-            self.points2 = []
-            for point in np_cloud:
-                transformed = se3.apply(self.Tcamera, point)
-                self.points2.append(transformed)
+                    
+                        self.points2 = []
+                        for point in np_cloud:
+                            transformed = se3.apply(self.Tcamera, point)
+                            self.points2.append(transformed)
 
                         # plane = perception.segmentationtest(np_cloud) # TODO chenyu is fixing
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
@@ -241,15 +267,37 @@ class FullIntegrationMaster:
                         if CALIBRATE:
                             self.calibrateCamera()
                         else:
+
+                            start = self.robotModel.getConfig()
                             if self.right_arm_ik(self.object_com):
                                 destination = self.robotModel.getConfig()
+                                #hard coded destination for now - should be left side of robot
+                                #destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
+                                
                                 #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
                                 #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                                motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                                print planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
+                                #motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
+                                #do path plannning here
+                                print self.right_arm_indices
+                                self.motionPlanArm(start , destination , self.right_arm_indices)
+                                #print planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
                                 self.state = 'DONE'
                     else:
                         print "Got an invalid cloud, trying again"
+                elif self.state == 'FAKE_PATH_PLANNING':
+                    self.object_com = [1.174, -0.097, 1.151]
+                    print self.object_com
+                    start = self.robotModel.getConfig()
+                    if self.right_arm_ik(self.object_com):
+                        destination = self.robotModel.getConfig()
+                                #hard coded destination for now - should be left side of robot
+                        destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
+                         
+                        print self.right_arm_indices
+                        self.motionPlanArm(start , destination , self.right_arm_indices)
+                                #print planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
+                        self.state = 'DONE'
+
                 elif self.state == 'FAKE_SCANNING_BIN':
                     self.object_com = [1.174, -0.097, 1.151]
                     self.points = [self.object_com]
