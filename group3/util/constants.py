@@ -1,13 +1,13 @@
 import math
 from klampt import vectorops,so3
 
-INITIAL_STATE = "SCANNING_BIN"
+INITIAL_STATE = "START"
 
 REAL_PERCEPTION = True
 REAL_VACUUM = False
 SHOW_PLOT = False
 CALIBRATE = False
-REAL_PLANNING = False
+REAL_PLANNING = True
 
 
 # Right arm configurations
@@ -34,6 +34,7 @@ REPO_ROOT = "/home/group3/ece490-s2016"
 KLAMPT_MODELS_DIR = REPO_ROOT + "/apc2015/klampt_models/"
 LIBPATH = REPO_ROOT + "/common/"
 SHELF_NPZ_FILE = REPO_ROOT + "/group3/perception/shelf.npz"
+VACUUM_PCD_FILE = REPO_ROOT + "/group3/planning/custom_vacuum.pcd"
 
 # Indices in Baxter robot file link
 LEFT_CAMERA_LINK_NAME = 'left_hand_camera'

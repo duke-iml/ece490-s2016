@@ -42,6 +42,9 @@ class FullIntegrationMaster:
         self.points2 = []
         self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 
+        self.vacuumPc = Geometry3D()
+        self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+
         # Set up serial
         if REAL_VACUUM:
             self.serial = serial.Serial()
@@ -99,6 +102,14 @@ class FullIntegrationMaster:
         glColor3f(0.0,0.8,0.0)
         glBegin(GL_POINTS)
         glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
+        glEnd()
+
+        glPointSize(5.0)
+        glColor3f(1.0,0.0,0.0)
+        glBegin(GL_POINTS)
+        for i in range(self.vacuumPc.getPointCloud().numPoints()):
+            point = self.vacuumPc.getPointCloud().getPoint(i)
+            glVertex3f(point[0], point[1], point[2])
         glEnd()
 
     def turnOnVacuum(self):
@@ -178,7 +189,11 @@ class FullIntegrationMaster:
             except:
                 print "goal is neihter in local nor global coordinates"
 
-
+        print "================"
+        print start
+        print "================"
+        print goal
+        print "================"
         collider = robotcollide.WorldCollider(self.world)
         # make this global
 
@@ -194,7 +209,7 @@ class FullIntegrationMaster:
 
         
         print "Goal config",goal
-        planner.setEndpoints(start,goal)
+        planner.setEndpoints(start,goal):
         for iters in xrange(10000):
             planner.planMore(1)
             #make one iteration of planning
@@ -223,11 +238,15 @@ class FullIntegrationMaster:
                 self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
+                self.vacuumPc = Geometry3D()
+                self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+                temp_xform = self.robotModel.link('right_wrist').getTransform()
+                self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
+
                 if self.state == 'CUSTOM_CODE':
                     pass
 
                 elif self.state == 'START':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
                     self.state = 'MOVING_TO_SCAN_BIN'
                 elif self.state == 'MOVING_TO_SCAN_BIN':
