@@ -89,13 +89,14 @@ class FullIntegrationMaster:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
+        glColor3f(1.0,0.0,0.0)
         glBegin(GL_POINTS)
         for point in self.points2[::25]:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
         glPointSize(20.0)
-        glColor3f(1.0,1.0,1.0)
+        glColor3f(0.0,0.8,0.0)
         glBegin(GL_POINTS)
         glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
         glEnd()
@@ -263,24 +264,14 @@ class FullIntegrationMaster:
 
                         # plane = perception.segmentationtest(np_cloud) # TODO chenyu is fixing
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
-                        #time.sleep(234444)
+
                         if CALIBRATE:
                             self.calibrateCamera()
                         else:
-
                             start = self.robotModel.getConfig()
                             if self.right_arm_ik(self.object_com):
                                 destination = self.robotModel.getConfig()
-                                #hard coded destination for now - should be left side of robot
-                                #destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
-                                
-                                #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
-                                #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                                #motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
-                                #do path plannning here
-                                print self.right_arm_indices
-                                self.motionPlanArm(start , destination , self.right_arm_indices)
-                                #print planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
+                                self.motionPlanArm(start, destination, self.right_arm_indices)
                                 self.state = 'DONE'
                     else:
                         print "Got an invalid cloud, trying again"
@@ -367,8 +358,8 @@ def setupWorld():
     #world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"))
-    #print "Loading Kiva pod model..."
-    #world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
+    print "Loading Kiva pod model..."
+    world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
     print "Loading plane model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"plane.env"))
     
@@ -378,9 +369,9 @@ def setupWorld():
     world.robot(0).setConfig(world.robot(0).getConfig())
     
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees 
-    Trel = (so3.rotation((0,0,1),-math.pi/2),[1.2,0,0])
-    #T = world.rigidObject(0).getTransform()
-    #world.rigidObject(0).setTransform(*se3.mul(Trel,T))
+    Trel = (so3.rotation((0,0,1),-math.pi/2),SHELF_MODEL_XFORM)
+    T = world.rigidObject(0).getTransform()
+    world.rigidObject(0).setTransform(*se3.mul(Trel,T))
 
     return world
 
