@@ -46,7 +46,7 @@ def convertPc2ToNp(data):
     Input: PointCloud2 message
     Output: NumPy array of point cloud [x,y,z,index]
     """
-    STEP = 15 # Plot every STEPth point for speed, set to 1 to plot all
+    STEP = 1 # Plot every STEPth point for speed, set to 1 to plot all
 
     # Load cloud data
     xs = []
@@ -56,7 +56,7 @@ def convertPc2ToNp(data):
     r = []
     g = []
     b = []
-    i = 1
+    idxnum = 1
     for point in pc2.read_points(data,skip_nans=False,field_names=("rgb","x","y","z")):
         # print point
         xs.append(point[0])
@@ -76,8 +76,8 @@ def convertPc2ToNp(data):
         r.append(r1)
         g.append(g1)
         b.append(b1)
-        idx.append(i)
-        i = i+1
+        idx.append(idxnum)
+        idxnum = idxnum+1
     print "Point cloud count: " + str(len(xs))
     # print r,g,b,a
     cloud = np.array([xs,ys,zs,idx,r,g,b])
@@ -102,7 +102,7 @@ def subtractShelf(cloud):
     # Construct kd-tree and remove nearest neighbors
     pCloud = copy.copy(cloud[:,0:3])
     t = cKDTree(pCloud)
-    d, idx = t.query(dshel, k=20, eps=0, p=2, distance_upper_bound=0.1)
+    d, idx = t.query(dshel, k=20, eps=0, p=2, distance_upper_bound=10)
     Points_To_Delete = []
     for i in range(0,len(idx)):
        for j in range(0,19):
@@ -113,6 +113,8 @@ def subtractShelf(cloud):
     print ("cloud length after subtraction: ", len(cloud))
     cloud = cloud[cloud[:,0] != 0 , :]
     return cloud
+
+
 
 def segmentation(cloud):
     """

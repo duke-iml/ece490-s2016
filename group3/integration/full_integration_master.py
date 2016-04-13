@@ -42,8 +42,8 @@ class FullIntegrationMaster:
         self.points2 = []
         self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 
-        self.vacuumPc = Geometry3D()
-        self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+        #self.vacuumPc = Geometry3D()
+        #self.vacuumPc.loadFile(VACUUM_PCD_FILE)
 
         # Set up serial
         if REAL_VACUUM:
@@ -104,13 +104,13 @@ class FullIntegrationMaster:
         glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
         glEnd()
 
-        glPointSize(5.0)
-        glColor3f(1.0,0.0,0.0)
-        glBegin(GL_POINTS)
-        for i in range(self.vacuumPc.getPointCloud().numPoints()):
-            point = self.vacuumPc.getPointCloud().getPoint(i)
-            glVertex3f(point[0], point[1], point[2])
-        glEnd()
+        # glPointSize(5.0)
+        # glColor3f(1.0,0.0,0.0)
+        # glBegin(GL_POINTS)
+        # for i in range(self.vacuumPc.getPointCloud().numPoints()):
+        #     point = self.vacuumPc.getPointCloud().getPoint(i)
+        #     glVertex3f(point[0], point[1], point[2])
+        # glEnd()
 
     def turnOnVacuum(self):
         if REAL_VACUUM:
@@ -165,69 +165,17 @@ class FullIntegrationMaster:
             print "input error\n"
 
    
-    def motionPlanArm(self, start, goal, subset):
-        #note: we're probably going to want this to be called from ik in case ik generates a
-        #poor configuration and we end up needing a different one
-
-        #start = robot arm configuration
-        #end = end arm configuration
-
-        # subset - list of links to worry about collision
-        # 15-22 for left arm 
-        # 35-42 for right arm
-
-        # lock the wrist? 
-        if len(start) > len(subset):
-            try:
-                start = [start[v] for v in subset]
-            except:
-                print "start is neither in local nor global coordinates"
-
-        if len(goal) > len(subset):
-            try: 
-                goal = [goal[v] for v in subset]
-            except:
-                print "goal is neihter in local nor global coordinates"
-
-        print "================"
-        print start
-        print "================"
-        print goal
-        print "================"
-        collider = robotcollide.WorldCollider(self.world)
-        # make this global
-
-        #probably want to ignore collisions beteween other arm/links and the world to make things faster...
-        # comment copied from eariler ^
-
-        # all this stuff is local because we could use this for left arm or right arm
-        space = robotcspace.RobotSubsetCSpace(self.world.robot(0),subset,collider)
-        planner = cspace.MotionPlan(space, "rrt*")
-
-
-        #extract out cspace configurations
-
-        
-        print "Goal config",goal
-        planner.setEndpoints(start,goal):
-        for iters in xrange(10000):
-            planner.planMore(1)
-            #make one iteration of planning
-            if planner.getPath() != None:
-                print "Planning succeeded"
-                cspacepath = planner.getPath()  
-            # get total path
-            #convert back to robot joint space
-                print cspacepath
-                for qcspace in cspacepath:
-
-                    #makes sure path has wrist stay at 0
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(qcspace))  
-                print "done with loop" 
-                return True
-        return False
-
-
+    def motionPlanArm(self, start, goal, limb):
+        planner = planning.LimbPlanner(self.world)
+        print "start planning"
+        plannedPath = planner.plan_limb(limb, start, goal)
+        for limbMilestone in plannedPath:
+            print "limbMilestone", limbMilestone
+            if( len(limbMilestone) > 7):
+                limbMilestone = [limbMilestone[v] for v in self.right_arm_indices]
+            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(limbMilestone))
+        print "finished plan"
+        sys.stdout.flush()
 
     def loop(self):
         try:
@@ -238,22 +186,23 @@ class FullIntegrationMaster:
                 self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
-                self.vacuumPc = Geometry3D()
-                self.vacuumPc.loadFile(VACUUM_PCD_FILE)
-                temp_xform = self.robotModel.link('right_wrist').getTransform()
-                self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
+                # self.vacuumPc = Geometry3D()
+                # self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+                # temp_xform = self.robotModel.link('right_wrist').getTransform()
+                # self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
 
                 if self.state == 'CUSTOM_CODE':
                     pass
 
                 elif self.state == 'START':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
+                    #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
                     self.state = 'MOVING_TO_SCAN_BIN'
                 elif self.state == 'MOVING_TO_SCAN_BIN':
                     if not motion.robot.right_mq.moving():
                         self.wait_start_time = time.time()
                         self.state = 'WAITING_TO_SCAN_BIN'
                 elif self.state == 'WAITING_TO_SCAN_BIN':
+
                     if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
                         if REAL_PERCEPTION and REAL_PLANNING:
                             self.state = 'SCANNING_BIN'
@@ -263,7 +212,6 @@ class FullIntegrationMaster:
                             self.state = 'FAKE_SCANNING_BIN'
                 elif self.state == 'SCANNING_BIN':
                     print "Waiting for message from camera"    
-
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                    
                     if perception.isCloudValid(cloud):
@@ -290,26 +238,18 @@ class FullIntegrationMaster:
                             start = self.robotModel.getConfig()
                             if self.right_arm_ik(self.object_com):
                                 destination = self.robotModel.getConfig()
-                                self.motionPlanArm(start, destination, self.right_arm_indices)
+                                self.motionPlanArm(start, destination, 'right')
                                 self.state = 'DONE'
                     else:
                         print "Got an invalid cloud, trying again"
                 elif self.state == 'FAKE_PATH_PLANNING':
-                    self.object_com = [1.174, -0.097, 1.151]
-                    print self.object_com
                     start = self.robotModel.getConfig()
-                    if self.right_arm_ik(self.object_com):
-                        destination = self.robotModel.getConfig()
-                                #hard coded destination for now - should be left side of robot
-                        destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
-                         
-                        print self.right_arm_indices
-                        self.motionPlanArm(start , destination , self.right_arm_indices)
-                                #print planning.cleanJointConfig([destination[v] for v in self.right_arm_indices])
-                        self.state = 'DONE'
+                    destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
+                    self.motionPlanArm(start, destination, 'right')
+                    self.state = 'DONE'
 
                 elif self.state == 'FAKE_SCANNING_BIN':
-                    self.object_com = [1.174, -0.097, 1.151]
+                    self.object_com = [1.174, -0.097, 1.251]
                     self.points = [self.object_com]
                     self.state = 'MOVING_TO_GRASP_OBJECT'
                     if self.right_arm_ik(self.object_com):

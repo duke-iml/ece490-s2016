@@ -1,7 +1,7 @@
 import math
 from klampt import vectorops,so3
 
-INITIAL_STATE = "START"
+INITIAL_STATE = "FAKE_PATH_PLANNING"
 
 REAL_PERCEPTION = True
 REAL_VACUUM = False
