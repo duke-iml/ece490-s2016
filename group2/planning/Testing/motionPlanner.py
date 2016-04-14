@@ -180,8 +180,8 @@ class LimbPlanner:
                 continue
 
             if o1[1].collides(o2[1]):
-                print "Collision between",o1[0].getName(),o2[0].getName()
-                print "Collision between",o1[0].index,o2[0].index
+                # print "Collision between",o1[0].getName(),o2[0].getName()
+                # print "Collision between",o1[0].index,o2[0].index
 
                 return False
 
