@@ -56,7 +56,7 @@ def convertPc2ToNp(data):
     r = []
     g = []
     b = []
-    idxnum = 1
+    idxnum = 0
     for point in pc2.read_points(data,skip_nans=False,field_names=("rgb","x","y","z")):
         # print point
         xs.append(point[0])

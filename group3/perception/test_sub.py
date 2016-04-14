@@ -29,20 +29,25 @@ if perception.isCloudValid(cloud):
     np_cloud = perception.subtractShelf(np_cloud)
     np_cloud =  np_cloud[np_cloud[:,0] != 0 , :]
     np.savez('sub', np_cloud[:,0],np_cloud[:,1],np_cloud[:,2])
-    cloud = np_cloud[np_cloud[:,0] != 0 , :]
+    np_cloud = np_cloud[np_cloud[:,0] != 0 , :]
     # cloud = cloud[cloud[:,5] != 255,:]
     print len(cloud)
     print cloud
-    color_idx = cloud[:,3]
+    color_idx = np_cloud[:,3]
     for i in range(1,7):
-        color_idx = np.append(color_idx, cloud[:,3]+i, axis = 0)
-        color_idx = np.append(color_idx, cloud[:,3]-i, axis = 0)   
-    print color_idx
-    mask = np.zeros((307200,1))
-    for i in range(0,len(color_idx)):
-        if color_idx[i] > 0:
-            mask[color_idx[i]] = 1
-    final_cloud = cloud[mask,:]
+        color_idx = np.append(color_idx, np_cloud[:,3]+i, axis = 0)
+        color_idx = np.append(color_idx, np_cloud[:,3]-i, axis = 0)   
+    print color_idx 
+    color_idx =  color_idx[color_idx[:] < 307200]
+    print len(color_idx)
+    # mask = np.zeros((307200,1))
+    # for i in range(0,len(color_idx)):
+    #     if color_idx[i] > 0:
+    #         mask[color_idx[i]] = 1
+    final_cloud = cloud[color_idx.astype(int)]
+    print final_cloud
+    print len(final_cloud)
+
 
     np.savez('test', final_cloud[:,0],final_cloud[:,1],final_cloud[:,2])
 
