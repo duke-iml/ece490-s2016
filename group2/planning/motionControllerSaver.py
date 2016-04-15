@@ -16,16 +16,17 @@ import pickle
 # these two go together usually
 FAKE_SIMULATION = 0
 SKIP_PATH_VIEWING = 0
+SKIP_PATH_PLANNING = 0
 
 SAVE_MOVE_TO_BIN_IK = 0
 SAVE_MOVE_TO_BIN_TRAJECTORY = 0
 
 SAVE_MOVE_SPATULA_TO_CENTER_TRAJECTORY = 0
 
-SAVE_MOVE_GRIPPER_TO_CENTER_IK = 1
-SAVE_MOVE_GRIPPER_TO_CENTER_TRAJECTORY = 1
+SAVE_MOVE_GRIPPER_TO_CENTER_IK = 0
+SAVE_MOVE_GRIPPER_TO_CENTER_TRAJECTORY = 0
 
-SAVE_MOVE_GRIPPER_TO_ORDER_BIN_TRAJECTORY = 0
+SAVE_MOVE_GRIPPER_TO_ORDER_BIN_TRAJECTORY = 1
 
 
 # The path of the klampt_models directory
@@ -1224,6 +1225,9 @@ class PickingController:
             elif step==2:
                 print "loading the IK soluton to gripper bin"
                 sortedSolutions = [[baxter_rest_config], 0]
+                self.robot.link("spatula:wide_base").geometry().setCollisionMargin(0.25)
+                self.robot.link("spatula:narrow_base").geometry().setCollisionMargin(0.25)
+
 
             # sortedSolutions = self.get_ik_solutions([placegoal],['right'],qcmd,tol=1e-2, maxIters=100, maxResults = 100)
 

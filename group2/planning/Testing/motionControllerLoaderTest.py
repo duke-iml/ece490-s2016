@@ -46,7 +46,7 @@ NO_SIMULATION_COLLISIONS = 1
 FAKE_SIMULATION = 0
 PHYSICAL_SIMULATION = 0
 
-SPEED = 1
+SPEED = 5
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -447,10 +447,10 @@ class PickingController:
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
 
-        # define mapping from "link ID" to "link index"
+        # mapping from "link ID" to "link index"
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
 
-        # define a list of link indices on both arms
+        # list of link indices on both arms
         # self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         # self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
         self.left_arm_indices = left_arm_geometry_indices
@@ -641,67 +641,66 @@ class PickingController:
                 return False
 
     def incrementalMove2(self, direction):
-            self.robot.setConfig(self.controller.getCommandedConfig())
+        self.robot.setConfig(self.controller.getCommandedConfig())
 
-            currConfig = self.robot.getConfig()
+        currConfig = self.robot.getConfig()
 
-            link = self.robot.link('spatula:frame')
-            currXform = link.getTransform()
+        link = self.robot.link('spatula:frame')
+        currXform = link.getTransform()
 
-            self.world.terrain(0).geometry().setCollisionMargin(0)
-            link.geometry().setCollisionMargin(0)
+        self.world.terrain(0).geometry().setCollisionMargin(0)
+        link.geometry().setCollisionMargin(0)
 
-            if direction == "down":
-                offset = [0,0,-0.05]
-            if direction == "up":
-                offset = [0,0,0.005]
+        if direction == "down":
+            offset = [0,0,-0.05]
+        if direction == "up":
+            offset = [0,0,0.005]
 
 
-            limbs = ['left']
-            qcmd = self.controller.getCommandedConfig()
-            # qcmd = self.controller.getSensedConfig()
+        limbs = ['left']
+        qcmd = self.controller.getCommandedConfig()
+        # qcmd = self.controller.getSensedConfig()
 
-            print "Solving for INCREMENTAL_MOVE (", direction,")"
+        print "Solving for INCREMENTAL_MOVE (", direction,")"
 
-            for i in range(50):
-                targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
-                goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
-                dist = vectorops.distance(link.getTransform()[1], targetXform[1])
+        for i in range(50):
+            targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
+            goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
+            dist = vectorops.distance(link.getTransform()[1], targetXform[1])
 
-                sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
+            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
 
-                if len(sortedSolutions)==0:
-                    offset = vectorops.sub(offset, [0,0,0.0025])
+            if len(sortedSolutions)==0:
+                offset = vectorops.sub(offset, [0,0,0.0025])
+                continue
+
+            # prototyping hack: move straight to target
+            if FAKE_SIMULATION:
+                self.controller.setMilestone(sortedSolutions[0][0])
+                return True
+
+            # else, if we want to path plan
+            numSol = 0
+            for solution in sortedSolutions:
+                numSol += 1
+                print numSol, "solutions planned out of", len(sortedSolutions)
+                # path = self.planner.plan(qcmd,solution[0],'left')
+
+                path = [qcmd, solution[0]]
+
+
+                if path == 1 or path == 2 or path == False:
                     continue
-
-                # prototyping hack: move straight to target
-                if FAKE_SIMULATION:
-                    self.controller.setMilestone(sortedSolutions[0][0])
+                elif path != None:
+                    # throw away solution if it deviates too much from initial config
+                    # for i in range(len(path)):
+                    #     if vectorops.distance(qcmd, path[i]) > 0.05:
+                    #         return False
+                    self.sendPath(path, INCREMENTAL = True)
                     return True
-
-                # else, if we want to path plan
-                numSol = 0
-                for solution in sortedSolutions:
-                    numSol += 1
-                    print numSol, "solutions planned out of", len(sortedSolutions)
-                    # path = self.planner.plan(qcmd,solution[0],'left')
-
-                    path = [qcmd, solution[0]]
-
-
-                    if path == 1 or path == 2 or path == False:
-                        continue
-                    elif path != None:
-                        # throw away solution if it deviates too much from initial config
-                        # for i in range(len(path)):
-                        #     if vectorops.distance(qcmd, path[i]) > 0.05:
-                        #         return False
-                        self.sendPath(path, INCREMENTAL = True)
-                        return True
-            print "Failed to plan path"
-            self.robot.setConfig(currConfig)
-            return False
-
+        print "Failed to plan path"
+        self.robot.setConfig(currConfig)
+        return False
 
     def incrementalMove(self, direction):
         self.robot.setConfig(self.controller.getCommandedConfig())
@@ -1343,10 +1342,11 @@ class PickingController:
         if step == 2:
             print "Loading move_to_order_bin Trajectory..."
             path = loaded_trajectory["move_to_order_bin"]
+            # path.reverse()
             if FAKE_SIMULATION:
                 self.controller.setMilestone(path[-1])
             else:
-                self.sendPathClosedLoop(path)
+                self.sendPath(path)
             return True
 
         elif step == 1:
