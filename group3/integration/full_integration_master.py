@@ -27,7 +27,6 @@ class FullIntegrationMaster:
         self.world = world
         self.robotModel = world.robot(0)
         self.state = INITIAL_STATE
-        # self.state = 'SCANNING_BIN'
         self.config = self.robotModel.getConfig()
         self.left_arm_links = [self.robotModel.link(i) for i in LEFT_ARM_LINK_NAMES]
         self.right_arm_links = [self.robotModel.link(i) for i in RIGHT_ARM_LINK_NAMES]
@@ -42,8 +41,8 @@ class FullIntegrationMaster:
         self.points2 = []
         self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 
-        #self.vacuumPc = Geometry3D()
-        #self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+        self.vacuumPc = Geometry3D()
+        self.vacuumPc.loadFile(VACUUM_PCD_FILE)
 
         # Set up serial
         if REAL_VACUUM:
@@ -104,13 +103,13 @@ class FullIntegrationMaster:
         glVertex3f(self.object_com[0], self.object_com[1], self.object_com[2])
         glEnd()
 
-        # glPointSize(5.0)
-        # glColor3f(1.0,0.0,0.0)
-        # glBegin(GL_POINTS)
-        # for i in range(self.vacuumPc.getPointCloud().numPoints()):
-        #     point = self.vacuumPc.getPointCloud().getPoint(i)
-        #     glVertex3f(point[0], point[1], point[2])
-        # glEnd()
+        glPointSize(5.0)
+        glColor3f(1.0,0.0,0.0)
+        glBegin(GL_POINTS)
+        for i in range(self.vacuumPc.getPointCloud().numPoints()):
+            point = self.vacuumPc.getPointCloud().getPoint(i)
+            glVertex3f(point[0], point[1], point[2])
+        glEnd()
 
     def turnOnVacuum(self):
         if REAL_VACUUM:
@@ -167,14 +166,14 @@ class FullIntegrationMaster:
    
     def motionPlanArm(self, start, goal, limb):
         planner = planning.LimbPlanner(self.world)
-        print "start planning"
         plannedPath = planner.plan_limb(limb, start, goal)
+        while not plannedPath:
+            print "trying planning again"
         for limbMilestone in plannedPath:
-            print "limbMilestone", limbMilestone
-            if( len(limbMilestone) > 7):
+            if(len(limbMilestone) > 7):
                 limbMilestone = [limbMilestone[v] for v in self.right_arm_indices]
+            print "limbMilestone", limbMilestone
             motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(limbMilestone))
-        print "finished plan"
         sys.stdout.flush()
 
     def loop(self):
@@ -186,10 +185,10 @@ class FullIntegrationMaster:
                 self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
-                # self.vacuumPc = Geometry3D()
-                # self.vacuumPc.loadFile(VACUUM_PCD_FILE)
-                # temp_xform = self.robotModel.link('right_wrist').getTransform()
-                # self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
+                self.vacuumPc = Geometry3D()
+                self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+                temp_xform = self.robotModel.link('right_wrist').getTransform()
+                self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
 
                 if self.state == 'CUSTOM_CODE':
                     pass
@@ -243,10 +242,18 @@ class FullIntegrationMaster:
                     else:
                         print "Got an invalid cloud, trying again"
                 elif self.state == 'FAKE_PATH_PLANNING':
-                    start = self.robotModel.getConfig()
-                    destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
-                    self.motionPlanArm(start, destination, 'right')
-                    self.state = 'DONE'
+                    test_planner = planning.LimbPlanner(self.world, self.vacuumPc)
+                    print '==========='
+                    print test_planner.check_collision_free('right')
+                    print '==========='
+                    sys.stdout.flush()
+
+                    # start = self.robotModel.getConfig()
+                    # destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
+                    # destination = [0.0, 0.0,0.0,0.0,0.0,0.0,0.0]
+                    # #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
+                    # self.motionPlanArm(start, destination, 'right')
+                    # self.state = 'DONE'
 
                 elif self.state == 'FAKE_SCANNING_BIN':
                     self.object_com = [1.174, -0.097, 1.251]

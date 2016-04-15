@@ -70,10 +70,11 @@ class LimbPlanner:
         - knowledge: the KnowledgeBase objcet
         - collider: a WorldCollider object (see the klampt.robotcollide module)
     """
-    def __init__(self,world):
+    def __init__(self,world, vacuumPc):
         self.world = world
         self.robot = world.robot(0)
         self.collider = WorldCollider(world)
+        self.vacuumPc = vacuumPc
 
         #these may be helpful
         self.left_camera_link = self.robot.getLink(LEFT_CAMERA_LINK_NAME)
@@ -137,6 +138,16 @@ class LimbPlanner:
                 if self.robot.getLink(link).geometry().collides(obj.info.geometry):
                     print "Collision between link",self.robot.getLink(link).getName()," and dynamic object"
                     return False
+
+
+        for i in xrange(self.world.numRigidObjects()):
+            o = self.world.rigidObject(i)
+            g = o.geometry()
+            if g != None and g.type()!="":
+                print i
+                if self.vacuumPc.withinDistance(g, .015):
+                    return False
+
         return True
 
     def rebuild_dynamic_objects(self):

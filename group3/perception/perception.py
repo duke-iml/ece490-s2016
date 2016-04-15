@@ -114,7 +114,7 @@ def subtractShelf(cloud):
     cloud = cloud[cloud[:,0] != 0 , :]
     return cloud
 
-def resample(cloud，np_cloud, n = 5):
+def resample(cloud, np_cloud, n = 5):
     """
     Input: Numpy array of point cloud without downsample, 
             Numpy array of downsampled point cloud
