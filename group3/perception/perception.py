@@ -114,6 +114,34 @@ def subtractShelf(cloud):
     cloud = cloud[cloud[:,0] != 0 , :]
     return cloud
 
+def resample(cloud，np_cloud, n = 5):
+    """
+    Input: Numpy array of point cloud without downsample, 
+            Numpy array of downsampled point cloud
+    Method: take the left n points and right n points in downsampled point cloud
+            add the to the final point cloud;
+    Output: resampled point cloud
+    """
+
+    color_idx = np_cloud[:,3]
+    for i in range(1,n):
+        color_idx = np.append(color_idx, np_cloud[:,3]+i, axis = 0)
+        color_idx = np.append(color_idx, np_cloud[:,3]-i, axis = 0) 
+    color_idx =  color_idx[color_idx[:] < 307200]
+    color_idx =  color_idx[color_idx[:] > 0]
+    return cloud[color_idx.astype(int)]
+
+def objectMatch(cloud,dict):
+    """
+    Input: Numpy array of cloud with RGB of current object, dictionary of all the object in the shelf
+    Output: ID of specific point cloud 
+    """
+    uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in cloud[:,4:7]]
+    hist = color.make_uv_hist(uv)
+    scores = dict([ (obj, 2 * numpy.minimum(hist, histogram).sum() - numpy.maximum(hist, histogram).sum()) for (obj, histogram) in known_histograms.items()])
+    sorted_score = sorted(scores.items(), key=operator.itemgetter(1))
+    obj = sorted_score.keys()[0]
+    return ojb/3
 
 
 def segmentation(cloud):
