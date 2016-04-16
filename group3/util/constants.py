@@ -1,14 +1,12 @@
 import math
 from klampt import vectorops,so3
 
-INITIAL_STATE = "FAKE_PATH_PLANNING"
+INITIAL_STATE = "MOVE_TO_GRASP_OBJECT"
 
-REAL_PERCEPTION = True
 REAL_VACUUM = False
 SHOW_PLOT = False
 CALIBRATE = False
-REAL_PLANNING = True
-
+SEGMENT = False
 
 # Right arm configurations
 Q_INTERMEDIATE_1 = [0.6, -1.1, 0.0, 2.3, 0.0, -.9, 0.0]
@@ -35,6 +33,9 @@ KLAMPT_MODELS_DIR = REPO_ROOT + "/apc2015/klampt_models/"
 LIBPATH = REPO_ROOT + "/common/"
 SHELF_NPZ_FILE = REPO_ROOT + "/group3/perception/shelf.npz"
 VACUUM_PCD_FILE = REPO_ROOT + "/group3/planning/custom_vacuum.pcd"
+CLOUD_MAT_PATH = REPO_ROOT + "/group3/perception/matpcl/cloud.mat"
+CHENYU_GO_PATH = REPO_ROOT + "/group3/perception/matpcl/chenyugo.txt"
+CHENYU_DONE_PATH = REPO_ROOT + "/group3/perception/matpcl/chenyudone.txt"
 
 # Indices in Baxter robot file link
 LEFT_CAMERA_LINK_NAME = 'left_hand_camera'
@@ -65,7 +66,7 @@ BACK_UP_DISTANCE = .2
 
 # Times (seconds)
 MOVE_TIME = 2
-SCAN_WAIT_TIME = 4 if REAL_PERCEPTION else 0
+SCAN_WAIT_TIME = 4
 GRASP_WAIT_TIME = 2 if REAL_VACUUM else 0
 
 

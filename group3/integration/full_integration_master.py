@@ -19,6 +19,7 @@ from planning import planning
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import Image
 import sensor_msgs.point_cloud2 as pc2
+import scipy.io as sio
 
 baxter_rest_config = [0.0]*54
 
@@ -165,7 +166,7 @@ class FullIntegrationMaster:
 
    
     def motionPlanArm(self, start, goal, limb):
-        planner = planning.LimbPlanner(self.world)
+        planner = planning.LimbPlanner(self.world, self.vacuumPc)
         plannedPath = planner.plan_limb(limb, start, goal)
         while not plannedPath:
             print "trying planning again"
@@ -193,22 +194,36 @@ class FullIntegrationMaster:
                 if self.state == 'CUSTOM_CODE':
                     pass
 
+                elif self.state == 'FAKE_PATH_PLANNING':
+                    test_planner = planning.LimbPlanner(self.world, self.vacuumPc)
+                    print '==========='
+                    print test_planner.check_collision_free('right')
+                    print '==========='
+                    sys.stdout.flush()
+
+                    # start = self.robotModel.getConfig()
+                    # destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
+                    # destination = [0.0, 0.0,0.0,0.0,0.0,0.0,0.0]
+                    # #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
+                    # self.motionPlanArm(start, destination, 'right')
+                    self.state = 'DONE'
+
                 elif self.state == 'START':
-                    #motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
+                    self.state = "MOVE_TO_SCAN_BIN"
+
+                elif self.state == 'MOVE_TO_SCAN_BIN':
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
                     self.state = 'MOVING_TO_SCAN_BIN'
+
                 elif self.state == 'MOVING_TO_SCAN_BIN':
                     if not motion.robot.right_mq.moving():
                         self.wait_start_time = time.time()
                         self.state = 'WAITING_TO_SCAN_BIN'
-                elif self.state == 'WAITING_TO_SCAN_BIN':
 
+                elif self.state == 'WAITING_TO_SCAN_BIN':
                     if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
-                        if REAL_PERCEPTION and REAL_PLANNING:
-                            self.state = 'SCANNING_BIN'
-                        elif not REAL_PLANNING:
-                            self.state = 'FAKE_PATH_PLANNING'
-                        else:
-                            self.state = 'FAKE_SCANNING_BIN'
+                        self.state = 'SCANNING_BIN'
+
                 elif self.state == 'SCANNING_BIN':
                     print "Waiting for message from camera"    
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
@@ -228,87 +243,93 @@ class FullIntegrationMaster:
                             transformed = se3.apply(self.Tcamera, point)
                             self.points2.append(transformed)
 
-                        # plane = perception.segmentationtest(np_cloud) # TODO chenyu is fixing
+                        self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
+
+                        sio.savemat(CLOUD_MAT_PATH, {'cloud':np_cloud})
+                        fo = open(CHENYU_GO_PATH, "w")
+                        fo.write("chenyu go")
+                        fo.close()
+
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
 
                         if CALIBRATE:
-                            self.calibrateCamera()
+                            self.state = "CALIBRATE"
+                        elif SEGMENT:
+                            self.state = "WAITING_FOR_SEGMENTATION"
                         else:
-                            start = self.robotModel.getConfig()
-                            if self.right_arm_ik(self.object_com):
-                                destination = self.robotModel.getConfig()
-                                self.motionPlanArm(start, destination, 'right')
-                                self.state = 'DONE'
+                            self.state = "MOVE_TO_GRASP_OBJECT"
                     else:
                         print "Got an invalid cloud, trying again"
-                elif self.state == 'FAKE_PATH_PLANNING':
-                    test_planner = planning.LimbPlanner(self.world, self.vacuumPc)
-                    print '==========='
-                    print test_planner.check_collision_free('right')
-                    print '==========='
-                    sys.stdout.flush()
 
-                    # start = self.robotModel.getConfig()
-                    # destination = [1.2923788123168947, -0.5817622131408692,  0.6699661083435059,  0.9123350725524902, 1.1884516140563965, 1.1524030655822755, -1.8806604437988284]
-                    # destination = [0.0, 0.0,0.0,0.0,0.0,0.0,0.0]
-                    # #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
-                    # self.motionPlanArm(start, destination, 'right')
-                    # self.state = 'DONE'
+                elif self.state == 'CALIBRATE':
+                    self.calibrateCamera()
 
-                elif self.state == 'FAKE_SCANNING_BIN':
-                    self.object_com = [1.174, -0.097, 1.251]
-                    self.points = [self.object_com]
-                    self.state = 'MOVING_TO_GRASP_OBJECT'
+                elif self.state == 'WAITING_FOR_SEGMENTATION':
+                    if os.path.isfile(CHENYU_DONE_PATH):
+                        os.remove(CHENYU_GO_PATH)
+                        os.remove(CHENYU_DONE_PATH)
+                        os.remove(CLOUD_MAT_PATH)
+                        self.state = 'DONE'
+
+                elif self.state == 'MOVE_TO_GRASP_OBJECT':
+                    start = self.robotModel.getConfig()
+                    self.object_com = [.5, 0, .5]
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                        self.motionPlanArm(start, destination, 'right')
                         self.state = 'MOVING_TO_GRASP_OBJECT'
-                    else:
-                        # TODO
-                        time.sleep(50000)
-                        print "Couldn't move there"
+
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
-                        # Turn on vacuum, then move downwards to grasp
-                        move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                        move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE
-                        if self.right_arm_ik(move_target):
-                            self.turnOnVacuum()
-                            destination = self.robotModel.getConfig()
-                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                        else:
-                            # TODO
-                            time.sleep(50000)
-                            print "Couldn't move there"
-                        self.state = 'GRASPING_OBJECT'
-                elif self.state == 'GRASPING_OBJECT':
+                        self.state = 'GRASP_OBJECT'
+
+                elif self.state == 'GRASP_OBJECT':
+                    # Turn on vacuum, then move downwards to grasp
+                    move_target = se3.apply(self.Tvacuum, [0, 0, 0])
+                    move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE
+                    if self.right_arm_ik(move_target):
+                        self.turnOnVacuum()
+                        destination = self.robotModel.getConfig()
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                    else:
+                        # TODO
+                        print "Error: IK failed"
+                        sys.stdout.flush()
+                        time.sleep(50000)
                     self.wait_start_time = time.time()
                     self.state = 'WAITING_TO_GRASP_OBJECT'
+
                 elif self.state == 'WAITING_TO_GRASP_OBJECT':
                     if time.time() - self.wait_start_time > GRASP_WAIT_TIME:
-                        # Move back 
-                        #move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                        #move_target[0] = move_target[0] - BACK_UP_DISTANCE
-                        if self.right_arm_ik(self.object_com):
+                        self.state = 'MOVE_TO_STOW_OBJECT'
+
+                elif self.state == 'MOVE_TO_STOW_OBJECT':
+                        move_target = se3.apply(self.Tvacuum, [0, 0, 0])
+                        move_target[0] = move_target[0] - BACK_UP_DISTANCE
+                        if self.right_arm_ik(move_target):
                             destination = self.robotModel.getConfig()
                             motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                         else:
                             # TODO
+                            print "Error: IK failed"
+                            sys.stdout.flush()
                             time.sleep(50000)
-                            print "Couldn't move there"
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
                         self.state = 'MOVING_TO_STOW_OBJECT'
+
                 elif self.state == 'MOVING_TO_STOW_OBJECT':
                     if not motion.robot.right_mq.moving():
                         self.state = 'STOWING_OBJECT'
+
                 elif self.state == 'STOWING_OBJECT':
                         self.turnOffVacuum()
                         self.state = 'DONE'
+
                 elif self.state == 'DONE':
                     print "actual vacuum point: ", se3.apply(self.Tvacuum, [0, 0, 0])
+
                 else:
                     print "Unknown state"
 
@@ -328,14 +349,12 @@ def setupWorld():
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
     print "Loading plane model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"plane.env"))
-    
-    #shift the Baxter up a bit (95cm)
+
     Rbase,tbase = world.robot(0).link(0).getParentTransform()
     world.robot(0).link(0).setParentTransform(Rbase,(0,0,0.95))
     world.robot(0).setConfig(world.robot(0).getConfig())
     
-    #translate pod to be in front of the robot, and rotate the pod by 90 degrees 
-    Trel = (so3.rotation((0,0,1),-math.pi/2),SHELF_MODEL_XFORM)
+    Trel = (so3.rotation((0,0,1),-math.pi/2), SHELF_MODEL_XFORM)
     T = world.rigidObject(0).getTransform()
     world.rigidObject(0).setTransform(*se3.mul(Trel,T))
 
