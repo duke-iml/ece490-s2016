@@ -59,7 +59,15 @@ class LimbCSpace (CSpace):
         if not self.planner.check_limb_collision_free(self.limb,q):
             #print "LimbCSpace.feasible: Configuration is in collision"
             return False
+
+        for i in xrange(self.planner.world.numRigidObjects()):
+            o = self.planner.world.rigidObject(i)
+            g = o.geometry()
+            if g != None and g.type()!="":
+                if self.planner.vacuumPc.withinDistance(g, .03):
+                    return False
         return True
+
 
 class LimbPlanner:
     """Much of your code for HW4 will go here.
@@ -70,6 +78,7 @@ class LimbPlanner:
         - knowledge: the KnowledgeBase objcet
         - collider: a WorldCollider object (see the klampt.robotcollide module)
     """
+
     def __init__(self,world, vacuumPc):
         self.world = world
         self.robot = world.robot(0)
@@ -139,13 +148,11 @@ class LimbPlanner:
                     print "Collision between link",self.robot.getLink(link).getName()," and dynamic object"
                     return False
 
-
         for i in xrange(self.world.numRigidObjects()):
             o = self.world.rigidObject(i)
             g = o.geometry()
             if g != None and g.type()!="":
-                print i
-                if self.vacuumPc.withinDistance(g, .015):
+                if self.vacuumPc.withinDistance(g, .03):
                     return False
 
         return True
@@ -177,6 +184,7 @@ class LimbPlanner:
         start to the goal, or False if planning failed"""
         self.rebuild_dynamic_objects()
         cspace = LimbCSpace(self,limb)
+        cspace.setup()
         if not cspace.feasible(limbstart):
             print "  Start configuration is infeasible!"
             return False
@@ -192,7 +200,13 @@ class LimbPlanner:
         for iters in xrange(maxPlanIters):
             plan.planMore(1)
             path = plan.getPath()
+            valid_path = True
             if path != None:
+                for milestone in path:
+                    if not cspace.feasible(milestone):
+                        valid_path = False
+
+            if path != None and valid_path:
                 print "  Found a path on iteration",iters
                 if len(path) > 2:
                     print "  Smoothing..."

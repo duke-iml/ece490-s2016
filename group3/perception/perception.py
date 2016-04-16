@@ -131,17 +131,20 @@ def resample(cloud, np_cloud, n = 5):
     color_idx =  color_idx[color_idx[:] > 0]
     return cloud[color_idx.astype(int)]
 
-def objectMatch(cloud,dict):
+def objectMatch(cloud,histogram_dict):
     """
     Input: Numpy array of cloud with RGB of current object, dictionary of all the object in the shelf
     Output: ID of specific point cloud 
     """
     uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in cloud[:,4:7]]
     hist = color.make_uv_hist(uv)
-    scores = dict([ (obj, 2 * numpy.minimum(hist, histogram).sum() - numpy.maximum(hist, histogram).sum()) for (obj, histogram) in known_histograms.items()])
+    scores = dict([ (obj, 2 * numpy.minimum(hist, histogram).sum() - numpy.maximum(hist, histogram).sum()) for (obj, histogram) in histogram_dict.items()])
     sorted_score = sorted(scores.items(), key=operator.itemgetter(1))
     obj = sorted_score.keys()[0]
     return ojb/3
+
+def build_hist_dict(object):
+    pass
 
 def com(cloud):
     return np.mean(cloud,axis = 0)
