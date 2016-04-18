@@ -2,7 +2,7 @@
 
 # NOTE: Key sequence to control the baxter as desired:
 #       bin number (A~L) --> scoop (S) --> move spatula to center (N) --> move gripper to center (M)
-#       --> grasp object (X) --> place object in order bin (P)
+#       --> grasp object (X) --> place object in order bin (P) --> bin number (A~L) --> unscoop (Y) --> return to starting position (N)
 #
 #       unscoop (Y) to place object in spatula back in shelf
 #       ungrasp (U) to place object in gripper back in spatula
@@ -43,10 +43,10 @@ import pickle
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
+FAKE_SIMULATION = 1
 PHYSICAL_SIMULATION = 0
 
-SPEED = 5
+SPEED = 3
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -351,7 +351,6 @@ class PhysicalLowLevelController(LowLevelController):
             print "Warning, could not load gravity compensation calibration file",calibfile
         else:
             print "Using gravity compensation from",calibfile
-
     def getSensedConfig(self):
         return motion.robot.getKlamptSensedPosition()
     def getSensedVelocity(self):
@@ -425,7 +424,8 @@ class PhysicalLowLevelController(LowLevelController):
         #        motion.robot.right_gripper.command(command,[1]*len(command),[1]*len(command))
 
 class PickingController:
-    def __init__(self,world,robotController):
+    def __init__(self,simworld,world,robotController):
+        self.simworld = simworld
         self.world = world
         self.robot = world.robot(0)
 
@@ -514,7 +514,7 @@ class PickingController:
     def graspAction(self):
         self.waitForMove()
 
-        if self.current_bin != None:
+        if self.current_bin != "center":
             print "Spatula is not located at the center bin"
             return False
         elif self.stateRight != 'ready':
@@ -614,8 +614,8 @@ class PickingController:
         #     print "Not holding an object"
         #     return False
         else:
-            if self.move_camera_to_bin(self.current_bin):
-                self.tilt_wrist('up', step=15)
+            # if self.move_camera_to_bin(self.current_bin):
+            if self.tilt_wrist('up', step=3):
                 self.waitForMove()
 
                 self.tilt_wrist('down')
@@ -894,7 +894,7 @@ class PickingController:
             self.robot.setConfig(qcmd)
             # print "starting config", qcmd
             self.sendPathClosedLoop(path)
-        self.current_bin = None
+        self.current_bin = "center"
         return True
 
         # self.robot.setConfig(self.controller.getCommandedConfig())
@@ -1556,7 +1556,6 @@ class PickingController:
                 q[i] = qmax[i]
         return q
 
-
 def draw_xformed(xform,localDrawFunc):
     """Draws something given a se3 transformation and a drawing function
     that draws the object in its local frame.
@@ -1620,6 +1619,7 @@ def run_controller(controller,command_queue):
                 controller.placeInOrderBinAction()
             elif c == 'o':
                 # controller.fulfillOrderAction(orderList)
+                controller.moveToRestConfig()
 
                 binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
                 for i in range(len(binList)):
@@ -1629,7 +1629,9 @@ def run_controller(controller,command_queue):
                     controller.move_gripper_to_center()
                     controller.graspAction()
                     controller.placeInOrderBinAction()
+                    controller.viewBinAction('bin_'+binList[i])
                     controller.unscoopAction()
+                    controller.moveToRestConfig()
             elif c == 's':
                 controller.scoopAction()
             elif c == 'y':
@@ -1671,7 +1673,7 @@ class MyGLViewer(GLRealtimeProgram):
         elif PHYSICAL_SIMULATION:
             self.low_level_controller = PhysicalLowLevelController(simworld.robot(0))
         elif not FAKE_SIMULATION and not PHYSICAL_SIMULATION:
-            self.low_level_controller =     LowLevelController(simworld.robot(0),self.sim.controller(0),self.sim)
+            self.low_level_controller = LowLevelController(simworld.robot(0),self.sim.controller(0),self.sim)
         self.command_queue = Queue()
 
         # visualize world model
@@ -1679,7 +1681,7 @@ class MyGLViewer(GLRealtimeProgram):
         # visualization.dialog()
 
         # starts a thread running "run_controller" with the specified picking controller and command queue
-        self.picking_controller = PickingController(planworld,self.low_level_controller)
+        self.picking_controller = PickingController(simworld, planworld,self.low_level_controller)
         self.picking_thread = Thread(target=run_controller,args=(self.picking_controller,self.command_queue))
         self.picking_thread.start()
 
@@ -1711,9 +1713,10 @@ class MyGLViewer(GLRealtimeProgram):
             self.simworld.drawGL()
 
         # draw the shelf and floor
-        if self.simworld.numTerrains()==0:
-            for i in range(self.planworld.numTerrains()):
-                self.planworld.terrain(i).drawGL()
+        # if self.simworld.numTerrains()==0:
+        #     for i in range(self.planworld.numTerrains()):
+        #         self.planworld.terrain(i).drawGL()
+
 
         #draw commanded configurations
         glEnable(GL_BLEND)
@@ -1932,7 +1935,7 @@ def load_apc_world():
     print "Loading simplified Baxter model..."
     # world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
     world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col2.rob"))
-    print "Loading Kiva pod model..."
+    print "Loading shelf model..."
     world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
@@ -2030,7 +2033,7 @@ if __name__ == "__main__":
     knowledge = KnowledgeBase()
 
     world = load_apc_world()
-    simWorld = load_apc_world()
+    simworld = load_apc_world()
 
     # shelf_xform_from_perception goes here
     # simply reveals the shelf xform
@@ -2040,7 +2043,7 @@ if __name__ == "__main__":
     init_ground_truth()
 
     if not NO_SIMULATION_COLLISIONS:
-        spawn_objects_from_ground_truth(simWorld)
+        spawn_objects_from_ground_truth(simworld)
         # NOTE: is this necessary?
         spawn_objects_from_ground_truth(world)
 
@@ -2055,10 +2058,10 @@ if __name__ == "__main__":
     if len(baxter_rest_config) < n:
         baxter_rest_config += [0.0]*(n-len(baxter_rest_config))
         print "# links in rest_config < # links in robot"
-    simWorld.robot(0).setConfig(baxter_rest_config)
+    simworld.robot(0).setConfig(baxter_rest_config)
     # world.robot(0).setConfig(baxter_rest_config)
     # set spatula center point (comes from baxter rest config)
-    knowledge.center_point = simWorld.robot(0).link(left_camera_link_name).getTransform()[1]
+    knowledge.center_point = simworld.robot(0).link(left_camera_link_name).getTransform()[1]
 
 
     # load the resting configuration from klampt_models/baxter_rest.config
@@ -2088,7 +2091,7 @@ if __name__ == "__main__":
         if not res:
             raise RuntimeError("Unable to load Klamp't model ")
     else:
-        simWorld.robot(0).setConfig(baxter_startup_config)
+        simworld.robot(0).setConfig(baxter_startup_config)
         world.robot(0).setConfig(baxter_startup_config)
 
     print "Loading precomputed trajectories... (this may take a while)"
@@ -2101,6 +2104,22 @@ if __name__ == "__main__":
     loaded_trajectory['move_to_order_bin'] = loadFromFile("../Trajectories/move_to_order_bin")
 
     #run the visualizer
-    visualizer = MyGLViewer(simWorld,world)
+    visualizer = MyGLViewer(simworld,world)
     myCameraSettings(visualizer)
     visualizer.run()
+
+
+
+
+
+    # t_obj_shelf = [0.45,0,0]
+    # t_shelf = [-0.9,-0.3,0.1]
+
+    # reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
+    # reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
+    # Trel = (so3.rotation((0,0,1),-math.pi/3),[2,0.75,-0.1])
+
+    # xform_with_scale = se3.mul(Trel,reorient_with_scale)
+    # world.terrain(0).geometry().transform(xform_with_scale[0], xform_with_scale[1])
+
+    # ground_truth_shelf_xform = se3.mul(Trel,reorient)

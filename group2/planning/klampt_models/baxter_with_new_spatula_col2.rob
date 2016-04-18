@@ -66,6 +66,8 @@ mount 22 "spatula_new.rob"     1 0 0  0 1 0   0 0 1   0 0.175 0.11 as "spatula"
 
 mount 45 "rethink_electric_gripper.rob"  0 -1 0   1 0 0   0 0 1    0 0 0 as "right_gripper"
 
+#mount 45 "vacuum.rob"  0 -1 0   1 0 0   0 0 1    0 0 0 as "vacuum"
+
 #uncomment these two lines and comment out the next two lines for free floating base
 
 #qmin	-inf -inf -inf -inf -inf -inf 0 0 0 -1.5708 0 0 0 0 0 -1.70168 -2.147 -3.05418 -0.05 -3.059 0 -1.5708 -3.059 0 0 0 0 0 0 0 0 0 0 0 0 -1.70168 -2.147 -3.05418 -0.05 -3.059 0 -1.5708 -3.059 0 0 0 0 0 0 0 0 0 0 0
