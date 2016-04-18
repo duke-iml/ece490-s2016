@@ -43,8 +43,8 @@ import pickle
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 SPEED = 3
 
@@ -579,6 +579,7 @@ class PickingController:
 
                 self.spatula('out')
                 self.waitForMove()
+                # return False
 
                 # method 1
                 for i in range(3):
@@ -774,10 +775,11 @@ class PickingController:
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
         left_goal = []
+        incremental= False
 
         # tilted angle view for spatula
         if direction == 'down':
-            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*15))
+            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*25))
             # [(+Right/-Left), (+Up/-Down), (+In/-Out)
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
@@ -793,12 +795,14 @@ class PickingController:
             elif step == 2:
                 # print "moving up/side (tilt-wrist part 2)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
-                maxSmoothIters=1
+                maxSmoothIters=3
+                #incremental = True
 
             elif step == 3:
                 # print "tilting down (tilt-wrist part 3)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-                maxSmoothIters=2
+                maxSmoothIters=4
+                #incremental = True
 
         elif direction == 'up':
             # method 1
@@ -840,7 +844,7 @@ class PickingController:
                 if path == 1 or path == 2 or path == False:
                     continue
                 elif path != None:
-                    self.sendPath(path, maxSmoothIters = maxSmoothIters)
+                    self.sendPath(path, maxSmoothIters = maxSmoothIters, INCREMENTAL = incremental)
                     return True
 
 
@@ -1949,9 +1953,8 @@ def load_apc_world():
     t_obj_shelf = [0.45,0,0]
     # t_shelf = [-1.5,-0.1,0.1]
     # t_shelf = [-1,-0.2,0.1]
-    t_shelf = [-0.9,-0.3,0.1]
-    # t_shelf = [-1.5,-0.2,0.1]
-    # t_shelf = [-1.4,-0.15,0.1]
+    #t_shelf = [-0.9,-0.3,0.1]
+    t_shelf = [-0.9,-0.3,0.1-0.09]
 
 
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
