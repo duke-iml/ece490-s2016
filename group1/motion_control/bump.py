@@ -39,14 +39,13 @@ class Bumper:
         motion.setup(mode=mode,klampt_model=klampt_model,libpath="common/",)
         res = motion.robot.startup()
         if not res:
-            print "Error starting up Motion Module"
-            return
+            raise RuntimeError("Unable to startup motion module")
         time.sleep(0.1)
-        world = WorldModel()
-        res = world.readFile(klampt_model)
+        self.world = WorldModel()
+        res = self.world.readFile(klampt_model)
         if not res:
             raise RuntimeError("Unable to load Klamp't model", klampt_model)
-        self.kRobot = world.robot(0)
+        self.kRobot = self.world.robot(0)
         self.pRobot = motion.robot
 
     ##
@@ -55,6 +54,7 @@ class Bumper:
     # @return the coordinates
     ##
     def getLeftArmCoords(self):
+        self.setKlamptPos()
         return self.kRobot.link("left_wrist").getWorldPosition((0,0,0))
 
     ##
@@ -63,6 +63,7 @@ class Bumper:
     # @return the coordinates
     ##
     def getRightArmCoords(self):
+        self.setKlamptPos()
         return self.kRobot.link("right_wrist").getWorldPosition((0,0,0))
 
     ##
@@ -115,14 +116,20 @@ class Bumper:
     ##
     def iksolve(self, config, kEE, pEE, mq):
         goal = ik.objective(kEE,local=(0,0,0), world=config)
-        q = self.pRobot.getKlamptSensedPosition()
-        self.kRobot.setConfig(q)
+        self.setKlamptPos()
         if ik.solve(goal):
             print "success!"
             q = self.kRobot.getConfig()
             mq.setRamp(pEE.configFromKlampt(q))
         else:
             print "failed. Residual:", ik.solver(goal).getResidual()
+
+    ##
+    # @brief Gets the robots sensed position and set's klampts model to reflect that
+    ##
+    def setKlamptPos(self):
+        q = self.pRobot.getKlamptSensedPosition()
+        self.kRobot.setConfig(q)
 
 ##
 # @brief Command line tester function
