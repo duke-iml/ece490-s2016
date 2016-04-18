@@ -93,7 +93,7 @@ class Bumper:
     ##
     # @brief Moves the right arm to the specified coordinates
     #
-    # @param The coordinates to move to
+    # @param coords The coordinates to move to
     ##
     def moveRightArmTo(self, coords):
         self.iksolve(coords, self.kRobot.link("right_wrist"), self.pRobot.right_limb, self.pRobot.right_mq)
@@ -101,10 +101,58 @@ class Bumper:
     ##
     # @brief Moves the left arm to the specified coordinates
     #
-    # @param The coordinates to move to
+    # @param coords The coordinates to move to
     ##
     def moveLeftArmTo(self, coords):
         self.iksolve(coords, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
+
+    ##
+    # @brief Rotates the right wrist to the given (absolute) angle.
+    #
+    # Zero is defined as the position where the built-in camera is on the top of the wrist
+    #
+    # @param angle The angle to move to, positive = clockwise from robot perspective
+    ##
+    def rotateRightWristTo(self, angle):
+        q = self.setKlamptPos()
+        q[42] = angle
+        self.pRobot.right_mq.setRamp(self.pRobot.right_limb.configFromKlampt(q))
+        
+    ##
+    # @brief Rotates the left wrist to the given (absolute) angle.
+    #
+    # Zero is defined as the position where the built-in camera is on the top of the wrist
+    #
+    # @param angle The angle to move to, positive = clockwise from robot perspective
+    ## 
+    def rotateLeftWristTo(self, angle):
+        q = self.setKlamptPos()
+        q[22] = angle
+        self.pRobot.left_mq.setRamp(self.pRobot.left_limb.configFromKlampt(q))
+
+    ##
+    # @brief Rotates the right wrist to the given (relative) angle.
+    #
+    # Zero is the current position of the wrist
+    #
+    # @param angle The angle to move to, positive = clockwise from robot perspective
+    ##
+    def rotateRightWrist(self, angle):
+        q = self.setKlamptPos()
+        q[42] = q[42] + angle
+        self.pRobot.right_mq.setRamp(self.pRobot.right_limb.configFromKlampt(q))
+        
+    ##
+    # @brief Rotates the left wrist to the given (relative) angle.
+    #
+    # Zero is the current position of the wrist
+    #
+    # @param angle The angle to move to, positive = clockwise from robot perspective
+    ## 
+    def rotateLeftWrist(self, angle):
+        q = self.setKlamptPos()
+        q[22] = q[22] + angle
+        self.pRobot.left_mq.setRamp(self.pRobot.left_limb.configFromKlampt(q))
 
     ##
     # @brief Performs IK on a position and moves baxter there
@@ -126,10 +174,13 @@ class Bumper:
 
     ##
     # @brief Gets the robots sensed position and set's klampts model to reflect that
+    #
+    # @return the current configuration
     ##
     def setKlamptPos(self):
         q = self.pRobot.getKlamptSensedPosition()
         self.kRobot.setConfig(q)
+        return q
 
 ##
 # @brief Command line tester function
@@ -154,6 +205,14 @@ def run(bump):
                     bump.bumpRight(coords)
                 elif command[1] =='l':
                     bump.bumpLeft(coords)
+                else:
+                    print "Unknown command"
+            elif command[0] == 'w':
+                angle = make_tuple(command[2:])
+                if command[1] == 'l':
+                    bump.rotateLeftWristTo(angle)
+                elif command[1] == 'r':
+                    bump.rotateRightWristTo(angle)
                 else:
                     print "Unknown command"
             else:
