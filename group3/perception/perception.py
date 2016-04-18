@@ -10,6 +10,7 @@ from scipy.spatial import KDTree, cKDTree
 import copy
 import ctypes
 import struct
+import os
 
 def isCloudValid(cloud):
     """
@@ -142,6 +143,18 @@ def objectMatch(cloud,histogram_dict):
     sorted_score = sorted(scores.items(), key=operator.itemgetter(1))
     obj = sorted_score.keys()[0]
     return ojb/3
+
+def loadHistogram(objects):
+    """
+    Input: list of index of objects
+    Output: dictionary of histogram, (index -1)*3+1,2,3 as Key, histogram as value
+    """
+    histo_dict = {}
+    for i in objects:
+        for j in range(1,4):
+            idx = (i-1)*3+j
+            histo_dict[idx] = np.load(os.path.join('..'  , 'data', 'hist', '{}.npz'.format(idx)))['arr_0']
+    return histo_dict
 
 def build_hist_dict(object):
     pass
