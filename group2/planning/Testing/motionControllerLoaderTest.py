@@ -43,10 +43,10 @@ import pickle
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
-SPEED = 3
+SPEED = 1
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -779,7 +779,7 @@ class PickingController:
 
         # tilted angle view for spatula
         if direction == 'down':
-            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*25))
+            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*20))
             # [(+Right/-Left), (+Up/-Down), (+In/-Out)
             world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
             t_camera = vectorops.add(world_center,world_offset)
@@ -795,14 +795,14 @@ class PickingController:
             elif step == 2:
                 # print "moving up/side (tilt-wrist part 2)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
-                maxSmoothIters=3
-                #incremental = True
+                maxSmoothIters=2
+                incremental = True
 
             elif step == 3:
                 # print "tilting down (tilt-wrist part 3)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-                maxSmoothIters=4
-                #incremental = True
+                maxSmoothIters=3
+                incremental = True
 
         elif direction == 'up':
             # method 1
@@ -1953,8 +1953,9 @@ def load_apc_world():
     t_obj_shelf = [0.45,0,0]
     # t_shelf = [-1.5,-0.1,0.1]
     # t_shelf = [-1,-0.2,0.1]
-    #t_shelf = [-0.9,-0.3,0.1]
-    t_shelf = [-0.9,-0.3,0.1-0.09]
+    # t_shelf = [-0.9,-0.3,0.1]
+    # t_shelf = [-0.9,-0.3,0.1-0.09]
+    t_shelf = [-0.95,-0.35,0.1-0.09]
 
 
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
@@ -2110,19 +2111,3 @@ if __name__ == "__main__":
     visualizer = MyGLViewer(simworld,world)
     myCameraSettings(visualizer)
     visualizer.run()
-
-
-
-
-
-    # t_obj_shelf = [0.45,0,0]
-    # t_shelf = [-0.9,-0.3,0.1]
-
-    # reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
-    # reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
-    # Trel = (so3.rotation((0,0,1),-math.pi/3),[2,0.75,-0.1])
-
-    # xform_with_scale = se3.mul(Trel,reorient_with_scale)
-    # world.terrain(0).geometry().transform(xform_with_scale[0], xform_with_scale[1])
-
-    # ground_truth_shelf_xform = se3.mul(Trel,reorient)
