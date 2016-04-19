@@ -98,13 +98,13 @@ class FullIntegrationMaster:
         glPointSize(5.0)
         glColor3f(0.0,0.0,1.0)
         glBegin(GL_POINTS)
-        for point in self.points1[::25]:
+        for point in self.points1[::100]:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
         glColor3f(1.0,0.0,0.0)
         glBegin(GL_POINTS)
-        for point in self.points2[::25]:
+        for point in self.points2[::100]:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
@@ -209,11 +209,7 @@ class FullIntegrationMaster:
         # all this stuff is local because we could use this for left arm or right arm
         space = robotcspace.RobotSubsetCSpace(self.world.robot(0),subset,collider)
         planner = cspace.MotionPlan(space, "rrt*")
-
-
-        #extract out cspace configurations
-
-        
+        #extract out cspace configurations       
         print "Goal config",goal
         planner.setEndpoints(start,goal)
         for iters in xrange(10000):
@@ -233,29 +229,48 @@ class FullIntegrationMaster:
                 return True
         return False
 
+    def motionPlanArm3(self, goal, locality, numSteps):
+        #assumptions: I have been told to go to a point inside a bin
+	    # 		camera transform is perfect
+        #       point is received in xyz
+        #process: take the point 
+        temp_planner = planning.LimbPlanner(self.world, self.vacuumPc)
+        if(numSteps < 2):
+            numSteps = 2
+
+        if locality == 'local':
+            goalF = se3.apply(self.Tcamera, point);
+            goalB = vectorops.add(goal, [0,0,-1])
+        else:
+            # my goal is in world coordinates already
+            # my goal is the given goal
+            goalF = goal
+            goalB = vectorops.add(goal, [0,0,-1])
+
+        goalArray = []
+        for i in range(numSteps):
+            goalArray = goalArray.append(vectorops.madd(goalB, vectorops.sub(goalF, goalB), i/numSteps))
+
+        path = []
+        for i in range(numSteps):
+            goalMilestone = goalArray[i]
+            if (right_arm_ik(goalMilestone)):
+                milestone = robot.getConfig()
+                if(temp_planner.check_collision_free('right')):
+                    path = path.append(milestone)
+
+        #tell robot to move
+        for myMilestone in path:
+             motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+
     def loop(self):
         try:
             while True:
                 print self.state
 
-                self.load_real_robot_state()
-                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
-                self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
-
-                self.vacuumPc = Geometry3D()
-                self.vacuumPc.loadFile(VACUUM_PCD_FILE)
-                temp_xform = self.robotModel.link('right_wrist').getTransform()
-                self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
-
-                if self.state == 'CUSTOM_CODE':
-                    pass
-
-                elif self.state == 'DEBUG_COLLISION_CHECKER':
-                    limbMilestone = [0.7723593258178711, -0.749349614025879, 0.00728640873413086, 1.157005007940674, -0.1461116698791504, -0.3528155808105469, 0.06634466900024415]
-                    #self.set_model_right_arm(limbMilestone)
-
+                # Load real robot state unless we are doing something custom
+                if not self.state == 'CUSTOM_CODE':
                     self.load_real_robot_state()
-
                     self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
                     self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
@@ -264,6 +279,18 @@ class FullIntegrationMaster:
                     temp_xform = self.robotModel.link('right_wrist').getTransform()
                     self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
 
+                if self.state == 'CUSTOM_CODE':
+                    self.object_com = [1.1932866695762265, -0.21129374428166015, 1.2536799402909209]
+                    self.set_model_right_arm([1.5320113220630651, -0.21291468819596743, -1.344898047709243, 1.497291200346913, 0.0014373150287777016, -0.7265822103328795, 1.2605545565381244])
+                    self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
+                    self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
+
+                    self.vacuumPc = Geometry3D()
+                    self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+                    temp_xform = self.robotModel.link('right_wrist').getTransform()
+                    self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
+
+                elif self.state == 'DEBUG_COLLISION_CHECKER':
                     temp_planner = planning.LimbPlanner(self.world, self.vacuumPc)
                     # Prints whether the planner thinks the right arm is in collision
                     print '==========='
@@ -296,7 +323,10 @@ class FullIntegrationMaster:
 
                 elif self.state == 'WAITING_TO_SCAN_BIN':
                     if time.time() - self.wait_start_time > SCAN_WAIT_TIME:
-                        self.state = 'SCANNING_BIN'
+                        if REAL_PERCEPTION:
+                            self.state = 'SCANNING_BIN'
+                        else:
+                            self.state = 'FAKE_SCANNING_BIN'
 
                 elif self.state == 'SCANNING_BIN':
                     print "Waiting for message from camera"    
@@ -335,12 +365,12 @@ class FullIntegrationMaster:
                     else:
                         print "Got an invalid cloud, trying again"
 
+                elif self.state == 'FAKE_SCANNING_BIN':
+                    self.object_com = [1.1456333151435623, -0.18573488791106177, 1.1116419624143496]
+                    self.state = 'MOVE_TO_GRASP_OBJECT'
+
                 elif self.state == 'CALIBRATE':
                     self.calibrateCamera()
-
-                elif self.state == 'FAKE_PERCEPTION':
-                    self.object_com = [1.2642990398621112, -0.2066530456472147, 1.2820372271376916]
-                    self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'WAITING_FOR_SEGMENTATION':
                     if os.path.isfile(CHENYU_DONE_PATH):
@@ -351,62 +381,50 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)
+                    while motion.robot.right_mq.moving():
+                       time.sleep(1)
+                    time.sleep(1.5)
+
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN2)
 
                     while motion.robot.right_mq.moving():
                         time.sleep(1)
-
-                    time.sleep(3)
-
-                    # for i in range(20):
-                    #     move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                    #     move_target[0] = move_target[0] + .005 * i
-                    #     if self.right_arm_ik(move_target):
-                    #         destination = self.robotModel.getConfig()
-                    #         motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-
-                    while motion.robot.right_mq.moving():
-                        time.sleep(1)
-
                     time.sleep(3)
 
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
+                        print "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices])
                         motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-
- 
-                    self.state = 'MOVING_TO_GRASP_OBJECT'
+                        self.state = 'MOVING_TO_GRASP_OBJECT'                   
+                    else:
+                        # TODO
+                        print "Error: IK failed"
+                        sys.stdout.flush()
+                        time.sleep(50000) 
 
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
                         self.state = 'GRASP_OBJECT'
 
                 elif self.state == 'GRASP_OBJECT':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN2)
-                    while motion.robot.right_mq.moving():
-                        time.sleep(1)
-                    time.sleep(3)
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)
-                    self.state = 'DONE'
-
                     # Turn on vacuum, then move downwards to grasp
-                    # move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                    # move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE
-                    # if self.right_arm_ik(move_target):
-                    #     self.turnOnVacuum()
-                    #     destination = self.robotModel.getConfig()
-                    #     motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                    # else:
-                    #     # TODO
-                    #     print "Error: IK failed"
-                    #     sys.stdout.flush()
-                    #     time.sleep(50000)
-                    # self.wait_start_time = time.time()
-                    # self.state = 'WAITING_TO_GRASP_OBJECT'
+                    move_target = se3.apply(self.Tvacuum, [0, 0, 0])
+                    move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE
+                    if self.right_arm_ik(move_target):
+                        self.turnOnVacuum()
+                        destination = self.robotModel.getConfig()
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                    else:
+                        # TODO
+                        print "Error: IK failed"
+                        sys.stdout.flush()
+                        time.sleep(50000)
+                    self.wait_start_time = time.time()
+                    self.state = 'WAITING_TO_GRASP_OBJECT'
 
                 elif self.state == 'WAITING_TO_GRASP_OBJECT':
                     if time.time() - self.wait_start_time > GRASP_WAIT_TIME:
-                        self.state = 'MOVE_TO_STOW_OBJECT'
+                        self.state = 'RETRACT'
 
                 elif self.state == 'RETRACT':
                     for i in range(40):
@@ -415,21 +433,11 @@ class FullIntegrationMaster:
                         if self.right_arm_ik(move_target):
                             destination = self.robotModel.getConfig()
                             motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                    self.state = 'DONE'
+                    self.state = 'MOVE_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
-                        move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                        move_target[0] = move_target[0] - BACK_UP_DISTANCE
-                        if self.right_arm_ik(move_target):
-                            destination = self.robotModel.getConfig()
-                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                        else:
-                            # TODO
-                            print "Error: IK failed"
-                            sys.stdout.flush()
-                            time.sleep(50000)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_1)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_INTERMEDIATE_2)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN2)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
                         self.state = 'MOVING_TO_STOW_OBJECT'
 
