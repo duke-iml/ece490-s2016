@@ -43,10 +43,10 @@ import pickle
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
-SPEED = 1
+SPEED = 5
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -148,7 +148,7 @@ class KnowledgeBase:
         elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
             world_offset = vectorops.add(local_center, [-0.04,0,0])
         elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
-            local_center = vectorops.add(local_center, [-0.005,0,0])
+            local_center = vectorops.add(local_center, [-0.01,0,0])
 
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
@@ -570,6 +570,7 @@ class PickingController:
 
                 self.tilt_wrist('down', step = 2)
                 self.waitForMove()
+                #return False
 
                 self.tilt_wrist('down', step = 3)
                 self.waitForMove()
@@ -579,10 +580,10 @@ class PickingController:
 
                 self.spatula('out')
                 self.waitForMove()
-                # return False
+                return False
 
                 # method 1
-                for i in range(3):
+                for i in range(5):
                     self.tilt_wrist('up', step=i+1)
                     self.waitForMove()
 
@@ -794,20 +795,21 @@ class PickingController:
 
             elif step == 2:
                 # print "moving up/side (tilt-wrist part 2)"
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
-                maxSmoothIters=2
+                #left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.05,0.4675-0.02]))))
+                maxSmoothIters=4
                 incremental = True
 
             elif step == 3:
                 # print "tilting down (tilt-wrist part 3)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-                maxSmoothIters=3
+                maxSmoothIters=5
                 incremental = True
 
         elif direction == 'up':
             # method 1
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*2*step))
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015,0.4575])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015+0.05,0.4575])
 
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
@@ -1954,8 +1956,8 @@ def load_apc_world():
     # t_shelf = [-1.5,-0.1,0.1]
     # t_shelf = [-1,-0.2,0.1]
     # t_shelf = [-0.9,-0.3,0.1]
-    # t_shelf = [-0.9,-0.3,0.1-0.09]
-    t_shelf = [-0.95,-0.35,0.1-0.09]
+    t_shelf = [-0.9,-0.3,0.1-0.075]
+    # t_shelf = [-0.95,-0.35,0.1-0.075]
 
 
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
@@ -2088,7 +2090,7 @@ if __name__ == "__main__":
             exit(1)
         time.sleep(0.1)
         q = motion.robot.getKlamptSensedPosition()
-        simWorld.robot(0).setConfig(q)
+        simworld.robot(0).setConfig(q)
         world.robot(0).setConfig(q)
 
         res = world.readFile(config.klampt_model)
