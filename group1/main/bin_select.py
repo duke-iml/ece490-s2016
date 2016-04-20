@@ -29,3 +29,9 @@ class binSelect:
     def chooseBin(self):
         #This method selects a bin and returns that to the caller.
         placeholder=1
+        
+    def printBin(self):
+        for key in bin_dict.keys():
+            binlist=bin_dict[key];
+            print "bin ",key," contains ",binlist[0]," with ",binlist[1]," items taking up ",binlist[2]," units or ",binlist[3],"%";
+            
