@@ -98,13 +98,13 @@ class FullIntegrationMaster:
         glPointSize(5.0)
         glColor3f(0.0,0.0,1.0)
         glBegin(GL_POINTS)
-        for point in self.points1[::100]:
+        for point in self.points1[::25]:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
         glColor3f(1.0,0.0,0.0)
         glBegin(GL_POINTS)
-        for point in self.points2[::100]:
+        for point in self.points2[::25]:
             glVertex3f(point[0], point[1], point[2])
         glEnd()
 
@@ -268,31 +268,23 @@ class FullIntegrationMaster:
             while True:
                 print self.state
 
-                # Load real robot state unless we are doing something custom
-                if not self.state == 'CUSTOM_CODE':
+                if self.state == 'VISUAL_DEBUG':
+                    # Feel free to change these values
+                    self.object_com = [579656115450314, -0.21457427266818555, 1.1191265727580322]
+                    self.set_model_right_arm([0.40575582577295016, -0.5555936203973322, 0.5135112521361598, 1.6219038331259774, -0.09994620292069625, -0.967204441698062, -0.3752280120748788])
+                else:
                     self.load_real_robot_state()
-                    self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
-                    self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
-                    self.vacuumPc = Geometry3D()
-                    self.vacuumPc.loadFile(VACUUM_PCD_FILE)
-                    temp_xform = self.robotModel.link('right_wrist').getTransform()
-                    self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
+                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
+                self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
-                if self.state == 'CUSTOM_CODE':
-                    self.object_com = [1.1932866695762265, -0.21129374428166015, 1.2536799402909209]
-                    self.set_model_right_arm([1.5320113220630651, -0.21291468819596743, -1.344898047709243, 1.497291200346913, 0.0014373150287777016, -0.7265822103328795, 1.2605545565381244])
-                    self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
-                    self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
+                self.vacuumPc = Geometry3D()
+                self.vacuumPc.loadFile(VACUUM_PCD_FILE)
+                temp_xform = self.robotModel.link('right_wrist').getTransform()
+                self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
 
-                    self.vacuumPc = Geometry3D()
-                    self.vacuumPc.loadFile(VACUUM_PCD_FILE)
-                    temp_xform = self.robotModel.link('right_wrist').getTransform()
-                    self.vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
-
-                elif self.state == 'DEBUG_COLLISION_CHECKER':
+                if self.state == 'DEBUG_COLLISION_CHECKER':
                     temp_planner = planning.LimbPlanner(self.world, self.vacuumPc)
-                    # Prints whether the planner thinks the right arm is in collision
                     print '==========='
                     print 'Is this configuration collision free?'
                     print temp_planner.check_collision_free('right')
@@ -334,6 +326,7 @@ class FullIntegrationMaster:
                    
                     if perception.isCloudValid(cloud):
                         np_cloud = perception.convertPc2ToNp(cloud)
+                        np_cloud = np_cloud[::STEP]
 
                         self.points1 = []
                         for point in np_cloud:
@@ -355,6 +348,7 @@ class FullIntegrationMaster:
                         fo.close()
 
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
+                        self.object_com[2] = self.object_com[2] + GRASP_MOVE_DISTANCE
 
                         if CALIBRATE:
                             self.state = "CALIBRATE"
@@ -389,7 +383,7 @@ class FullIntegrationMaster:
 
                     while motion.robot.right_mq.moving():
                         time.sleep(1)
-                    time.sleep(3)
+                    time.sleep(1.5)
 
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
