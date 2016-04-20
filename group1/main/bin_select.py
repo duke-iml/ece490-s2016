@@ -1,6 +1,5 @@
-#The classthat selects which bin to put items in
-# Inputs:
-# Returns 
+#The class that selects which bin to put items in
+#  Description: Mantains a python dictionary which notes where every item is stored and quick statistics about the bins
 
 import time
 import json
