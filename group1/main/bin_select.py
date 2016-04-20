@@ -9,22 +9,24 @@ class binSelect:
     bin_dict={}
     #Keys are the number of the bin and the value is a list
     #The list contains a list of items, number of items, and total volume 
-
+    maxbinvolume=20 #total volume constant for each bin 
     def __init__(self):
-        bin_dict[bin1]=[[],0,0];
-        bin_dict[bin2]=[[],0,0];
-        bin_dict[bin3]=[[],0,0];
-        bin_dict[bin4]=[[],0,0];
-        bin_dict[bin5]=[[],0,0];
-        bin_dict[bin6]=[[],0,0];
-        bin_dict[bin7]=[[],0,0];
-        bin_dict[bin8]=[[],0,0];
-        bin_dict[bin9]=[[],0,0];
-        bin_dict[bin10]=[[],0,0];
-        bin_dict[bin11]=[[],0,0];
-        bin_dict[bin12]=[[],0,0];
+        #Create empty bin objects
+        bin_dict[1]=[[],0,0];
+        bin_dict[2]=[[],0,0];
+        bin_dict[3]=[[],0,0];
+        bin_dict[4]=[[],0,0];
+        bin_dict[5]=[[],0,0];
+        bin_dict[6]=[[],0,0];
+        bin_dict[7]=[[],0,0];
+        bin_dict[8]=[[],0,0];
+        bin_dict[9]=[[],0,0];
+        bin_dict[10]=[[],0,0];
+        bin_dict[11]=[[],0,0];
+        bin_dict[12]=[[],0,0];
         
-    def addtoBin(self,targetitem,targetbin):
+    def addtoBin(self,itemid,itembin,itemvol):
+        binlist=bin_dict[itembin]
         
     def chooseBin(self):
         #This method selects a bin and returns that to the caller.
