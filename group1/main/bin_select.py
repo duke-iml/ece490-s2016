@@ -30,16 +30,28 @@ class binSelector:
         binlist=self.bin_dict[itembin]; #convert to temp local var 
         binlist[0].append(itemid); #add itemid to contents list
         binlist[1]=binlist[1]+1; #add item to number of items 
-        binlist[2]=binlist[2]+itemvol; #add volume to total volume
-        binlist[3]=100-binlist[2]*100/self.maxbinvolume; #recalculate percentage free
+        binlist[3]=binlist[3]+itemvol; #add volume to total volume
+        binlist[4]=100-binlist[3]*100/self.maxbinvolume; #recalculate percentage free
         self.bin_dict[itembin]=binlist;
         
     def chooseBin(self,itemvol):
         #This method selects a bin and returns that to the caller.
-        placeholder=1
+        validlist=[];
+        for key in self.bin_dict.keys():
+            prediction=self.addPredict(key,itemvol);
+            if prediction[2]>10: #If there is less than 10% free space in the bin don't add it to the list to be considered 
+                validlist.append(prediction);
+        print validlist;
+        
+    def addPredict(self,itembin,itemvol):
+        #Predicts the free space in a bin after a particular item is added to a specified bin. Returns total volume and percentage free 
+        estsize=self.bin_dict[itembin][1]+1;
+        estvol=self.bin_dict[itembin][3]+itemvol;
+        estpf=100-estvol*100/self.maxbinvolume;
+        return itembin, estsize, estpf
         
     def printBin(self):
         for key in self.bin_dict.keys():
             binlist=self.bin_dict[key];
-            print "bin ",key," contains ",binlist[0]," with ",binlist[1]," items taking up ",binlist[2]," units or ",binlist[3],"% free";
+            print "bin ",key," contains ",binlist[0]," with ",binlist[1]," items taking up ",binlist[3]," units or ",binlist[4],"% free";
             
