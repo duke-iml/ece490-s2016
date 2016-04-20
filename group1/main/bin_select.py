@@ -26,7 +26,11 @@ class binSelect:
         bin_dict[12]=[[],0,0];
         
     def addtoBin(self,itemid,itembin,itemvol):
-        binlist=bin_dict[itembin]
+        binlist=bin_dict[itembin]; #convert to temp local var 
+        binlist[0].append(itemid); #add itemid to contents list
+        binlist[1]=binlist[1]+1; #add item to number of items 
+        binlist[2]=binlist[2]+itemvol; #add volume to total volume
+        binlist[3]=binlist[2]/maxbinvolume; #recalculate percentage full
         
     def chooseBin(self):
         #This method selects a bin and returns that to the caller.
