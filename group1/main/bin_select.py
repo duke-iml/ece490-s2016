@@ -6,9 +6,7 @@ import time
 import json
 
 class binSelect:
-    bin_dict={
-        "bin1": 0
-        }
+    bin_dict={}
 
     def __init__(self,init_bin_dict):
         bin_dict=init_bin_dict
