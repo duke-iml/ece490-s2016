@@ -4,10 +4,13 @@ from klampt import vectorops,so3
 INITIAL_STATE = "START"
 
 REAL_VACUUM = False
-SHOW_PLOT = False
 REAL_PERCEPTION = True
+SEGMENT = True
+
 CALIBRATE = False
-SEGMENT = False
+SHOW_PLOT = False
+PRINT_BLOBS = True
+PRINT_LABELS_AND_SCORES = True
 
 # Downsample ratio
 STEP = 15
@@ -27,9 +30,9 @@ GRASP_INTERMEDIATE2 = [ 0.5963350306091308,  -1.0519273240905762, -0.12271846289
 # Constants for IK - used to constrain solutions
 IK_OFFSET = 0.8
 
-# 
 SHELF_MODEL_XFORM = [1.54,.08,0.0]
 
+NUM_HIST_PER_OBJECT = 4
 
 # Left arm configurations
 Q_SPATULA_AT_BIN = [0.08053399127197267, 0.5610534725280762, -1.4894953433349611, 0.830650595690918, -2.828277074432373, -1.3989904769531252, 0.0]
@@ -38,12 +41,13 @@ Q_SPATULA_AT_BIN = [0.08053399127197267, 0.5610534725280762, -1.4894953433349611
 REPO_ROOT = "/home/group3/ece490-s2016"
 KLAMPT_MODELS_DIR = REPO_ROOT + "/apc2015/klampt_models/"
 LIBPATH = REPO_ROOT + "/common/"
-SHELF_NPZ_FILE = REPO_ROOT + "/group3/perception/shelf.npz"
 VACUUM_PCD_FILE = REPO_ROOT + "/group3/planning/custom_vacuum.pcd"
-CLOUD_MAT_PATH = REPO_ROOT + "/group3/perception/matpcl/cloud.mat"
-CHENYU_GO_PATH = REPO_ROOT + "/group3/perception/matpcl/chenyugo.txt"
-CHENYU_DONE_PATH = REPO_ROOT + "/group3/perception/matpcl/chenyudone.txt"
-MAT_PATH = REPO_ROOT + "/group3/perception/matpcl/"
+PERCEPTION_DIR = REPO_ROOT + "/group3/perception"
+SHELF_NPZ_FILE = PERCEPTION_DIR + "/shelf.npz"
+MAT_PATH = PERCEPTION_DIR + "/matpcl/"
+CLOUD_MAT_PATH = MAT_PATH + "cloud.mat"
+CHENYU_GO_PATH = MAT_PATH + "chenyugo.txt"
+CHENYU_DONE_PATH = MAT_PATH + "chenyudone.txt"
 
 # Indices in Baxter robot file link
 LEFT_CAMERA_LINK_NAME = 'left_hand_camera'

@@ -325,8 +325,8 @@ class FullIntegrationMaster:
                     cloud = rospy.wait_for_message(ROS_DEPTH_TOPIC, PointCloud2)
                    
                     if perception.isCloudValid(cloud):
-                        np_cloud = perception.convertPc2ToNp(cloud)
-                        np_cloud = np_cloud[::STEP]
+                        cloud = perception.convertPc2ToNp(cloud)
+                        np_cloud = cloud[::STEP]
 
                         self.points1 = []
                         for point in np_cloud:
@@ -341,6 +341,9 @@ class FullIntegrationMaster:
                             self.points2.append(transformed)
 
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
+
+                        if PRINT_BLOBS:
+                            print np_cloud
 
                         sio.savemat(CLOUD_MAT_PATH, {'cloud':np_cloud})
                         fo = open(CHENYU_GO_PATH, "w")
@@ -370,8 +373,42 @@ class FullIntegrationMaster:
                     if os.path.isfile(CHENYU_DONE_PATH):
                         os.remove(CHENYU_GO_PATH)
                         os.remove(CHENYU_DONE_PATH)
-                        os.remove(CLOUD_MAT_PATH)
-                        self.state = 'DONE'
+                        self.state = 'POSTPROCESS_SEGMENTATION'
+
+                elif self.state == 'POSTPROCESS_SEGMENTATION':
+                    object_blobs = []
+                    for i in range(1,20):
+                        name = MAT_PATH + "seg" + str(i) + ".mat"
+                        print name
+                        if os.path.isfile(name):
+                            print name + " exists"
+                            mat_contents = sio.loadmat(name)
+                            object_blobs.append(mat_contents['r'])
+                    if PRINT_BLOBS:
+                        print "============="
+                        print "object blobs"
+                        print object_blobs
+                        print "============="
+
+                    object_list = [14, 4, 35]
+                    histogram_dict = perception.loadHistogram(object_list)
+                    cloud_label = {} # key is the label of object, value is cloud points
+                    label_score = {} # key is the label, value is the current score for the object 
+                    for object_cloud in object_blobs:
+                        object_cloud = perception.resample(cloud,object_cloud,3)
+                        label,score = perception.objectMatch(cloud,histogram_dict)
+                        if label in cloud_label:
+                            if label_score[label] < score:
+                                label_score[label] = score
+                                cloud_label[label] = object_cloud
+                        else:
+                            cloud_label[label] = object_cloud
+                            label_score[label] = score
+
+                    if PRINT_LABELS_AND_SCORES:
+                        print cloud_label
+                        print "============="
+                        print label_score
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)

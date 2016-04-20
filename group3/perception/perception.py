@@ -152,9 +152,9 @@ def loadHistogram(objects):
     """
     histo_dict = {}
     for i in objects:
-        for j in range(1,4):
-            idx = (i-1)*3+j
-            histo_dict[idx] = np.load(os.path.join('..'  , 'data', 'hist', '{}.npz'.format(idx)))['arr_0']
+        for j in range(1, NUM_HIST_PER_OBJECT+1):
+            idx = (i-1) * NUM_HIST_PER_OBJECT + j
+            histo_dict[idx] = np.load(PERCEPTION_DIR + '/{}.npz'.format(idx))['arr_0']
     return histo_dict
 
 def build_hist_dict(object):
