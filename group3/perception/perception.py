@@ -139,10 +139,11 @@ def objectMatch(cloud,histogram_dict):
     """
     uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in cloud[:,4:7]]
     hist = color.make_uv_hist(uv)
-    scores = dict([ (obj, 2 * numpy.minimum(hist, histogram).sum() - numpy.maximum(hist, histogram).sum()) for (obj, histogram) in histogram_dict.items()])
-    sorted_score = sorted(scores.items(), key=operator.itemgetter(1))
-    obj = sorted_score.keys()[0]
-    return ojb/3
+    scores = dict([ (obj, 2 * np.minimum(hist, histogram).sum() - np.maximum(hist, histogram).sum()) for (obj, histogram) in histogram_dict.items()])
+    sorted_score = sorted(scores.items(), key=operator.itemgetter(1),reverse = True)
+    obj = sorted_score[0][0]
+    score = sorted_score[0][1]
+    return ojb/4+1,score
 
 def loadHistogram(objects):
     """
