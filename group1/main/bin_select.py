@@ -12,6 +12,7 @@ class binSelect:
     maxbinvolume=20 #total volume constant for each bin 
     def __init__(self):
         #Create empty bin objects
+		bin_dict={};
         bin_dict[1]=[[],0,0,0]; bin_dict[2]=[[],0,0,0];
         bin_dict[3]=[[],0,0,0]; bin_dict[4]=[[],0,0,0];
         bin_dict[5]=[[],0,0,0]; bin_dict[6]=[[],0,0,0];
