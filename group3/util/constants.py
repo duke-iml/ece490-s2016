@@ -47,6 +47,7 @@ REPO_ROOT = "/home/group3/ece490-s2016"
 KLAMPT_MODELS_DIR = REPO_ROOT + "/apc2015/klampt_models/"
 LIBPATH = REPO_ROOT + "/common/"
 VACUUM_PCD_FILE = REPO_ROOT + "/group3/planning/custom_vacuum.pcd"
+PICK_JSON_PATH = REPO_ROOT + '/group3/integration/apc_pick_task.json'
 PERCEPTION_DIR = REPO_ROOT + "/group3/perception"
 SHELF_NPZ_FILE = PERCEPTION_DIR + "/shelf.npz"
 MAT_PATH = PERCEPTION_DIR + "/matpcl/"
@@ -83,7 +84,7 @@ BACK_UP_DISTANCE = .2
 
 # Times (seconds)
 MOVE_TIME = 2
-SCAN_WAIT_TIME = 0 if REAL_PERCEPTION else 0
+SCAN_WAIT_TIME = 5 if REAL_PERCEPTION else 0
 GRASP_WAIT_TIME = 2 if REAL_VACUUM else 0
 
 

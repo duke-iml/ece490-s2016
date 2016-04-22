@@ -4,6 +4,7 @@ __pycache__/
 
 *.mat
 group3/perception/matpcl
+*.json
 
 # Distribution / packaging
 .Python
