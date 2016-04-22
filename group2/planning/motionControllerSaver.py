@@ -15,18 +15,18 @@ import pickle
 
 # these two go together usually
 FAKE_SIMULATION = 0
-SKIP_PATH_VIEWING = 0
+SKIP_PATH_VIEWING = 1
 SKIP_PATH_PLANNING = 0
 
 SAVE_MOVE_TO_BIN_IK = 0
-SAVE_MOVE_TO_BIN_TRAJECTORY = 0
+SAVE_MOVE_TO_BIN_TRAJECTORY = 1
 
-SAVE_MOVE_SPATULA_TO_CENTER_TRAJECTORY = 0
+SAVE_MOVE_SPATULA_TO_CENTER_TRAJECTORY = 1
 
 SAVE_MOVE_GRIPPER_TO_CENTER_IK = 0
 SAVE_MOVE_GRIPPER_TO_CENTER_TRAJECTORY = 0
 
-SAVE_MOVE_GRIPPER_TO_ORDER_BIN_TRAJECTORY = 1
+SAVE_MOVE_GRIPPER_TO_ORDER_BIN_TRAJECTORY = 0
 
 
 # The path of the klampt_models directory
@@ -129,7 +129,7 @@ class KnowledgeBase:
         elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
             world_offset = vectorops.add(local_center, [-0.04,0,0])
         elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
-            local_center = vectorops.add(local_center, [-0.005,0,0])
+            local_center = vectorops.add(local_center, [-0.01,0,0])
 
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
@@ -1065,7 +1065,7 @@ class PickingController:
                 sortedSolutions = [loadFromFile("IK_Solutions/"+bin_name), 0]
             else:
                 sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=1000,rangeVal=dist/2500)
-            print sortedSolutions
+            # print sortedSolutions
             if len(sortedSolutions)==0:
                 continue
 
@@ -1736,7 +1736,8 @@ def load_apc_world():
     t_obj_shelf = [0.45,0,0]
     # t_shelf = [-1.5,-0.1,0.1]
     # t_shelf = [-1,-0.2,0.1]
-    t_shelf = [-0.9,-0.3,0.1]
+    # t_shelf = [-0.9,-0.3,0.1]
+    t_shelf = [-0.9,-0.3,0.1-0.075]
     # t_shelf = [-1.5,-0.2,0.1]
     # t_shelf = [-1.4,-0.15,0.1]
 
