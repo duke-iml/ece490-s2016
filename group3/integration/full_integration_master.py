@@ -21,6 +21,7 @@ from sensor_msgs.msg import Image
 import sensor_msgs.point_cloud2 as pc2
 import scipy.io as sio
 import subprocess
+import operator
 
 baxter_rest_config = [0.0]*54
 
@@ -161,6 +162,13 @@ class FullIntegrationMaster:
 
     # IK and motion planning
     # =========================================================================================
+    def elbow_up(self):
+        destination = self.robotModel.getConfig()
+        for index,v in enumerate(self.right_arm_indices):
+            if not (ELBOW_UP_BOUNDS[index][0] < destination[v] and destination[v] < ELBOW_UP_BOUNDS[index][1]):
+                return False
+        return True
+
     def right_arm_ik(self, right_target):
         """Solves IK to move the right arm to the specified
             right_target ([x, y, z] in world space)
@@ -196,7 +204,7 @@ class FullIntegrationMaster:
             goal1 = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
             goal2 = ik.objective(self.robotModel.link('right_wrist'),local=point2_local,world=point2_world)
             goal3 = ik.objective(self.robotModel.link('right_wrist'),local=point3_local,world=point3_world)
-            if ik.solve([goal1, goal2, goal3],tol=0.0001) and feasible_tester.check_collision_free('right'):
+            if ik.solve([goal1, goal2, goal3],tol=0.0001) and feasible_tester.check_collision_free('right') and self.elbow_up():
                 return True
         print "right_arm_ik failed for ", right_target
         return False
@@ -342,7 +350,7 @@ class FullIntegrationMaster:
                     start_right_arm = [start[v] for v in self.right_arm_indices]
                     self.object_com = [1.2456333151435623, -0.18573488791106177, 1.2116419624143496]
                     self.object_com = [1.1851363660702774, -0.3011348060169573, 1.1526211335352967]
-                    self.right_arm_ik(self.object_com)
+                    self.right_arm_ik_path_plan(self.object_com)
                     destination = self.robotModel.getConfig()
                     #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
                     self.motionPlanArm3(self.object_com, 'world', 15)
@@ -426,12 +434,13 @@ class FullIntegrationMaster:
                 elif self.state == 'POSTPROCESS_SEGMENTATION':
                     object_blobs = []
                     for i in range(1,20):
-                        name = MAT_PATH + "seg" + str(i) + ".mat"
-                        print name
-                        if os.path.isfile(name):
-                            print name + " exists"
-                            mat_contents = sio.loadmat(name)
+                        seg_file_path = MAT_PATH + "seg" + str(i) + ".mat"
+                        print seg_file_path
+                        if os.path.isfile(seg_file_path):
+                            print seg_file_path + " exists"
+                            mat_contents = sio.loadmat(seg_file_path)
                             object_blobs.append(mat_contents['r'])
+                            os.remove(seg_file_path)
                     if PRINT_BLOBS:
                         print "============="
                         print "object blobs"
@@ -457,7 +466,27 @@ class FullIntegrationMaster:
                         print cloud_label
                         print "============="
                         print label_score
+                    target = 14
+                    if target in cloud_label:
+                        self.object_com = se3.apply(self.Tcamera, perception.com(cloud_label[target]))
 
+                        self.points1 = []
+                        for point in cloud_label[target]:
+                            transformed = se3.apply(self.Tcamera, point)
+                            self.points1.append(transformed)
+
+                        self.points2 = []
+                    else:
+                        cloud_score = {}
+                        histogram_dict = perception.loadHistogram([target])
+                        for object_cloud in object_blobs:
+                            object_cloud = perception.resample(cloud,object_cloud,3)
+                            label,score = perception.objectMatch(cloud,histogram_dict)
+                            cloud_score[score] = object_cloud
+                        # TODO CHENYU apply transform
+                        sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(1),reverse = True)
+                        score  = sorted_cloud.keys()[0]
+                        com = perception.com(sorted_cloud[score])
                     self.state = 'DONE'
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':

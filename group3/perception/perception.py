@@ -11,6 +11,8 @@ import copy
 import ctypes
 import struct
 import os
+import color
+import operator
 
 def isCloudValid(cloud):
     """
@@ -143,7 +145,9 @@ def objectMatch(cloud,histogram_dict):
     sorted_score = sorted(scores.items(), key=operator.itemgetter(1),reverse = True)
     obj = sorted_score[0][0]
     score = sorted_score[0][1]
-    return ojb/4+1,score
+    if VERBOSE:
+        print 'found object ' + str(obj/NUM_HIST_PER_OBJECT+1) + ' score is ' + str(score)
+    return obj/NUM_HIST_PER_OBJECT+1,score
 
 def loadHistogram(objects):
     """
@@ -154,6 +158,8 @@ def loadHistogram(objects):
     for i in objects:
         for j in range(1, NUM_HIST_PER_OBJECT+1):
             idx = (i-1) * NUM_HIST_PER_OBJECT + j
+            if VERBOSE:
+                print 'load histgram ' + str(idx)
             histo_dict[idx] = np.load(PERCEPTION_DIR + '/{}.npz'.format(idx))['arr_0']
     return histo_dict
 

@@ -12,7 +12,7 @@ while 1
         break;
     end
 
-
+clear
 load('cloud.mat')
 
 r=[0,0,0,0,0,0,0];
@@ -54,7 +54,7 @@ for i=1:20
 odth1(i)=abs(dot([(cloud(idx1(dmin,i),1)-dminmean(1)),(cloud(idx1(dmin,i),2)-dminmean(2)),(cloud(idx1(dmin,i),3)-dminmean(3))],p(:,3)));
 end
 odth=median(odth1);
-pointss=[0,0,0,0,0,0,0];
+pointss=[];
 for i=1:20
 if dist(dmin,i)<=edth && dist(dmin,i)<=edthall && dot([(cloud(idx1(dmin,i),1)-dminmean(1)),(cloud(idx1(dmin,i),2)-dminmean(2)),(cloud(idx1(dmin,i),3)-dminmean(3))],p(:,3))<=odth
 
