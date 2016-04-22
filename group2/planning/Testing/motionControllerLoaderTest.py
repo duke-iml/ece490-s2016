@@ -44,7 +44,7 @@ import pickle
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
 FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 SPEED = 5
 
@@ -580,7 +580,7 @@ class PickingController:
 
                 self.spatula('out')
                 self.waitForMove()
-                return False
+                # return False
 
                 # method 1
                 for i in range(5):
@@ -1253,7 +1253,7 @@ class PickingController:
             if FAKE_SIMULATION:
                 self.controller.setMilestone(path[-1])
             else:
-                self.sendPathClosedLoop(path)
+                self.sendPathClosedLoop(path, clearRightArm=True)
             return True
 
         # If we are backing off from bin to view camera
@@ -1281,7 +1281,7 @@ class PickingController:
                     break
                 elif path != None:
                     if ik_constraint==None:
-                        self.sendPath(path)
+                        self.sendPath(path, clearRightArm=True)
                     else:
                         self.sendPathClosedLoop(path)
                     return True
@@ -1387,7 +1387,7 @@ class PickingController:
             print "Planning failed"
             return False
 
-    def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False):
+    def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False):
         # interpolate path linearly between two endpoints
         # if INCREMENTAL:
         #     assert(len(path)==2)
@@ -1429,6 +1429,10 @@ class PickingController:
             for i in [23,30,31,43,50,51,54]:
                 # print i, qmin[i], q[i], qmax[i]
                 q[i] = 0
+
+            if clearRightArm:
+                q[35] = -0.3
+
             q = self.clampJointLimits(q,qmin,qmax)
 
             if not PHYSICAL_SIMULATION:
@@ -1479,7 +1483,7 @@ class PickingController:
                         self.controller.appendMilestone(q)
                     counter +=1
 
-    def sendPathClosedLoop(self,path):
+    def sendPathClosedLoop(self,path, clearRightArm = False):
         # print "pathlength starting =", len(path)
         # removing AppendRamp clamping error
         q = path[0]
@@ -1499,6 +1503,8 @@ class PickingController:
 
             for i in [23,30,31,43,50,51,54]:
                 q[i] = 0
+            if clearRightArm:
+                q[35] = -0.3
             q = self.clampJointLimits(q,qmin,qmax)
 
             #restore spatulaConfig
