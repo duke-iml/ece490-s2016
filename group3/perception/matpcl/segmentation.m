@@ -15,7 +15,7 @@ while 1
 clear
 load('cloud.mat')
 
-r=[0,0,0,0,0,0,0];
+r=[];
 o=1;   %indicate how many points are searched
 oo=1;  %indicate how many iritations are done
 ooo=1; %indicate how many areas are found
@@ -136,7 +136,7 @@ end
 pointnum=[];
 pointnum1=[];
 pointss=[];
-r=[0,0,0,0,0,0,0];
+r=[];
 o=1;
 oo=1;
 

@@ -48,7 +48,7 @@ class SaveF200DepthSnapshot:
             # cloud, _ = perception.calPointCloud(cloud)
             #add end
             #cloud = cloud.transpose()
-            cloud = cloud[::STEP]
+            cloud = cloud[::10]
             print cloud
             xs = cloud[:,0]
             ys = cloud[:,1]

@@ -324,7 +324,7 @@ class FullIntegrationMaster:
                 if self.state == 'VISUAL_DEBUG':
                     # Feel free to change these values
                     self.object_com = [579656115450314, -0.21457427266818555, 1.1191265727580322]
-                    self.set_model_right_arm([0.40575582577295016, -0.5555936203973322, 0.5135112521361598, 1.6219038331259774, -0.09994620292069625, -0.967204441698062, -0.3752280120748788])
+                    self.set_model_right_arm(Q_CALIBRATE_BIN_E)
                 else:
                     self.load_real_robot_state()
 
@@ -447,7 +447,7 @@ class FullIntegrationMaster:
                         print object_blobs
                         print "============="
 
-                    object_list = [14, 4, 35]
+                    object_list = [15, 31]
                     histogram_dict = perception.loadHistogram(object_list)
                     cloud_label = {} # key is the label of object, value is cloud points
                     label_score = {} # key is the label, value is the current score for the object 
@@ -466,7 +466,7 @@ class FullIntegrationMaster:
                         print cloud_label
                         print "============="
                         print label_score
-                    target = 14
+                    target = 15
                     if target in cloud_label:
                         self.object_com = se3.apply(self.Tcamera, perception.com(cloud_label[target]))
 
@@ -485,7 +485,7 @@ class FullIntegrationMaster:
                             cloud_score[score] = object_cloud
                         # TODO CHENYU apply transform
                         sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(1),reverse = True)
-                        score  = sorted_cloud.keys()[0]
+                        score  = sorted_cloud[0][0]
                         com = perception.com(sorted_cloud[score])
                     self.state = 'DONE'
 
