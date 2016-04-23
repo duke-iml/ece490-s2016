@@ -19,9 +19,9 @@ SKIP_PATH_VIEWING = 1
 SKIP_PATH_PLANNING = 0
 
 SAVE_MOVE_TO_BIN_IK = 0
-SAVE_MOVE_TO_BIN_TRAJECTORY = 1
+SAVE_MOVE_TO_BIN_TRAJECTORY = 0
 
-SAVE_MOVE_SPATULA_TO_CENTER_TRAJECTORY = 1
+SAVE_MOVE_SPATULA_TO_CENTER_TRAJECTORY = 0
 
 SAVE_MOVE_GRIPPER_TO_CENTER_IK = 0
 SAVE_MOVE_GRIPPER_TO_CENTER_TRAJECTORY = 0
@@ -784,7 +784,7 @@ class PickingController:
         self.robot.setConfig(self.controller.getCommandedConfig())
 
         R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], -math.pi))
-        t_wrist = knowledge.bin_vertical_point()
+        t_wrist = vectorops.add(knowledge.bin_vertical_point(), [0,0,0.25])
 
         # Setup ik objectives for both arms
         # place +z in the +x axis, -y in the +z axis, and x in the -y axis
