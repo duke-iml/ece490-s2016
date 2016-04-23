@@ -44,7 +44,7 @@ import pickle
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
 FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 SPEED = 5
 
@@ -143,12 +143,23 @@ class KnowledgeBase:
         # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
         local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmax[2]]
 
+        # horizontal adjustment
         if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
-            local_center = vectorops.add(local_center, [0.005,0,0])
+            local_center = vectorops.add(local_center, [-0.0,0,0])
         elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
-            world_offset = vectorops.add(local_center, [-0.04,0,0])
+            # local_center = vectorops.add(local_center, [-0.00,0,0])
+            local_center = vectorops.add(local_center, [0.00,0,0])
         elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
             local_center = vectorops.add(local_center, [-0.01,0,0])
+
+        if bin_name == 'bin_J':
+            local_center = vectorops.add(local_center, [-0.005,0,0])
+        if bin_name == 'bin_K':
+            local_center = vectorops.add(local_center, [-0.025,0,0])            
+        # in/out adjustment
+        #if bin_name == 'bin_J' or bin_name == 'bin_K' or bin_name == 'bin_L':
+        #    local_center = vectorops.add(local_center, [0,0,-0.003])
+        
 
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
@@ -575,12 +586,16 @@ class PickingController:
                 self.tilt_wrist('down', step = 3)
                 self.waitForMove()
 
+                #pos = loadFromFile("../Positions/"+self.current_bin)
+                #print pos
+                # self.controller.appendMilestone(pos)
+
                 while self.incrementalMove('down'):
                     self.waitForMove()
 
                 self.spatula('out')
                 self.waitForMove()
-                # return False
+                #return False
 
                 # method 1
                 for i in range(5):
@@ -759,7 +774,7 @@ class PickingController:
                     for i in range(len(path)):
                         if vectorops.distance(qcmd, path[i]) > 0.05:
                             return False
-                    self.sendPath(path, INCREMENTAL = True)
+                    self.sendPath(path, maxSmoothIters=3, INCREMENTAL = True)
                     return True
         # print "Failed to plan path"
         self.robot.setConfig(currConfig)
@@ -787,7 +802,8 @@ class PickingController:
             dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
             if step == 0:
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-                maxSmoothIters=0
+                maxSmoothIters=2
+                incremental = True
             elif step == 1:
                 # print "tilting down (tilt-wrist part 1)"
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=self.left_camera_link.getTransform()[1]))
@@ -797,7 +813,8 @@ class PickingController:
                 # print "moving up/side (tilt-wrist part 2)"
                 #left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.05,0.4675-0.02]))))
-                maxSmoothIters=4
+                print "goal pos =", vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.05,0.4675-0.02]))
+                maxSmoothIters=3
                 incremental = True
 
             elif step == 3:
@@ -809,7 +826,8 @@ class PickingController:
         elif direction == 'up':
             # method 1
             R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*2*step))
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015+0.05,0.4575])
+            #world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015+0.05,0.4575])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015+0.05,0.5175])
 
             t_camera = vectorops.add(world_center,world_offset)
             left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
@@ -1655,8 +1673,7 @@ def run_controller(controller,command_queue):
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == '`':
-                global config
-                config = (not config)
+                print motion.robot.getKlamptSensedPosition()
             elif c=='q':
                 break
         else:
@@ -1723,6 +1740,7 @@ class MyGLViewer(GLRealtimeProgram):
             q = robot.getKlamptSensedPosition()
             self.simworld.robot(0).setConfig(q)
             self.simworld.drawGL()
+
 
         # draw the shelf and floor
         # if self.simworld.numTerrains()==0:
@@ -1962,13 +1980,19 @@ def load_apc_world():
     # t_shelf = [-1.5,-0.1,0.1]
     # t_shelf = [-1,-0.2,0.1]
     # t_shelf = [-0.9,-0.3,0.1]
-    t_shelf = [-0.9,-0.3,0.1-0.075]
     # t_shelf = [-0.95,-0.35,0.1-0.075]
+    t_shelf = [-0.9,-0.3,0.1-0.075]
+
+    dy = 0.02
+    dx = math.sqrt(3)*dy
+    dz = 0.02
+    dAngle = 3
 
 
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
     reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
-    Trel = (so3.rotation((0,0,1),-math.pi/3),[2,0.75,-0.1])
+    #Trel = (so3.rotation((0,0,1),-math.pi/3),[2,0.75,-0.1])
+    Trel = (so3.mul(so3.rotation((0,0,1),-math.pi/3), so3.rotation((1,0,0),math.pi/360*dAngle)),[2 + dx,0.75 + dy,-0.1 + dz])
     # Trel = (so3.rotation((0,0,1),-math.pi/4),[2,0.75,-0.1])
 
 
