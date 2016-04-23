@@ -40,12 +40,13 @@ class FullIntegrationMaster:
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
 
+
         self.Tcamera = se3.identity()
         self.Tvacuum = se3.identity()
+        self.calibratedCameraXform = RIGHT_F200_CAMERA_CALIBRATED_XFORM
         self.object_com = [0, 0, 0]
         self.points1 = []
         self.points2 = []
-        self.cameraCalibration = RIGHT_F200_CAMERA_CALIBRATED_XFORM
 
         self.vacuumPc = Geometry3D()
         self.vacuumPc.loadFile(VACUUM_PCD_FILE)
@@ -121,10 +122,10 @@ class FullIntegrationMaster:
             print "Fake vacuum is off"
 
     def calibrateCamera(self):
-        print self.cameraCalibration
+        print self.calibratedCameraXform
 
-        calibrateR = self.cameraCalibration[0];
-        calibrateT = self.cameraCalibration[1];
+        calibrateR = self.calibratedCameraXform[0];
+        calibrateT = self.calibratedCameraXform[1];
 
         try:
             input_var = raw_input("Enter joint and angle to change to separated by a comma: ").split(',');
@@ -145,20 +146,20 @@ class FullIntegrationMaster:
 
             time.sleep(0.1);
 
-            self.cameraCalibration = (calibrateR, calibrateT)
+            self.calibratedCameraXform = (calibrateR, calibrateT)
 
         except: 
             print "input error\n"
 
             print "printing camera calibration"
-            print self.cameraCalibration
+            print self.calibratedCameraXform
 
-        try: 
-            move = raw_input("Do you want to move? (y or n)");
-            if move == "y":
-                self.state = 'MOVING_TO_GRASP_OBJECT'
-        except:
-            print "input error\n"
+        # try: 
+        #     move = raw_input("Do you want to move? (y or n)");
+        #     if move == "y":
+        #         self.state = 'MOVING_TO_GRASP_OBJECT'
+        # except:
+        #     print "input error\n"
 
     # IK and motion planning
     # =========================================================================================
@@ -193,10 +194,11 @@ class FullIntegrationMaster:
             right_target ([x, y, z] in world space)
         """
         feasible_tester = planning.LimbPlanner(self.world, self.vacuumPc)
+        self.load_real_robot_state()
+        self.set_model_right_arm(Q_IK_SEED_H)
 
         qmin,qmax = self.robotModel.getJointLimits()
         for i in range(1000):
-            self.load_real_robot_state()
             point2_local = vectorops.add(VACUUM_POINT_XFORM[1], [0, 0, -1])
             point2_world = vectorops.add(right_target, [-1, 0, 0])
             point3_local = vectorops.add(VACUUM_POINT_XFORM[1], [0, 1, 0])
@@ -204,7 +206,8 @@ class FullIntegrationMaster:
             goal1 = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
             goal2 = ik.objective(self.robotModel.link('right_wrist'),local=point2_local,world=point2_world)
             goal3 = ik.objective(self.robotModel.link('right_wrist'),local=point3_local,world=point3_world)
-            if ik.solve([goal1, goal2, goal3],tol=0.0001) and feasible_tester.check_collision_free('right') and self.elbow_up():
+            #if ik.solve([goal1, goal2, goal3],tol=0.0001) and feasible_tester.check_collision_free('right') and self.elbow_up():
+            if ik.solve([goal1, goal2, goal3],tol=0.0001) and self.elbow_up():
                 return True
         print "right_arm_ik failed for ", right_target
         return False
@@ -323,12 +326,12 @@ class FullIntegrationMaster:
 
                 if self.state == 'VISUAL_DEBUG':
                     # Feel free to change these values
-                    self.object_com = [579656115450314, -0.21457427266818555, 1.1191265727580322]
-                    self.set_model_right_arm(Q_CALIBRATE_BIN_E)
+                    self.object_com = [1.0825873352446187, -0.2971875849707302, 1.191450033092151]
+                    self.set_model_right_arm([1.279881771251784, -0.7863231420410292, -0.7431076957717123, 1.934362983923794, -0.08370684893403109, -1.038238435120325, 0.5423222736585168])
                 else:
                     self.load_real_robot_state()
 
-                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), RIGHT_F200_CAMERA_CALIBRATED_XFORM)
+                self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), self.calibratedCameraXform)
                 self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
                 self.vacuumPc = Geometry3D()
@@ -361,7 +364,7 @@ class FullIntegrationMaster:
                     self.state = "MOVE_TO_SCAN_BIN"
 
                 elif self.state == 'MOVE_TO_SCAN_BIN':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN_H)
                     self.state = 'MOVING_TO_SCAN_BIN'
 
                 elif self.state == 'MOVING_TO_SCAN_BIN':
@@ -419,11 +422,12 @@ class FullIntegrationMaster:
                         print "Got an invalid cloud, trying again"
 
                 elif self.state == 'FAKE_SCANNING_BIN':
-                    self.object_com = [1.1456333151435623, -0.18573488791106177, 1.1116419624143496]
+                    self.object_com = [1.0854393159366476, -0.20906770452314449, 1.1211769111877719]
                     self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'CALIBRATE':
                     self.calibrateCamera()
+                    self.state = 'SCANNING_BIN'
 
                 elif self.state == 'WAITING_FOR_SEGMENTATION':
                     if os.path.isfile(CHENYU_DONE_PATH):
@@ -501,7 +505,7 @@ class FullIntegrationMaster:
                         time.sleep(1)
                     time.sleep(1.5)
 
-                    if self.right_arm_ik(self.object_com):
+                    if self.right_arm_ik_path_plan(self.object_com):
                         destination = self.robotModel.getConfig()
                         print "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices])
                         motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))

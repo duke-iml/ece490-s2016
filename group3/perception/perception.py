@@ -146,8 +146,9 @@ def objectMatch(cloud,histogram_dict):
     obj = sorted_score[0][0]
     score = sorted_score[0][1]
     if VERBOSE:
-        print 'found object ' + str(obj/NUM_HIST_PER_OBJECT+1) + ' score is ' + str(score)
-    return obj/NUM_HIST_PER_OBJECT+1,score
+        print 'found object ' + str((obj-1)/NUM_HIST_PER_OBJECT+1) + ' score is ' + str(score)+ 'cloud com is '
+        print com(cloud) 
+    return (obj-1)/NUM_HIST_PER_OBJECT+1,score
 
 def loadHistogram(objects):
     """
