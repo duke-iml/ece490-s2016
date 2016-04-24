@@ -170,30 +170,10 @@ class FullIntegrationMaster:
                 return False
         return True
 
-    def right_arm_ik(self, right_target):
+    def right_arm_ik(self, right_target, ignore_elbow_up_constraint=False):
         """Solves IK to move the right arm to the specified
             right_target ([x, y, z] in world space)
         """
-        qmin,qmax = self.robotModel.getJointLimits()
-        for i in range(1000):
-            self.load_real_robot_state()
-            point2_local = vectorops.add(VACUUM_POINT_XFORM[1], [0, 0, -1])
-            point2_world = vectorops.add(right_target, [-1, 0, 0])
-            point3_local = vectorops.add(VACUUM_POINT_XFORM[1], [0, 1, 0])
-            point3_world = vectorops.add(right_target, [0, 1, 0])
-            goal1 = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
-            goal2 = ik.objective(self.robotModel.link('right_wrist'),local=point2_local,world=point2_world)
-            goal3 = ik.objective(self.robotModel.link('right_wrist'),local=point3_local,world=point3_world)
-            if ik.solve([goal1, goal2, goal3],tol=0.0001):
-                return True
-        print "right_arm_ik failed for ", right_target
-        return False
-
-    def right_arm_ik_path_plan(self, right_target):
-        """Solves IK to move the right arm to the specified
-            right_target ([x, y, z] in world space)
-        """
-        feasible_tester = planning.LimbPlanner(self.world, self.vacuumPc)
         self.load_real_robot_state()
         self.set_model_right_arm(Q_IK_SEED_H)
 
@@ -206,13 +186,11 @@ class FullIntegrationMaster:
             goal1 = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
             goal2 = ik.objective(self.robotModel.link('right_wrist'),local=point2_local,world=point2_world)
             goal3 = ik.objective(self.robotModel.link('right_wrist'),local=point3_local,world=point3_world)
-            #if ik.solve([goal1, goal2, goal3],tol=0.0001) and feasible_tester.check_collision_free('right') and self.elbow_up():
-            if ik.solve([goal1, goal2, goal3],tol=0.0001) and self.elbow_up():
+            if ik.solve([goal1, goal2, goal3],tol=0.0001) and (self.elbow_up() or ignore_elbow_up_constraint):
                 return True
         print "right_arm_ik failed for ", right_target
         return False
 
-   
     def motionPlanArm(self, start, goal, limb):
         planner = planning.LimbPlanner(self.world, self.vacuumPc)
         plannedPath = planner.plan_limb(limb, start, goal)
@@ -306,7 +284,7 @@ class FullIntegrationMaster:
             temp_planner = planning.LimbPlanner(self.world, vacuumPc)
             goalMilestone = goalArray[i]
             print goalMilestone
-            if (self.right_arm_ik_path_plan(goalMilestone)):
+            if (self.right_arm_ik(goalMilestone)):
                 milestone = self.robotModel.getConfig()
                 
                 path.append(milestone)
@@ -353,7 +331,7 @@ class FullIntegrationMaster:
                     start_right_arm = [start[v] for v in self.right_arm_indices]
                     self.object_com = [1.2456333151435623, -0.18573488791106177, 1.2116419624143496]
                     self.object_com = [1.1851363660702774, -0.3011348060169573, 1.1526211335352967]
-                    self.right_arm_ik_path_plan(self.object_com)
+                    self.right_arm_ik(self.object_com)
                     destination = self.robotModel.getConfig()
                     #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
                     self.motionPlanArm3(self.object_com, 'world', 15)
@@ -422,7 +400,7 @@ class FullIntegrationMaster:
                         print "Got an invalid cloud, trying again"
 
                 elif self.state == 'FAKE_SCANNING_BIN':
-                    self.object_com = [1.0854393159366476, -0.20906770452314449, 1.1211769111877719]
+                    self.object_com = [1.1091014481339707, -0.259730410405869, 1.1715260595889734]
                     self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'CALIBRATE':
@@ -505,7 +483,7 @@ class FullIntegrationMaster:
                         time.sleep(1)
                     time.sleep(1.5)
 
-                    if self.right_arm_ik_path_plan(self.object_com):
+                    if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
                         print "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices])
                         motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
