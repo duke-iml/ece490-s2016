@@ -2,7 +2,7 @@ import math
 from klampt import vectorops,so3
 
 # Constants that affect the state machine
-INITIAL_STATE = "START"
+INITIAL_STATE = "DONE"
 REAL_VACUUM = False
 REAL_PERCEPTION = True
 SEGMENT = True
@@ -120,6 +120,7 @@ CHENYU_GO_PATH = MAT_PATH + "chenyugo.txt"
 CHENYU_DONE_PATH = MAT_PATH + "chenyudone.txt"
 ARDUINO_SERIAL_PORT = "/dev/ttyACM1"
 ROS_DEPTH_TOPIC = "/realsense/pc"
+PICK_JSON_PATH = REPO_ROOT + '/group3/planning/apc_pick_task.json'
 
 # Indices in Baxter robot file link
 LEFT_CAMERA_LINK_NAME = 'left_hand_camera'
@@ -146,3 +147,46 @@ BACK_UP_DISTANCE = .2
 MOVE_TIME = 2
 SCAN_WAIT_TIME = 0 if REAL_PERCEPTION else 0
 GRASP_WAIT_TIME = 2 if REAL_VACUUM else 0
+
+
+ITEM_SCORES = {
+    "i_am_a_bunny_book":1,
+    "laugh_out_loud_joke_book":1,
+    "scotch_bubble_mailer":1,
+    "up_glucose_bottle":1,
+    "dasani_water_bottle":1,
+    "rawlings_baseball":1,
+    "folgers_classic_roast_coffee":1,
+    "elmers_washable_no_run_school_glue":1,
+    "hanes_tube_socks":1,
+    "womens_knit_gloves":1,
+    "cherokee_easy_tee_shirt":1,
+    "peva_shower_curtain_liner":1,
+    "cloud_b_plush_bear":1,
+    "barkely_hide_bones":1,
+    "kyjen_squeakin_eggs_plush_puppies":1,
+    "cool_shot_glue_sticks":1,
+    "creativity_chenille_stems":1,
+    "soft_white_lightbulb":1,
+    "safety_first_outlet_plugs":1,
+    "oral_b_toothbrush_green":1,
+    "oral_b_toothbrush_red": 1,
+    "dr_browns_bottle_brush":1,
+    "command_hooks":1,
+    "easter_turtle_sippy_cup":1,
+    "fiskars_scissors_red":1,
+    "scotch_duct_tape":1,
+    "woods_extension_cord":1,
+    "platinum_pets_dog_bowl":1,
+    "fitness_gear_3lb_dumbbell":1,
+    "rolodex_jumbo_pencil_cup":1,
+    "clorox_utility_brush":1,
+    "kleenex_paper_towels":1,
+    "expo_dry_erase_board_eraser":1,
+    "kleenex_tissue_box":1,
+    "ticonderoga_12_pencils":1,
+    "crayola_24_ct":1,
+    "jane_eyre_dvd":1,
+    "dove_beauty_bar":1,
+    "staples_index_cards":1
+}

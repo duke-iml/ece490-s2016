@@ -164,8 +164,53 @@ def loadHistogram(objects):
             histo_dict[idx] = np.load(PERCEPTION_DIR + '/{}.npz'.format(idx))['arr_0']
     return histo_dict
 
-def build_hist_dict(object):
-    pass
+def build_hist_dict(objects):
+    my_dict = {
+        "i_am_a_bunny_book":1,
+        "laugh_out_loud_joke_book":2,
+        "scotch_bubble_mailer":3,
+        "up_glucose_bottle":4,
+        "dasani_water_bottle":5,
+        "rawlings_baseball":6,
+        "folgers_classic_roast_coffee":7,
+        "elmers_washable_no_run_school_glue":8,
+        "hanes_tube_socks":9,
+        "womens_knit_gloves":10,
+        "cherokee_easy_tee_shirt":11,
+        "peva_shower_curtain_liner":12,
+        "cloud_b_plush_bear":13,
+        "barkely_hide_bones":14,
+        "kyjen_squeakin_eggs_plush_puppies":15,
+        "cool_shot_glue_sticks":16,
+        "creativity_chenille_stems":17,
+        "soft_white_lightbulb":18,
+        "safety_first_outlet_plugs":19,
+        "oral_b_toothbrush_green":20,
+        "oral_b_toothbrush_red": 21,
+        "dr_browns_bottle_brush":22,
+        "command_hooks":23,
+        "easter_turtle_sippy_cup":24,
+        "fiskars_scissors_red":25,
+        "scotch_duct_tape":26,
+        "woods_extension_cord":27,
+        "platinum_pets_dog_bowl":28,
+        "fitness_gear_3lb_dumbbell":29,
+        "rolodex_jumbo_pencil_cup":30,
+        "clorox_utility_brush":31,
+        "kleenex_paper_towels":32,
+        "expo_dry_erase_board_eraser":33,
+        "kleenex_tissue_box":34,
+        "ticonderoga_12_pencils":35,
+        "crayola_24_ct":36,
+        "jane_eyre_dvd":37,
+        "dove_beauty_bar":38,
+        "staples_index_cards":39
+        }
+    items = []
+    for item in objects:
+        items.append(my_dict[item])
+    return items
+
 
 def com(cloud):
     return np.mean(cloud,axis = 0)

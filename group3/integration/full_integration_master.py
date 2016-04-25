@@ -2,6 +2,7 @@ import sys
 sys.path.insert(0, "..")
 sys.path.insert(0, "../../common")
 
+import json
 import rospy
 import random
 import time
@@ -31,6 +32,8 @@ class FullIntegrationMaster:
     # =========================================================================================
     def __init__(self, world):
         self.world = world
+        self.current_bin = 'A'
+        self.bins = {'A': {'done': False, 'contents': []},'B': {'done': False, 'contents': []}, 'C': {'done': False, 'contents': []}, 'D': {'done': False, 'contents': []}, 'E': {'done': False, 'contents': []}, 'F': {'done': False, 'contents': []}, 'G': {'done': False, 'contents': []}, 'H': {'done': False, 'contents': []}, 'I': {'done': False, 'contents': []}, 'J': {'done': False, 'contents': []}, 'K': {'done': False, 'contents': []}, 'L': {'done': False, 'contents': []}}
         self.robotModel = world.robot(0)
         self.state = INITIAL_STATE
         self.config = self.robotModel.getConfig()
@@ -39,7 +42,6 @@ class FullIntegrationMaster:
         id_to_index = dict([(self.robotModel.link(i).getID(),i) for i in range(self.robotModel.numLinks())])
         self.left_arm_indices = [id_to_index[i.getID()] for i in self.left_arm_links]
         self.right_arm_indices = [id_to_index[i.getID()] for i in self.right_arm_links]
-
 
         self.Tcamera = se3.identity()
         self.Tvacuum = se3.identity()
@@ -60,6 +62,36 @@ class FullIntegrationMaster:
             if self.serial.isOpen():
                 self.serial.write("hello")
                 response = self.serial.read(self.serial.inWaiting())
+
+        # Load JSON
+        with open(PICK_JSON_PATH) as pick_json_file:
+            raw_json_data = json.load(pick_json_file)
+        for k in self.bins:
+            self.bins[k]['contents'] = raw_json_data['bin_contents']['bin_'+k]
+            print k
+            print raw_json_data['bin_contents']['bin_'+k]
+            print "\n\n"
+        self.selectBin()
+
+        print self.bins
+        print self.current_bin
+        sys.stdout.flush()
+        time.sleep(23423432)
+
+    def getBinScore(self, bin):
+        score = 0
+        for item in self.bins[bin]['contents']:
+            score = score + ITEM_SCORES[item]
+        score = score * len(self.bins[bin]['contents'])
+        return score
+
+    def selectBin(self):
+        lowest_score = 99999
+        for k in self.bins:
+            this_score = self.getBinScore(k)
+            if this_score < lowest_score:
+                self.current_bin = k
+                lowest_score = this_score
 
     def start(self):
         motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath=LIBPATH)
