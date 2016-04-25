@@ -374,7 +374,7 @@ class FullIntegrationMaster:
                     self.state = "MOVE_TO_SCAN_BIN"
 
                 elif self.state == 'MOVE_TO_SCAN_BIN':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_SCAN_BIN_H)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_SCAN_BIN_' + self.current_bin))
                     self.state = 'MOVING_TO_SCAN_BIN'
 
                 elif self.state == 'MOVING_TO_SCAN_BIN':
