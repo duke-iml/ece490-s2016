@@ -92,13 +92,13 @@ def convertPc2ToNp(data):
     cloud = cloud[::STEP]
     return cloud
 
-def subtractShelf(cloud):
+def subtractShelf(cloud, bin_letter):
     """
     Input: Numpy array of points with index as the forth number
     Output: Numpy array of points without shelf points
     """
     # Load shelf data
-    data_shelf = np.load(SHELF_NPZ_FILE)
+    data_shelf = np.load(BIN_NPZ_FOLDER + bin_letter + '.npz')
     dshel = np.mat([data_shelf['arr_0'],data_shelf['arr_1'],data_shelf['arr_2']])
     dshel = dshel.transpose()
 

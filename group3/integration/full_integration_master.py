@@ -402,7 +402,7 @@ class FullIntegrationMaster:
                             transformed = se3.apply(self.Tcamera, point)
                             self.points1.append(transformed)
 
-                        np_cloud = perception.subtractShelf(np_cloud)
+                        np_cloud = perception.subtractShelf(np_cloud, self.current_bin)
                     
                         self.points2 = []
                         for point in np_cloud:

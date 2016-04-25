@@ -5,7 +5,7 @@
 # Usage: python save_calibrated_shelf.py shelf
 
 import sys
-sys.path.insert(0, "..")
+sys.path.insert(0, "../..")
 
 import sys
 import rospy
@@ -20,8 +20,8 @@ from util.constants import *
 if len(sys.argv) >= 2:
     SAVE_LOCATION = sys.argv[1]
 else:
-    print "ERROR: You must supply a path (no need for .npz extension) to save to"
-    print "Usage: python save_calibrated_shelf.py myfile"
+    print "ERROR: You must supply the bin letter"
+    print "Usage: python save_calibrated_shelf.py [uppercase bin letter]"
     sys.exit(0)
 
 class SaveF200DepthSnapshot:

@@ -68,7 +68,9 @@ while 1
                 
                 [n,v,p]=svd([cloud(idx1(dmin,:),1) cloud(idx1(dmin,:),2) cloud(idx1(dmin,:),3)]);
                 dminmean=mean([cloud(idx1(dmin,:),1) cloud(idx1(dmin,:),2) cloud(idx1(dmin,:),3)],1);
-                % if len(cloud)
+                if len(cloud) < 30
+                    break;
+                end
                 for i=1:20
                     odth1(i)=abs(dot([(cloud(idx1(dmin,i),1)-dminmean(1)),(cloud(idx1(dmin,i),2)-dminmean(2)),(cloud(idx1(dmin,i),3)-dminmean(3))],p(:,3)));
                 end
@@ -165,7 +167,7 @@ while 1
         ns1=createns(cloud,'nsmethod','kdtree');
         [idx1,dist]=knnsearch(ns1,cloud,'k',20);
         leftpoint(1,length(cloud))=1;
-        
+        if length(cloud)
         dmin=floor(0.5*length(cloud));
         list=[dmin];
         sellist=[dmin];
