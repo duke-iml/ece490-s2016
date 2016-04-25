@@ -68,15 +68,13 @@ class FullIntegrationMaster:
             raw_json_data = json.load(pick_json_file)
         for k in self.bins:
             self.bins[k]['contents'] = raw_json_data['bin_contents']['bin_'+k]
-            print k
-            print raw_json_data['bin_contents']['bin_'+k]
-            print "\n\n"
+        for my_dict in raw_json_data['work_order']:
+            bin_letter = my_dict['bin'][4]
+            self.bins[bin_letter]['target'] = my_dict['item']
         self.selectBin()
 
         print self.bins
-        print self.current_bin
-        sys.stdout.flush()
-        time.sleep(23423432)
+        time.sleep(23423)
 
     def getBinScore(self, bin):
         score = 0
@@ -86,6 +84,10 @@ class FullIntegrationMaster:
         return score
 
     def selectBin(self):
+        if not SELECT_REAL_BIN:
+            self.current_bin = HARDCODED_BIN
+            return
+
         lowest_score = 99999
         for k in self.bins:
             this_score = self.getBinScore(k)
@@ -461,7 +463,10 @@ class FullIntegrationMaster:
                         print object_blobs
                         print "============="
 
-                    object_list = [37, 35, 15]
+                    # List of strings
+                    object_list = [ITEM_NUMBERS[item_str] for item_str in self.bins[self.current_bin]['contents']]
+                    target = ITEM_NUMBERS[self.bins[self.current_bin]['target']]
+
                     histogram_dict = perception.loadHistogram(object_list)
                     cloud_label = {} # key is the label of object, value is cloud points
                     label_score = {} # key is the label, value is the current score for the object 
@@ -485,7 +490,6 @@ class FullIntegrationMaster:
                         print cloud_label
                         print "============="
                         print label_score
-                    target = 35
                     if target in cloud_label:
                         self.object_com = se3.apply(self.Tcamera, perception.com(cloud_label[target]))
 
@@ -503,9 +507,13 @@ class FullIntegrationMaster:
                             label,score = perception.objectMatch(object_cloud,histogram_dict)
                             cloud_score[score] = object_cloud
                         # TODO CHENYU apply transform
-                        sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(1),reverse = True)
+                        sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(0),reverse = True)
                         score  = sorted_cloud[0][0]
                         com = perception.com(sorted_cloud[0][1])
+                        self.points1 = []
+                        for point in sorted_cloud[0][1]:
+                            transformed = se3.apply(self.Tcamera, point)
+                            self.points1.append(transformed)
                         print com
                     self.state = 'DONE'
 
