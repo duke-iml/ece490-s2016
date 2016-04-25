@@ -48,64 +48,64 @@ if perception.isCloudValid(cloud):
     np.savez('sub', np_cloud[:,0],np_cloud[:,1],np_cloud[:,2])
     np_cloud = np_cloud[np_cloud[:,0] != 0 , :]
 
-    sio.savemat(CLOUD_MAT_PATH, {'cloud':np_cloud})
-    fo = open(CHENYU_GO_PATH, "w")
-    fo.write("chenyu go")
-    fo.close()
+    # sio.savemat(CLOUD_MAT_PATH, {'cloud':np_cloud})
+    # fo = open(CHENYU_GO_PATH, "w")
+    # fo.write("chenyu go")
+    # fo.close()
 
 
-    # Wait for a file to be made "chenyudone.txt"
-    while not os.path.isfile(CHENYU_DONE_PATH):
-        sleep(1);
-    subprocess.call(["rm",CHENYU_GO_PATH])
-    subprocess.call(["rm",CHENYU_DONE_PATH])
-    # Delete chenyustart.txt first
-    # Delete chenyudone.txt
-    # Try to load seg1.mat and seg20.mat. Some files may not exist
-    object_blobs = []
-    for i in range(1,20)
-        name  = MAT_PATH+"seg"+str(i)+".m"
-        if os.path.isfile(name):
-            mat_contents = sio.loadmat(name)
-            object_blobs.append(mat_contents['r'])
-    print "============="
-    print "object blobs"
-    print object_blobs
-    print "============="
-    # after matlab segmentation, a list contains segmented cloud will be returned
-    histogram_dict = perception.loadHistogram(object_list) #object list is 
-    cloud_label = {} # key is the label of object, value is cloud points
-    label_score = {} # key is the label, value is the current score for the object 
-    for object_cloud in object_blobs:
-        object_cloud = perception.resample(cloud,object_cloud,3)
-        label,score = perception.objectMatch(cloud,histogram_dict)
-        if label in cloud_label:
-            if label_score[label] < score:
-                label_score[label] = score
-                cloud_label[label] = object_cloud
-        else:
-            cloud_label[label] = object_cloud
-            label_score[label] = score
-    # for each cloud in the list, resample, create a dict that key is the label of object, value is cloud points
-    # create another list that that the key is the label, value is the current score for the object 
-    # if have duplicate label, save the one that have higher score.
-    if target in cloud_label:
-        com = perception.com(cloud_label[target])
-    else:
-        cloud_score = {}
-        histogram_dict = perception.loadHistogram([target])
-        for object_cloud in object_blobs:
-            object_cloud = perception.resample(cloud,object_cloud,3)
-            label,score = perception.objectMatch(cloud,histogram_dict)
-            cloud_score[score] = object_cloud
-        sorted_cloud = sorted(scores.items(), key=operator.itemgetter(0))
-        score  = sorted_cloud.keys()[0]
-        com = perception.com(sorted_cloud[score])
+    # # Wait for a file to be made "chenyudone.txt"
+    # while not os.path.isfile(CHENYU_DONE_PATH):
+    #     sleep(1);
+    # subprocess.call(["rm",CHENYU_GO_PATH])
+    # subprocess.call(["rm",CHENYU_DONE_PATH])
+    # # Delete chenyustart.txt first
+    # # Delete chenyudone.txt
+    # # Try to load seg1.mat and seg20.mat. Some files may not exist
+    # object_blobs = []
+    # for i in range(1,20)
+    #     name  = MAT_PATH+"seg"+str(i)+".m"
+    #     if os.path.isfile(name):
+    #         mat_contents = sio.loadmat(name)
+    #         object_blobs.append(mat_contents['r'])
+    # print "============="
+    # print "object blobs"
+    # print object_blobs
+    # print "============="
+    # # after matlab segmentation, a list contains segmented cloud will be returned
+    # histogram_dict = perception.loadHistogram(object_list) #object list is 
+    # cloud_label = {} # key is the label of object, value is cloud points
+    # label_score = {} # key is the label, value is the current score for the object 
+    # for object_cloud in object_blobs:
+    #     object_cloud = perception.resample(cloud,object_cloud,3)
+    #     label,score = perception.objectMatch(cloud,histogram_dict)
+    #     if label in cloud_label:
+    #         if label_score[label] < score:
+    #             label_score[label] = score
+    #             cloud_label[label] = object_cloud
+    #     else:
+    #         cloud_label[label] = object_cloud
+    #         label_score[label] = score
+    # # for each cloud in the list, resample, create a dict that key is the label of object, value is cloud points
+    # # create another list that that the key is the label, value is the current score for the object 
+    # # if have duplicate label, save the one that have higher score.
+    # if target in cloud_label:
+    #     com = perception.com(cloud_label[target])
+    # else:
+    #     cloud_score = {}
+    #     histogram_dict = perception.loadHistogram([target])
+    #     for object_cloud in object_blobs:
+    #         object_cloud = perception.resample(cloud,object_cloud,3)
+    #         label,score = perception.objectMatch(cloud,histogram_dict)
+    #         cloud_score[score] = object_cloud
+    #     sorted_cloud = sorted(scores.items(), key=operator.itemgetter(0))
+    #     score  = sorted_cloud.keys()[0]
+    #     com = perception.com(sorted_cloud[score])
 
 
-    # get the value of target index, calculate center of mass to grab.
+    # # get the value of target index, calculate center of mass to grab.
     
-    # if target index does not exists as the key, load the histogram of all compare all the histogram with the 
+    # # if target index does not exists as the key, load the histogram of all compare all the histogram with the 
 
 
 
@@ -116,7 +116,7 @@ if perception.isCloudValid(cloud):
 
 
     # cloud = cloud[cloud[:,5] != 255,:]
-    # final_cloud = perception.resample(cloud,np_cloud,3)
+    final_cloud = perception.resample(cloud,np_cloud,3)
 
     # final_cloud = np_cloud
 
@@ -138,7 +138,7 @@ if perception.isCloudValid(cloud):
     # print len(final_cloud)
 
 
-    # np.savez('test', final_cloud[:,0],final_cloud[:,1],final_cloud[:,2])
+    np.savez('test', final_cloud[:,0],final_cloud[:,1],final_cloud[:,2])
 
 
 
@@ -146,23 +146,23 @@ if perception.isCloudValid(cloud):
 
 
 
-    # np.savez('object', cloud[:,0],cloud[:,1],cloud[:,2])
-    # y,u,v = color.rgb_to_yuv(final_cloud[:,4],final_cloud[:,5],final_cloud[:,6])
+    np.savez('object', final_cloud[:,0],final_cloud[:,1],final_cloud[:,2])
+    y,u,v = color.rgb_to_yuv(final_cloud[:,4],final_cloud[:,5],final_cloud[:,6])
     # print 'y', y
     # print 'u', u
     # print 'v', v
-    # uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in final_cloud[:,4:7]]
+    uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in final_cloud[:,4:7]]
     # print uv
     # # uv = [u,v]
     # print uv
-    # hist = color.make_uv_hist(uv)
+    hist = color.make_uv_hist(uv)
     # print hist
     # a = hist.sum()
     # print a
     # old_hist = np.load('hist.npz')
     # old_hist = old_hist['arr_0']
     # # print old_hist.sum()
-    # np.savez(SAVE_LOCATION, hist)
+    np.savez(SAVE_LOCATION, hist)
     # # # print old_hist
     # score = 2*np.minimum(hist,old_hist).sum()-np.maximum(hist,old_hist).sum()
     # print score

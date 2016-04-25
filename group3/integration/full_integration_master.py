@@ -384,7 +384,7 @@ class FullIntegrationMaster:
 
                         sio.savemat(CLOUD_MAT_PATH, {'cloud':np_cloud})
                         fo = open(CHENYU_GO_PATH, "w")
-                        fo.write("chenyu go")
+                        fo.write("chenyugo")
                         fo.close()
 
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
@@ -409,12 +409,12 @@ class FullIntegrationMaster:
 
                 elif self.state == 'WAITING_FOR_SEGMENTATION':
                     if os.path.isfile(CHENYU_DONE_PATH):
-                        os.remove(CHENYU_GO_PATH)
                         os.remove(CHENYU_DONE_PATH)
                         self.state = 'POSTPROCESS_SEGMENTATION'
 
                 elif self.state == 'POSTPROCESS_SEGMENTATION':
                     object_blobs = []
+                    time.sleep(15)
                     for i in range(1,20):
                         seg_file_path = MAT_PATH + "seg" + str(i) + ".mat"
                         print seg_file_path
@@ -429,13 +429,18 @@ class FullIntegrationMaster:
                         print object_blobs
                         print "============="
 
-                    object_list = [15, 31]
+                    object_list = [37, 35, 15]
                     histogram_dict = perception.loadHistogram(object_list)
                     cloud_label = {} # key is the label of object, value is cloud points
                     label_score = {} # key is the label, value is the current score for the object 
                     for object_cloud in object_blobs:
+                        if VERBOSE:
+                            print "====================="
+                            print 'object_cloud'
+                            print object_cloud
+                            print '====================='
                         object_cloud = perception.resample(cloud,object_cloud,3)
-                        label,score = perception.objectMatch(cloud,histogram_dict)
+                        label,score = perception.objectMatch(object_cloud,histogram_dict)
                         if label in cloud_label:
                             if label_score[label] < score:
                                 label_score[label] = score
@@ -448,7 +453,7 @@ class FullIntegrationMaster:
                         print cloud_label
                         print "============="
                         print label_score
-                    target = 15
+                    target = 35
                     if target in cloud_label:
                         self.object_com = se3.apply(self.Tcamera, perception.com(cloud_label[target]))
 
@@ -463,12 +468,13 @@ class FullIntegrationMaster:
                         histogram_dict = perception.loadHistogram([target])
                         for object_cloud in object_blobs:
                             object_cloud = perception.resample(cloud,object_cloud,3)
-                            label,score = perception.objectMatch(cloud,histogram_dict)
+                            label,score = perception.objectMatch(object_cloud,histogram_dict)
                             cloud_score[score] = object_cloud
                         # TODO CHENYU apply transform
                         sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(1),reverse = True)
                         score  = sorted_cloud[0][0]
-                        com = perception.com(sorted_cloud[score])
+                        com = perception.com(sorted_cloud[0][1])
+                        print com
                     self.state = 'DONE'
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
