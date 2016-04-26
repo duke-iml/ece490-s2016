@@ -595,8 +595,14 @@ class PickingController:
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
 
+                # self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
+                #                             [random.uniform(-0.07,0.07) , 0.005+(self.held_object.info.bmax[1]-self.held_object.info.bmin[1])/2 , random.uniform(-0.05, -0.25)]]
+
+                xPos = random.uniform(0,0.33)
+                yPos = random.uniform(0,0.435)
                 self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
-                                            [random.uniform(-0.07,0.07) , 0.005+(self.held_object.info.bmax[1]-self.held_object.info.bmin[1])/2 , random.uniform(-0.05, -0.25)]]
+                                           vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
+
 
                 self.stateLeft = 'holding'
 
