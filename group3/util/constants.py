@@ -2,7 +2,7 @@ import math
 from klampt import vectorops,so3
 
 # Constants that affect the state machine
-INITIAL_STATE = "DONE"
+INITIAL_STATE = "START"
 REAL_VACUUM = False
 REAL_PERCEPTION = False
 SEGMENT = False

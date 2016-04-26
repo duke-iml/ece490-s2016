@@ -423,6 +423,23 @@ class FullIntegrationMaster:
 
                 elif self.state == 'WAITING_TO_GRASP_OBJECT':
                     if time.time() - self.wait_start_time > GRASP_WAIT_TIME:
+                        self.state = 'MOVE_UP_BEFORE_RETRACT'
+
+                elif self.state == 'MOVE_UP_BEFORE_RETRACT':
+                    move_target = se3.apply(self.Tvacuum, [0, 0, 0])
+                    move_target[2] = move_target[2] + GRASP_MOVE_DISTANCE
+                    if self.right_arm_ik(move_target):
+                        self.turnOnVacuum()
+                        destination = self.robotModel.getConfig()
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                    else:
+                        print FAIL_COLOR + "Error: IK failed" + END_COLOR
+                        sys.stdout.flush()
+                        time.sleep(50000)
+                    self.state = 'MOVING_TO_RETRACT'
+
+                elif self.state == 'MOVING_TO_RETRACT':
+                    if not motion.robot.right_mq.moving():
                         self.state = 'RETRACT'
 
                 elif self.state == 'RETRACT':
@@ -435,10 +452,10 @@ class FullIntegrationMaster:
                     self.state = 'MOVE_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN2)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
-                        self.state = 'MOVING_TO_STOW_OBJECT'
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN2)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
+                    self.state = 'MOVING_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVING_TO_STOW_OBJECT':
                     if not motion.robot.right_mq.moving():
