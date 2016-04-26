@@ -5,13 +5,14 @@ from serial import Serial
 from serial import SerialException
 import cPickle as pickle
 import random
+import serial.tools.list_ports
 
 class CommPressure:
     message_time = .02
 
     # initialize the serial comm
     # def __init__(self, port="COM5"):
-    def __init__(self, port="/dev/ttyACM0"):
+    def __init__(self, port="/dev/ttyACM1"):
         # on linux use port="/dev/ttyUSB2"
         # attempt to connect
         while True:
@@ -47,7 +48,12 @@ class CommPressure:
         print 'Error: Could not read pressure - trying again.'
 
 if __name__ == "__main__":
-    compress = CommPressure()
+    ports = list(serial.tools.list_ports.comports())
+    for p in ports:
+        if "Arduino" in p[1]:
+            print "Port =", p[0]
+
+    compress = CommPressure(port = p[0])
     while True:
         attached = compress.read_pressure()
 
