@@ -43,7 +43,7 @@ if perception.isCloudValid(cloud):
     # with open('data.json','w') as f:
     #     json.dumps(data,f)
     # np_cloud, pointmean = perception.calPointCloud(np_cloud)
-    np_cloud = perception.subtractShelf(np_cloud)
+    np_cloud = perception.subtractShelf(np_cloud,'A')
     np_cloud =  np_cloud[np_cloud[:,0] != 0 , :]
     np.savez('sub', np_cloud[:,0],np_cloud[:,1],np_cloud[:,2])
     np_cloud = np_cloud[np_cloud[:,0] != 0 , :]
@@ -116,7 +116,9 @@ if perception.isCloudValid(cloud):
 
 
     # cloud = cloud[cloud[:,5] != 255,:]
-    final_cloud = perception.resample(cloud,np_cloud,3)
+    np_cloud = np_cloud[np_cloud[:,6]!=255,:]
+    final_cloud = perception.resample(cloud,np_cloud,7)
+    final_cloud = final_cloud[final_cloud[:,6] != 255 , :]
 
     # final_cloud = np_cloud
 
@@ -159,13 +161,13 @@ if perception.isCloudValid(cloud):
     # print hist
     # a = hist.sum()
     # print a
-    # old_hist = np.load('hist.npz')
-    # old_hist = old_hist['arr_0']
+    old_hist = np.load('ref2.npz')
+    old_hist = old_hist['arr_0']
     # # print old_hist.sum()
     np.savez(SAVE_LOCATION, hist)
     # # # print old_hist
-    # score = 2*np.minimum(hist,old_hist).sum()-np.maximum(hist,old_hist).sum()
-    # print score
+    score = 2*np.minimum(hist,old_hist).sum()-np.maximum(hist,old_hist).sum()
+    print score
     # # print len(cloud)
     # # plane1 = perception.segmentation(cloud)
     # # np.savez('subfinished', plane1[:,0],plane1[:,1],plane1[:,2])

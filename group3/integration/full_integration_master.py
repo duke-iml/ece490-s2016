@@ -180,7 +180,7 @@ class FullIntegrationMaster:
             right_target ([x, y, z] in world space)
         """
         self.load_real_robot_state()
-        self.set_model_right_arm(Q_IK_SEED_H)
+        self.set_model_right_arm(eval('Q_IK_SEED_' + self.current_bin))
 
         qmin,qmax = self.robotModel.getJointLimits()
         for i in range(1000):
@@ -205,8 +205,8 @@ class FullIntegrationMaster:
 
                 if self.state == 'VISUAL_DEBUG':
                     # Feel free to change these values
-                    self.object_com = [1.0825873352446187, -0.2971875849707302, 1.191450033092151]
-                    self.set_model_right_arm([1.279881771251784, -0.7863231420410292, -0.7431076957717123, 1.934362983923794, -0.08370684893403109, -1.038238435120325, 0.5423222736585168])
+                    self.object_com = [1.0857115024889756, -0.50434947132423846, 1.1568829277798645]
+                    self.set_model_right_arm([0.4402524856201172, -0.6668981467712403, -0.03988350043945313, 1.5144225311096193, -0.32443693626708986, -0.9441651738647462, 0.0])
                 else:
                     self.load_real_robot_state()
 
@@ -224,18 +224,10 @@ class FullIntegrationMaster:
                     print temp_planner.check_collision_free('right')
                     sys.stdout.flush()
 
-                # elif self.state == 'FAKE_PATH_PLANNING':
-                #     test_planner = planning.LimbPlanner(self.world, self.vacuumPc)
-                #     start = self.robotModel.getConfig()
-                #     start_right_arm = [start[v] for v in self.right_arm_indices]
-                #     self.object_com = [1.2456333151435623, -0.18573488791106177, 1.2116419624143496]
-                #     self.object_com = [1.1851363660702774, -0.3011348060169573, 1.1526211335352967]
-                #     self.right_arm_ik(self.object_com)
-                #     destination = self.robotModel.getConfig()
-                #     #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
-                #     self.motionPlanArm3(self.object_com, 'world', 15)
-                #     #self.motionPlanArm2(start, destination, self.right_arm_indices)
-                #     self.state = 'DONE'
+                elif self.state == 'FAKE_PATH_PLANNING':
+                    self.object_com = [1.0857115024889756, -0.50434947132423846, 1.1568829277798645]
+                    self.right_arm_ik(self.object_com)
+                    self.state = 'DONE'
 
                 elif self.state == 'START':
                     self.state = "MOVE_TO_SCAN_BIN"
@@ -330,8 +322,8 @@ class FullIntegrationMaster:
                         print object_blobs
                         print "============="
 
-                    object_list = [ITEM_NUMBERS[item_str] for item_str in self.bins[self.current_bin]['contents']]
-                    target = ITEM_NUMBERS[self.bins[self.current_bin]['target']]
+                    object_list = [ITEM_NUMBERS[item_str] for item_str in self.bin_state[self.current_bin]['contents']]
+                    target = ITEM_NUMBERS[self.bin_state[self.current_bin]['target']]
 
                     histogram_dict = perception.loadHistogram(object_list)
                     cloud_label = {} # key is the label of object, value is cloud points
@@ -372,7 +364,6 @@ class FullIntegrationMaster:
                             object_cloud = perception.resample(cloud,object_cloud,3)
                             label,score = perception.objectMatch(object_cloud,histogram_dict)
                             cloud_score[score] = object_cloud
-                        # TODO CHENYU apply transform
                         sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(0),reverse = True)
                         score  = sorted_cloud[0][0]
                         com = perception.com(sorted_cloud[0][1])
@@ -380,16 +371,16 @@ class FullIntegrationMaster:
                         for point in sorted_cloud[0][1]:
                             transformed = se3.apply(self.Tcamera, point)
                             self.points1.append(transformed)
-                        print com
-                    self.state = 'DONE'
+                        self.object_com = se3.apply(self.Tcamera, com)
+                    self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN_' + self.current_bin))
                     while motion.robot.right_mq.moving():
                        time.sleep(1)
                     time.sleep(1.5)
 
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN2)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN2_' + self.current_bin))
 
                     while motion.robot.right_mq.moving():
                         time.sleep(1)
@@ -454,8 +445,8 @@ class FullIntegrationMaster:
                     self.state = 'MOVE_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN2)
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, Q_AFTER_SCAN)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN2_' + self.current_bin))
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN_' + self.current_bin))
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
                     self.state = 'MOVING_TO_STOW_OBJECT'
 

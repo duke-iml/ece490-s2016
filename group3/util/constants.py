@@ -3,9 +3,9 @@ from klampt import vectorops,so3
 
 # Constants that affect the state machine
 INITIAL_STATE = "START"
-REAL_VACUUM = False
-REAL_PERCEPTION = False
-SEGMENT = False
+REAL_VACUUM = True
+REAL_PERCEPTION = True
+SEGMENT = True
 CALIBRATE = False
 SELECT_REAL_BIN = False
 HARDCODED_BIN = 'H'
@@ -62,16 +62,16 @@ Q_AFTER_SCAN_G = [1.1036991756225587, -0.8214467109741211, 0.22281070918579102, 
 Q_AFTER_SCAN2_G = [0.9384127459167481, -0.9491506114196778, 0.34744664805908204, 2.233476024609375, 0.3804272349609375, -1.2962137642822267, -0.18292720874633792]
 
 ################################################################################################
-Q_SCAN_BIN_H = [0.979830227142334, -0.8114758358642579, -0.13153885241088867, 1.5163400070922852, 0.0977912751159668, 0.8387039948181153, 0.0]
+Q_SCAN_BIN_H = [0.8789709904541017, -0.9311263371826173, -0.1342233187866211, 1.5167235022888184, 0.11965050131835939, 1.1619904454956056, 0.0]
 Q_IK_SEED_H = [0.9019807022460938, -0.8348690428527833, -0.09242234236450196, 2.0056798778686526, 0.04525243319091797, -1.2279516192993165, 0.0]
-Q_AFTER_SCAN = [0.5740923092102052, -1.1692768542297365, 0.12923788123168947, 2.5866751006164552, -0.06941263057250976, 0.02185922620239258, 0.0]
-Q_AFTER_SCAN2 = [0.22933012752685547, -1.3019661922302248, 0.45674277907104494, 2.476611979211426, -0.21629129084472656, -1.0653496559692384, 0.0]
+Q_AFTER_SCAN_H = [0.5740923092102052, -1.1692768542297365, 0.12923788123168947, 2.5866751006164552, -0.06941263057250976, 0.02185922620239258, 0.0]
+Q_AFTER_SCAN2_H = [0.22933012752685547, -1.3019661922302248, 0.45674277907104494, 2.476611979211426, -0.21629129084472656, -1.0653496559692384, 0.0]
 
 ################################################################################################
-Q_SCAN_BIN_I = [0.7106165991760255, -0.6810874690429688, 0.07478156332397462, 1.2256506481201173, -0.10431069345703126, -0.20133497817993165, 1.2409904559814453]
-Q_IK_SEED_I = [0.651174843713379, -0.3666214078857422, 0.09970875109863282, -0.4893398707763672, -0.06864564017944337, -0.13307283319702148, 0.9238399284484864]
-Q_AFTER_SCAN_I = [0.2653786760009766, -0.5890486218750001, -0.05829126987304688, 1.9358837520996095, -0.6442719301757813, 0.11543205415649414, 0.12962137642822266]
-Q_AFTER_SCAN2_I = [-0.05330583231811524, -0.8904758463500977, 0.24313595460205079, 2.1456556246032714, -0.6427379493896485, -1.1681263686401369, 0.07669903930664063]
+Q_SCAN_BIN_I = [0.5848301747131348, -0.8410049659973146, -0.10622816943969728, 1.4622671843811037, 0.010737865502929688, 1.0327525642639162, 0.0]
+Q_IK_SEED_I = [0.4402524856201172, -0.6668981467712403, -0.03988350043945313, 1.5144225311096193, -0.32443693626708986, -0.9441651738647462, 0.0]
+Q_AFTER_SCAN_I = [0.1806262375671387, -0.9901845974487306, -0.16682041049194338, 2.421772166107178, -0.7685243738525391, -0.06442719301757813, 0.0]
+Q_AFTER_SCAN2_I = [0.15033011704101565, -1.0714855791137696, -0.11274758778076173, 2.5659663600036624, -0.5963350306091308, -1.5366652525085451, 0.0]
 
 ################################################################################################
 Q_SCAN_BIN_J = [1.3936215442016602, -0.04716990917358399, 0.5963350306091308, 1.0319855738708497, -0.19788352141113283, -0.4571262742675782, 0.845606908355713]
@@ -120,7 +120,7 @@ MAT_PATH = PERCEPTION_DIR + "/matpcl/"
 CLOUD_MAT_PATH = MAT_PATH + "cloud.mat"
 CHENYU_GO_PATH = MAT_PATH + "chenyugo.txt"
 CHENYU_DONE_PATH = MAT_PATH + "chenyudone.txt"
-ARDUINO_SERIAL_PORT = "/dev/ttyACM1"
+ARDUINO_SERIAL_PORT = "/dev/ttyACM0"
 ROS_DEPTH_TOPIC = "/realsense/pc"
 PICK_JSON_PATH = REPO_ROOT + '/group3/planning/apc_pick_task.json'
 
@@ -136,7 +136,7 @@ RIGHT_ARM_LINK_NAMES = ['right_upper_shoulder','right_lower_shoulder','right_upp
 VACUUM_POINT_XFORM = (so3.identity(), [.07, 0.02, .38])
 
 # Local transform from right_lower_forearm to F200
-RIGHT_F200_CAMERA_CALIBRATED_XFORM =([-0.02003573380863745, 0.008438993066848435, -0.9997636484523572, 0.9007673343323835, 0.4340635880118531, -0.014387875521042898, 0.43383957722928207, -0.9008427082228592, -0.01629835179470207], [0.07999999999999981, -0.1, -0.05])
+RIGHT_F200_CAMERA_CALIBRATED_XFORM = ([-0.02003573380863745, 0.008438993066848435, -0.9997636484523572, 0.9887442642207959, 0.14845956092512702, -0.01856175477685894, 0.14826782975826963, -0.9888824713614544, -0.011318502234688471], [0.11999999999999998, -0.11, 0.015])
 
 # Transform of shelf relative to world
 SHELF_MODEL_XFORM = [1.43,-.23,-.02]
@@ -179,7 +179,6 @@ ITEM_SCORES = {
     "soft_white_lightbulb":1,
     "safety_first_outlet_plugs":1,
     "oral_b_toothbrush_green":1,
-    "oral_b_toothbrush_red": 1,
     "dr_browns_bottle_brush":1,
     "command_hooks":1,
     "easter_turtle_sippy_cup":1,
@@ -197,7 +196,8 @@ ITEM_SCORES = {
     "crayola_24_ct":1,
     "jane_eyre_dvd":1,
     "dove_beauty_bar":1,
-    "staples_index_cards":1
+    "staples_index_cards":1,
+    "oral_b_toothbrush_red": 1
 }
 
 ITEM_NUMBERS = {
@@ -221,23 +221,23 @@ ITEM_NUMBERS = {
     "soft_white_lightbulb":18,
     "safety_first_outlet_plugs":19,
     "oral_b_toothbrush_green":20,
-    "oral_b_toothbrush_red": 21,
-    "dr_browns_bottle_brush":22,
-    "command_hooks":23,
-    "easter_turtle_sippy_cup":24,
-    "fiskars_scissors_red":25,
-    "scotch_duct_tape":26,
-    "woods_extension_cord":27,
-    "platinum_pets_dog_bowl":28,
-    "fitness_gear_3lb_dumbbell":29,
-    "rolodex_jumbo_pencil_cup":30,
-    "clorox_utility_brush":31,
-    "kleenex_paper_towels":32,
-    "expo_dry_erase_board_eraser":33,
-    "kleenex_tissue_box":34,
-    "ticonderoga_12_pencils":35,
-    "crayola_24_ct":36,
-    "jane_eyre_dvd":37,
-    "dove_beauty_bar":38,
-    "staples_index_cards":39
+    "dr_browns_bottle_brush":21,
+    "command_hooks":22,
+    "easter_turtle_sippy_cup":23,
+    "fiskars_scissors_red":24,
+    "scotch_duct_tape":25,
+    "woods_extension_cord":26,
+    "platinum_pets_dog_bowl":27,
+    "fitness_gear_3lb_dumbbell":28,
+    "rolodex_jumbo_pencil_cup":29,
+    "clorox_utility_brush":30,
+    "kleenex_paper_towels":31,
+    "expo_dry_erase_board_eraser":32,
+    "kleenex_tissue_box":33,
+    "ticonderoga_12_pencils":34,
+    "crayola_24_ct":35,
+    "jane_eyre_dvd":36,
+    "dove_beauty_bar":37,
+    "staples_index_cards":38,
+    "oral_b_toothbrush_red":39
 }

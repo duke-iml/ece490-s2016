@@ -16,7 +16,8 @@ while 1
         end
         
     end
-    %     while (or(~exist('chenyugo.txt', 'file'), ~exist('cloud.mat', 'file')))
+    %     while (or(~exist('chenyugo.txt', 'fil
+    %e'), ~exist('cloud.mat', 'file')))
     %         pause(1)
     %         if exist('end.txt', 'file')
     %             break;
@@ -32,6 +33,8 @@ while 1
     delete('seg*.mat')
     clear
     load('cloud.mat')
+    
+    pause(0.5)
     
     r=[];
     o=1;   %indicate how many points are searched
@@ -50,7 +53,7 @@ while 1
     %dmin=600;
     %dmin=500;
     list=[dmin]; % the index number of points in each iritation
-    sellist=[]; % selected points for one area
+    sellist=[]; % selected points for one are
     dist( ~any(dist,2), : ) = [];
     edthall=median(median(dist)); %global median of distance
     
