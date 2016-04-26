@@ -3,26 +3,12 @@
 # NOTE: Key sequence to control the baxter as desired:
 #       bin number (A~L) --> scoop (S) --> move spatula to center (N) --> move gripper to center (M)
 #       --> grasp object (X) --> place object in order bin (P) --> bin number (A~L) --> unscoop (Y) --> return to starting position (N)
-#
-#       unscoop (Y) to place object in spatula back in shelf
-#       ungrasp (U) to place object in gripper back in spatula
 
-# TODO: - Spatula doesn't push the object. It seems like the spatula gets stuck (?)
-#          before reaching the object. Sometimes this doesn't happen the first time the
-#          spatula is actuated.
-#
-#       - Fixing end-effector orientation throughout trajectory?
-#
-#       - fix 2 points of spatula edge to shelf during wrist tilt
-#
-#       - show spatula base moving accordingly before and after tilt wrist
-#
-#       - implement selective trajectory recording / playback
-#
-# pkill -f partial_name  kills all processes with matching name...
-#
-# full run took 38m30s without any precomputation
-#               39m04s with precomputed trajectory (between bin and spatula center pos)
+
+# TODO:
+        # JSON Parser
+        # Pyserial to 1) turn on/off vacuum; 2) control spatula; 3) read vacuum pressure
+        # Communicate with perception group
 
 from klampt import robotsim
 from klampt.glprogram import *
@@ -39,11 +25,15 @@ import apc, os, math, random, copy
 from threading import Thread,Lock
 from Queue import Queue
 from operator import itemgetter
-import pickle
+import cPickle as pickle
+
+# NOTE: Arduino stuff
+# import Pressure_Comms
+
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
+FAKE_SIMULATION = 1
 PHYSICAL_SIMULATION = 0
 
 SPEED = 5
@@ -117,27 +107,10 @@ def load_item_geometry(item,geometry_ptr = None):
         return geometry_ptr
 
 class KnowledgeBase:
-    """A structure containing the robot's dynamic knowledge about the world.
-    Members:
-    - bin_contents: a map from bin names to lists of known items in
-      the bin.  Items are given by apc.ItemInBin objects.
-    - order_bin_contents: the list of objects already in the order bin.
-      also given by apc.ItemInBin objects
-    - shelf_xform: the transformation (rotation, translation) of the bottom
-      center of the shelf in world coordinates.  The x coordinate increases
-      from left to right, the y coordinate increases from bottom to top,
-      and the z coordinate increases from back to front.
-      this will be loaded dynamically either from perception or hard coded.
-
-    (in this homework assignment we will use the fake perception module
-    to populate the bin contents, and assume the shelf xform is
-    estimated perfectly.)
-    """
     def __init__(self):
         self.bin_contents = dict((n,None) for n in apc.bin_names)
         self.order_bin_contents = []
         self.center_point = None
-
     def bin_front_center(self,bin_name):
         bmin,bmax = apc.bin_bounds[bin_name]
         # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
@@ -163,7 +136,6 @@ class KnowledgeBase:
 
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
-
     def bin_vantage_point(self,bin_name):
         world_center = self.bin_front_center(bin_name)
         world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.04,0.55])
@@ -176,10 +148,8 @@ class KnowledgeBase:
             world_offset = vectorops.add(world_offset, [-0.04,0,0])
 
         return vectorops.add(world_center,world_offset)
-
     def bin_center_point(self):
         return self.center_point
-
     def bin_vertical_point(self):
         world_center = self.bin_center_point()
         world_offset = [0,-0.25,0.35]
@@ -190,7 +160,6 @@ def run_perception_on_shelf(knowledge):
     xform."""
     # NOTE: knowledge.shelf_xform = change to input from perception team
     knowledge.shelf_xform = ground_truth_shelf_xform
-
 def run_perception_on_bin(knowledge,bin_name):
     """This is a fake perception module that simply reveals all the items
     the given bin."""
@@ -546,13 +515,27 @@ class PickingController:
             if self.move_to_grasp_object(self.held_object, step=1):
                 self.waitForMove()
 
-                for i in range(25):
-                    self.move_to_grasp_object(self.held_object, step=i+1)
-                    self.waitForMove()
+                # New Version
+                if PHYSICAL_SIMULATION:
+                    val = 1
+                    step = 2
+                    while val==1:
+                        self.move_to_grasp_object(self.held_object, step=step)
+                        self.waitForMove()
+                        step += 1
+                        with open("pressureReading.pkl", "rb") as f:
+                            val = pickle.load(f)
+                    print "GRASPED OBJECT"
 
-                # now close the gripper
-                self.controller.commandGripper('right', [0])
-                self.waitForMove()
+                else:
+                    # Old Version
+                    for i in range(25):
+                        self.move_to_grasp_object(self.held_object, step=i+2)
+                        self.waitForMove()
+
+                    # now close the gripper
+                    self.controller.commandGripper('right', [0])
+                    self.waitForMove()
 
                 # self.held_object = knowledge.bin_contents[self.current_bin].pop()
                 self.stateRight = 'holding'
@@ -1394,9 +1377,10 @@ class PickingController:
         # qcmd = self.controller.getSensedConfig()
         limbs = ['right']
 
-        print "Solving for GRASP_OBJECT"
+        if step==1:
+            print "Solving for GRASP_OBJECT"
         for i in range(100):
-            sortedSolutions = self.get_ik_solutions(right_goal, limbs, qcmd, maxResults=100, maxIters=100)
+            sortedSolutions = self.get_ik_solutions(right_goal, limbs, qcmd, maxResults=100, maxIters=100, rangeVal = 0.001)
 
             if len(sortedSolutions)==0:
                 continue
