@@ -299,7 +299,9 @@ class FullIntegrationMaster:
                         print FAIL_COLOR + "Got an invalid cloud, trying again" + END_COLOR
 
                 elif self.state == 'FAKE_SCANNING_BIN':
-                    self.object_com = [1.1091014481339707, -0.259730410405869, 1.1715260595889734]
+                    #self.object_com = [1.1091014481339707, -0.259730410405869, 1.1715260595889734] #Bin H
+                    self.object_com = [1.22737, -0.1353256, 1.10643225] #Bin H
+                    #self.object_com = [1.060669, -.2757538, 1.3859138] #Bin E
                     self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'CALIBRATE':
@@ -463,7 +465,12 @@ class FullIntegrationMaster:
 
                 elif self.state == 'STOWING_OBJECT':
                         self.turnOffVacuum()
-                        self.state = 'BIN_DONE'
+                        self.wait_start_time = time.time()
+                        self.state = 'WAITING_FOR_SECURE_STOW'
+
+                elif self.state == 'WAITING_FOR_SECURE_STOW':
+                    if time.time() - self.wait_start_time > GRASP_WAIT_TIME:
+                        self.state = 'BIN_DONE' if SELECT_REAL_BIN else 'DONE'
 
                 elif self.state == 'BIN_DONE':
                     self.bin_state[self.current_bin]['done'] = True

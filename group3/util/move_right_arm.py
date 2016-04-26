@@ -1,9 +1,11 @@
 import rospy
 import baxter_interface
+from constants import *
 
 # Change me!
 q_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 q_target = [1.1508690847961427, -0.7558690323669434, -0.3704563598510742, 1.1922865660217286, 0.19596604542846682, 1.2455923983398438, -0.07708253450317383]
+q_target = Q_SCAN_BIN_E
 
 
 rospy.init_node('oeu')

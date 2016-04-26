@@ -7,7 +7,7 @@ REAL_VACUUM = False
 REAL_PERCEPTION = False
 SEGMENT = False
 CALIBRATE = False
-SELECT_REAL_BIN = True
+SELECT_REAL_BIN = False
 HARDCODED_BIN = 'H'
 
 # Constants related to printing output
