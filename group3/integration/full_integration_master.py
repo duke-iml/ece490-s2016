@@ -201,7 +201,7 @@ class FullIntegrationMaster:
     def loop(self):
         try:
             while True:
-                print OKBLUE + self.state + END_COLOR
+                print OKBLUE + "Bin " + str(self.current_bin) + ": " + self.state + END_COLOR
 
                 if self.state == 'VISUAL_DEBUG':
                     # Feel free to change these values
@@ -463,7 +463,15 @@ class FullIntegrationMaster:
 
                 elif self.state == 'STOWING_OBJECT':
                         self.turnOffVacuum()
+                        self.state = 'BIN_DONE'
+
+                elif self.state == 'BIN_DONE':
+                    self.bin_state[self.current_bin]['done'] = True
+                    self.current_bin = planning.selectBin(self.bin_state)
+                    if self.current_bin is None:
                         self.state = 'DONE'
+                    else:
+                        self.state = 'START'
 
                 elif self.state == 'DONE':
                     print "actual vacuum point: ", se3.apply(self.Tvacuum, [0, 0, 0])
