@@ -125,13 +125,13 @@ class FullIntegrationMaster:
         if REAL_VACUUM:
             self.serial.write('H')
         else:
-            print "Fake vacuum is on"
+            print OKBLUE + "Fake vacuum is on" + END_COLOR
 
     def turnOffVacuum(self):
         if REAL_VACUUM:
             self.serial.write('L')
         else:
-            print "Fake vacuum is off"
+            print OKBLUE + "Fake vacuum is off" + END_COLOR
 
     def calibrateCamera(self):
         print self.calibratedCameraXform
@@ -193,7 +193,7 @@ class FullIntegrationMaster:
             goal3 = ik.objective(self.robotModel.link('right_wrist'),local=point3_local,world=point3_world)
             if ik.solve([goal1, goal2, goal3],tol=0.0001) and (self.elbow_up() or ignore_elbow_up_constraint):
                 return True
-        print "right_arm_ik failed for ", right_target
+        print FAIL_COLOR + "right_arm_ik failed for " + str(right_target) + END_COLOR
         return False
 
     # Main control loop
@@ -201,7 +201,7 @@ class FullIntegrationMaster:
     def loop(self):
         try:
             while True:
-                print self.state
+                print OKBLUE + self.state + END_COLOR
 
                 if self.state == 'VISUAL_DEBUG':
                     # Feel free to change these values
@@ -296,7 +296,7 @@ class FullIntegrationMaster:
                         else:
                             self.state = "MOVE_TO_GRASP_OBJECT"
                     else:
-                        print "Got an invalid cloud, trying again"
+                        print FAIL_COLOR + "Got an invalid cloud, trying again" + END_COLOR
 
                 elif self.state == 'FAKE_SCANNING_BIN':
                     self.object_com = [1.1091014481339707, -0.259730410405869, 1.1715260595889734]
@@ -395,11 +395,11 @@ class FullIntegrationMaster:
 
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
-                        print "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices])
+                        print WARNING_COLOR + "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices]) + END_COLOR
                         motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                         self.state = 'MOVING_TO_GRASP_OBJECT'                   
                     else:
-                        print "Error: IK failed"
+                        print FAIL_COLOR + "Error: IK failed" + END_COLOR
                         sys.stdout.flush()
                         time.sleep(50000) 
 
@@ -415,7 +415,7 @@ class FullIntegrationMaster:
                         destination = self.robotModel.getConfig()
                         motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                     else:
-                        print "Error: IK failed"
+                        print FAIL_COLOR + "Error: IK failed" + END_COLOR
                         sys.stdout.flush()
                         time.sleep(50000)
                     self.wait_start_time = time.time()
@@ -452,7 +452,7 @@ class FullIntegrationMaster:
                     print "actual vacuum point: ", se3.apply(self.Tvacuum, [0, 0, 0])
 
                 else:
-                    print "Unknown state"
+                    print FAIL_COLOR + "Unknown state" + END_COLOR
 
 
                 time.sleep(1)

@@ -2,7 +2,7 @@ import math
 from klampt import vectorops,so3
 
 # Constants that affect the state machine
-INITIAL_STATE = "START"
+INITIAL_STATE = "DONE"
 REAL_VACUUM = False
 REAL_PERCEPTION = False
 SEGMENT = False
@@ -151,8 +151,11 @@ SCAN_WAIT_TIME = 0 if REAL_PERCEPTION else 0
 GRASP_WAIT_TIME = 2 if REAL_VACUUM else 0
 
 # Terminal colors
-WARNING = '\033[93m'
-ENDC = '\033[0m'
+OKBLUE = '\033[94m'
+OKGREEN = '\033[92m'
+FAIL_COLOR = '\033[91m'
+WARNING_COLOR = '\033[93m'
+END_COLOR = '\033[0m'
 
 
 ITEM_SCORES = {
