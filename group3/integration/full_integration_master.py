@@ -233,6 +233,11 @@ class FullIntegrationMaster:
                     self.state = "MOVE_TO_SCAN_BIN"
 
                 elif self.state == 'MOVE_TO_SCAN_BIN':
+                    for milestone in eval('Q_BEFORE_SCAN_' + self.current_bin):
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
+                        time.sleep(1)
                     motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_SCAN_BIN_' + self.current_bin))
                     self.state = 'MOVING_TO_SCAN_BIN'
 
@@ -375,16 +380,11 @@ class FullIntegrationMaster:
                     self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN_' + self.current_bin))
-                    while motion.robot.right_mq.moving():
-                       time.sleep(1)
-                    time.sleep(1.5)
-
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN2_' + self.current_bin))
-
-                    while motion.robot.right_mq.moving():
+                    for milestone in eval('Q_AFTER_SCAN_' + self.current_bin):
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
                         time.sleep(1)
-                    time.sleep(1.5)
 
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
@@ -445,8 +445,17 @@ class FullIntegrationMaster:
                     self.state = 'MOVE_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN2_' + self.current_bin))
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_AFTER_SCAN_' + self.current_bin))
+                    for milestone in eval('Q_AFTER_SCAN_' + self.current_bin)[::-1]:
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
+                        time.sleep(1)
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_SCAN_BIN_' + self.current_bin))
+                    for milestone in eval('Q_BEFORE_SCAN_' + self.current_bin)[::-1]:
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
+                        time.sleep(1)
                     motion.robot.right_mq.appendLinear(MOVE_TIME, Q_STOW)
                     self.state = 'MOVING_TO_STOW_OBJECT'
 
