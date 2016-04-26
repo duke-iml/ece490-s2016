@@ -4,8 +4,8 @@ from klampt import vectorops,so3
 # Constants that affect the state machine
 INITIAL_STATE = "START"
 REAL_VACUUM = False
-REAL_PERCEPTION = True
-SEGMENT = True
+REAL_PERCEPTION = False
+SEGMENT = False
 CALIBRATE = False
 SELECT_REAL_BIN = False
 HARDCODED_BIN = 'H'
@@ -13,7 +13,7 @@ HARDCODED_BIN = 'H'
 # Constants related to printing output
 PRINT_BLOBS = True
 PRINT_LABELS_AND_SCORES = True
-VERBOSE = True
+DEBUG_PERCEPTION = True
 
 # Downsample ratio
 STEP = 15
@@ -149,6 +149,10 @@ BACK_UP_DISTANCE = .2
 MOVE_TIME = 2
 SCAN_WAIT_TIME = 0 if REAL_PERCEPTION else 0
 GRASP_WAIT_TIME = 2 if REAL_VACUUM else 0
+
+# Terminal colors
+WARNING = '\033[93m'
+ENDC = '\033[0m'
 
 
 ITEM_SCORES = {

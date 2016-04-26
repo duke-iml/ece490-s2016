@@ -29,11 +29,11 @@ baxter_rest_config = [0.0]*54
 class FullIntegrationMaster:
 
     # Assorted functions
-    # =========================================================================================
+    # ==================
     def __init__(self, world):
         self.world = world
         self.current_bin = 'A'
-        self.bins = {'A': {'done': False, 'contents': []},'B': {'done': False, 'contents': []}, 'C': {'done': False, 'contents': []}, 'D': {'done': False, 'contents': []}, 'E': {'done': False, 'contents': []}, 'F': {'done': False, 'contents': []}, 'G': {'done': False, 'contents': []}, 'H': {'done': False, 'contents': []}, 'I': {'done': False, 'contents': []}, 'J': {'done': False, 'contents': []}, 'K': {'done': False, 'contents': []}, 'L': {'done': False, 'contents': []}}
+        self.bin_state = {'A': {'done': False, 'contents': []},'B': {'done': False, 'contents': []}, 'C': {'done': False, 'contents': []}, 'D': {'done': False, 'contents': []}, 'E': {'done': False, 'contents': []}, 'F': {'done': False, 'contents': []}, 'G': {'done': False, 'contents': []}, 'H': {'done': False, 'contents': []}, 'I': {'done': False, 'contents': []}, 'J': {'done': False, 'contents': []}, 'K': {'done': False, 'contents': []}, 'L': {'done': False, 'contents': []}}
         self.robotModel = world.robot(0)
         self.state = INITIAL_STATE
         self.config = self.robotModel.getConfig()
@@ -66,34 +66,12 @@ class FullIntegrationMaster:
         # Load JSON
         with open(PICK_JSON_PATH) as pick_json_file:
             raw_json_data = json.load(pick_json_file)
-        for k in self.bins:
-            self.bins[k]['contents'] = raw_json_data['bin_contents']['bin_'+k]
+        for k in self.bin_state:
+            self.bin_state[k]['contents'] = raw_json_data['bin_contents']['bin_'+k]
         for my_dict in raw_json_data['work_order']:
             bin_letter = my_dict['bin'][4]
-            self.bins[bin_letter]['target'] = my_dict['item']
-        self.selectBin()
-
-        print self.bins
-        time.sleep(23423)
-
-    def getBinScore(self, bin):
-        score = 0
-        for item in self.bins[bin]['contents']:
-            score = score + ITEM_SCORES[item]
-        score = score * len(self.bins[bin]['contents'])
-        return score
-
-    def selectBin(self):
-        if not SELECT_REAL_BIN:
-            self.current_bin = HARDCODED_BIN
-            return
-
-        lowest_score = 99999
-        for k in self.bins:
-            this_score = self.getBinScore(k)
-            if this_score < lowest_score:
-                self.current_bin = k
-                lowest_score = this_score
+            self.bin_state[bin_letter]['target'] = my_dict['item']
+        self.current_bin = planning.selectBin(self.bin_state)
 
     def start(self):
         motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath=LIBPATH)
@@ -188,15 +166,8 @@ class FullIntegrationMaster:
             print "printing camera calibration"
             print self.calibratedCameraXform
 
-        # try: 
-        #     move = raw_input("Do you want to move? (y or n)");
-        #     if move == "y":
-        #         self.state = 'MOVING_TO_GRASP_OBJECT'
-        # except:
-        #     print "input error\n"
-
     # IK and motion planning
-    # =========================================================================================
+    # ======================
     def elbow_up(self):
         destination = self.robotModel.getConfig()
         for index,v in enumerate(self.right_arm_indices):
@@ -225,112 +196,8 @@ class FullIntegrationMaster:
         print "right_arm_ik failed for ", right_target
         return False
 
-    def motionPlanArm(self, start, goal, limb):
-        planner = planning.LimbPlanner(self.world, self.vacuumPc)
-        plannedPath = planner.plan_limb(limb, start, goal)
-        while not plannedPath:
-            print "trying planning again"
-        for limbMilestone in plannedPath:
-            #if(len(limbMilestone) > 7):
-            #limbMilestone = [limbMilestone[v] for v in self.right_arm_indices]
-            print "limbMilestone", limbMilestone
-            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(limbMilestone))
-        sys.stdout.flush()
-        time.sleep(234234)
-
-
-    def motionPlanArm2(self, start, goal, subset):
-        #note: we're probably going to want this to be called from ik in case ik generates a
-        #poor configuration and we end up needing a different one
-
-        #start = robot arm configuration
-        #end = end arm configuration
-
-        # subset - list of links to worry about collision
-        # 15-22 for left arm 
-        # 35-42 for right arm
-
-        collider = robotcollide.WorldCollider(self.world)
-        # make this global
-
-        #probably want to ignore collisions beteween other arm/links and the world to make things faster...
-        # comment copied from eariler ^
-
-        # all this stuff is local because we could use this for left arm or right arm
-        space = robotcspace.RobotSubsetCSpace(self.world.robot(0),subset,collider)
-        planner = cspace.MotionPlan(space, "rrt*")
-        #extract out cspace configurations       
-        print "Goal config",goal
-        planner.setEndpoints(start,goal)
-        for iters in xrange(10000):
-            planner.planMore(1)
-            #make one iteration of planning
-            print iters
-            if planner.getPath() != None:
-                print "Planning succeeded"
-                cspacepath = planner.getPath() 
-            # get total path
-            #convert back to robot joint space
-                print cspacepath
-
-                for qcspace in cspacepath:
-
-                    #makes sure path has wrist stay at 0
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([qcspace[v] for v in self.right_arm_indices]))  
-                print "done with loop" 
-                return True
-        return False
-
-    def motionPlanArm3(self, goal, locality, numSteps):
-        #assumptions: I have been told to go to a point inside a bin
-	    # 		camera transform is perfect
-        #       point is received in xyz
-        #process: take the point 
-
-        if(numSteps < 2):
-            numSteps = 2
-
-        if locality == 'local':
-            goalF = se3.apply(self.Tcamera, point);
-            goalB = vectorops.add(goal, [-1,0,0])
-        else:
-            # my goal is in world coordinates already
-            # my goal is the given goal
-            goalF = goal
-            goalB = vectorops.add(goal, [-1,0,0])
-
-        print goalF
-        print goalB
-
-        goalArray = []
-        print goalArray
-        for i in range(numSteps):
-            a = vectorops.madd(goalB, vectorops.sub(goalF, goalB), i*1.0/numSteps)
-            goalArray.append(a);
-
-        path = []
-        for i in range(numSteps):
-            vacuumPc = Geometry3D()
-            vacuumPc.loadFile(VACUUM_PCD_FILE)
-            temp_xform = self.robotModel.link('right_wrist').getTransform()
-            vacuumPc.transform(self.Tvacuum[0], self.Tvacuum[1])
-
-            temp_planner = planning.LimbPlanner(self.world, vacuumPc)
-            goalMilestone = goalArray[i]
-            print goalMilestone
-            if (self.right_arm_ik(goalMilestone)):
-                milestone = self.robotModel.getConfig()
-                
-                path.append(milestone)
-                print milestone
-
-        #tell robot to move
-        for myMilestone in path:
-            print "milestone appended ", myMilestone
-            #motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-
     # Main control loop
-    # =========================================================================================
+    # =================
     def loop(self):
         try:
             while True:
@@ -353,24 +220,22 @@ class FullIntegrationMaster:
 
                 if self.state == 'DEBUG_COLLISION_CHECKER':
                     temp_planner = planning.LimbPlanner(self.world, self.vacuumPc)
-                    print '==========='
                     print 'Is this configuration collision free?'
                     print temp_planner.check_collision_free('right')
-                    print '==========='
                     sys.stdout.flush()
 
-                elif self.state == 'FAKE_PATH_PLANNING':
-                    test_planner = planning.LimbPlanner(self.world, self.vacuumPc)
-                    start = self.robotModel.getConfig()
-                    start_right_arm = [start[v] for v in self.right_arm_indices]
-                    self.object_com = [1.2456333151435623, -0.18573488791106177, 1.2116419624143496]
-                    self.object_com = [1.1851363660702774, -0.3011348060169573, 1.1526211335352967]
-                    self.right_arm_ik(self.object_com)
-                    destination = self.robotModel.getConfig()
-                    #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
-                    self.motionPlanArm3(self.object_com, 'world', 15)
-                    #self.motionPlanArm2(start, destination, self.right_arm_indices)
-                    self.state = 'DONE'
+                # elif self.state == 'FAKE_PATH_PLANNING':
+                #     test_planner = planning.LimbPlanner(self.world, self.vacuumPc)
+                #     start = self.robotModel.getConfig()
+                #     start_right_arm = [start[v] for v in self.right_arm_indices]
+                #     self.object_com = [1.2456333151435623, -0.18573488791106177, 1.2116419624143496]
+                #     self.object_com = [1.1851363660702774, -0.3011348060169573, 1.1526211335352967]
+                #     self.right_arm_ik(self.object_com)
+                #     destination = self.robotModel.getConfig()
+                #     #destination = [1.0166457660095216, -0.4993107458862305, -0.23508255547485354, 0.8578787546447755, 0.2534903249084473, -0.33172334500122075, -0.20823789171752932]
+                #     self.motionPlanArm3(self.object_com, 'world', 15)
+                #     #self.motionPlanArm2(start, destination, self.right_arm_indices)
+                #     self.state = 'DONE'
 
                 elif self.state == 'START':
                     self.state = "MOVE_TO_SCAN_BIN"
@@ -463,7 +328,6 @@ class FullIntegrationMaster:
                         print object_blobs
                         print "============="
 
-                    # List of strings
                     object_list = [ITEM_NUMBERS[item_str] for item_str in self.bins[self.current_bin]['contents']]
                     target = ITEM_NUMBERS[self.bins[self.current_bin]['target']]
 
@@ -471,7 +335,7 @@ class FullIntegrationMaster:
                     cloud_label = {} # key is the label of object, value is cloud points
                     label_score = {} # key is the label, value is the current score for the object 
                     for object_cloud in object_blobs:
-                        if VERBOSE:
+                        if PRINT_BLOBS:
                             print "====================="
                             print 'object_cloud'
                             print object_cloud
@@ -535,7 +399,6 @@ class FullIntegrationMaster:
                         motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                         self.state = 'MOVING_TO_GRASP_OBJECT'                   
                     else:
-                        # TODO
                         print "Error: IK failed"
                         sys.stdout.flush()
                         time.sleep(50000) 
@@ -545,7 +408,6 @@ class FullIntegrationMaster:
                         self.state = 'GRASP_OBJECT'
 
                 elif self.state == 'GRASP_OBJECT':
-                    # Turn on vacuum, then move downwards to grasp
                     move_target = se3.apply(self.Tvacuum, [0, 0, 0])
                     move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE
                     if self.right_arm_ik(move_target):
@@ -553,7 +415,6 @@ class FullIntegrationMaster:
                         destination = self.robotModel.getConfig()
                         motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                     else:
-                        # TODO
                         print "Error: IK failed"
                         sys.stdout.flush()
                         time.sleep(50000)

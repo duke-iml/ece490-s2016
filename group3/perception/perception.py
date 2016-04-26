@@ -145,7 +145,7 @@ def objectMatch(cloud,histogram_dict):
     sorted_score = sorted(scores.items(), key=operator.itemgetter(1),reverse = True)
     obj = sorted_score[0][0]
     score = sorted_score[0][1]
-    if VERBOSE:
+    if DEBUG_PERCEPTION:
         print 'found object ' + str((obj-1)/NUM_HIST_PER_OBJECT+1) + ' score is ' + str(score)+ 'cloud com is '
         print com(cloud) 
     return (obj-1)/NUM_HIST_PER_OBJECT+1,score
@@ -159,7 +159,7 @@ def loadHistogram(objects):
     for i in objects:
         for j in range(1, NUM_HIST_PER_OBJECT+1):
             idx = (i-1) * NUM_HIST_PER_OBJECT + j
-            if VERBOSE:
+            if DEBUG_PERCEPTION:
                 print 'load histgram ' + str(idx)
             histo_dict[idx] = np.load(PERCEPTION_DIR + '/{}.npz'.format(idx))['arr_0']
     return histo_dict

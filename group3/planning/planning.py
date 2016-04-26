@@ -18,6 +18,35 @@ def cleanJointConfig(q):
         q[6] = 0.0
     return q
 
+def getBinScore(bin_state, bin_to_score):
+    """
+    Inputs: self.bin_state from master and the bin letter to score
+    Output: The score
+    """
+    score = 0
+    for item in bin_state[bin_to_score]['contents']:
+        score = score + ITEM_SCORES[item]
+    score = score * len(bin_state[bin_to_score]['contents'])
+    return score
+
+def selectBin(bin_state):
+    """
+    Input: self.bin_state from master
+    Output: bin letter
+    """
+    if not SELECT_REAL_BIN:
+        return HARDCODED_BIN
+
+    best_bin = None
+    lowest_score = 99999
+    for k in bin_state:
+        this_score = getBinScore(bin_state, k)
+        if this_score < lowest_score and not bin_state[k]['done']:
+            best_bin = k
+            lowest_score = this_score
+
+    return best_bin
+
 class LimbCSpace (CSpace):
     """Much of your code for HW4 will go here.  This class
     defines hooks for a motion planner.  Primarily you must define a sampling
@@ -158,7 +187,7 @@ class LimbPlanner:
         return True
 
     def rebuild_dynamic_objects(self):
-    	pass
+        pass
     #     self.dynamic_objects = []
     #     #check with objects in knowledge
     #     for (k,objList) in self.knowledge.bin_contents.iteritems():
