@@ -26,10 +26,7 @@ from threading import Thread,Lock
 from Queue import Queue
 from operator import itemgetter
 import cPickle as pickle
-
-# NOTE: Arduino stuff
-# import Pressure_Comms
-
+import subprocess
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
@@ -37,6 +34,14 @@ FAKE_SIMULATION = 1
 PHYSICAL_SIMULATION = 0
 
 SPEED = 5
+
+# NOTE: Arduino stuff
+# import Pressure_Comms
+if PHYSICAL_SIMULATION:
+    import Motor_Comms_2
+    spatulaController = Motor_Comms_2.MoveSpatula()
+    spatulaCommand = [0,0,0,0]
+subprocess.Popen(['python', 'Pressure_Comms.py'])
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -385,23 +390,19 @@ class PhysicalLowLevelController(LowLevelController):
     def remainingTime(self):
         return max(motion.robot.left_mq.moveTime(),motion.robot.right_mq.moveTime())
     def commandGripper(self,limb,command,spatulaPart = None):
-        return
-        # Communication with arduino
+        global spatulaController
+        global spatulaCommand
+        # spatula
+        if limb == 'left':
+            if command[0] == 1:
+                spatulaCommand = spatulaController.advance(spatulaPart)
+            elif command[0] == 0:
+                spatulaController.reset_spatula(spatulaCommand)
 
-        #if limb=="left":
-        #    if command==[0]:
-        #        motion.robot.left_gripper.close()
-        #    elif command==[1]:
-        #        motion.robot.left_gripper.open()
-        #    else:
-        #        motion.robot.left_gripper.command(command,[1]*len(command),[1]*len(command))
-        #else:
-        #    if command==[0]:
-        #        motion.robot.right_gripper.close()
-        #    elif command==[1]:
-        #        motion.robot.right_gripper.open()
-        #    else:
-        #        motion.robot.right_gripper.command(command,[1]*len(command),[1]*len(command))
+        # vacuum
+        elif limb == 'right':
+            print "need to implement vacuum controller"
+        return
 
 class PickingController:
     def __init__(self,simworld,world,robotController):
@@ -509,7 +510,7 @@ class PickingController:
             #     self.waitForMove()
 
             # now close the gripper
-            self.controller.commandGripper('right;', [1])
+            self.controller.commandGripper('right', [1])
             self.waitForMove()
 
             if self.move_to_grasp_object(self.held_object, step=1):
@@ -884,11 +885,11 @@ class PickingController:
 
         bin_name = self.current_bin
         if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
-            spatulaPart = "narrow_base"
+            spatulaPart = 2 #"narrow_base"
         elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
-            spatulaPart = "wide_base"
+            spatulaPart = 1 # "wide_base"
         elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
-            spatulaPart = "narrow_base"
+            spatulaPart = 2 #"narrow_base"
 
         if direction=="out":
             direction = 1
@@ -897,13 +898,10 @@ class PickingController:
 
         if direction=="fence_out":
             direction = 1
-            spatulaPart = "fence"
+            spatulaPart = 3 #"fence"
         elif direction=="fence_in":
             direction = 0
-            spatulaPart = "fence"
-
-        self.controller.commandGripper('left', [direction], spatulaPart)
-        self.waitForMove()
+            spatulaPart = 3 #"fence"
 
         self.controller.commandGripper('left', [direction], spatulaPart)
         self.waitForMove()
