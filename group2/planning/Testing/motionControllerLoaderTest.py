@@ -30,8 +30,8 @@ import subprocess
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 SPEED = 5
 
@@ -41,7 +41,7 @@ if PHYSICAL_SIMULATION:
     import Motor_Comms_2
     spatulaController = Motor_Comms_2.MoveSpatula()
     spatulaCommand = [0,0,0,0]
-subprocess.Popen(['python', 'Pressure_Comms.py'])
+    #subprocess.Popen(['python', 'Pressure_Comms.py'])
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -518,9 +518,9 @@ class PickingController:
 
                 # New Version
                 if PHYSICAL_SIMULATION:
-                    val = 1
+                    val = 0
                     step = 2
-                    while val==1:
+                    while val==0:
                         self.move_to_grasp_object(self.held_object, step=step)
                         self.waitForMove()
                         step += 1
@@ -1353,7 +1353,7 @@ class PickingController:
         self.waitForMove()
         self.robot.setConfig(self.controller.getCommandedConfig())
 
-        # get this from perception group
+        # TODO: get this from perception group
         t_obj = object.randRt[1]
 
         # print "t_obj =",t_obj

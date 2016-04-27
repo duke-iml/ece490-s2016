@@ -18,6 +18,7 @@ class CommPressure:
         while True:
             try:
                 self.com = Serial(port, 9600)
+                print('connected to arduino\n')
                 break
             except SerialException:
                 print 'Error: No device is on port' + port
@@ -25,7 +26,6 @@ class CommPressure:
                 port = input('Port = ')
                 if port.isdigit():
                     port = '/dev/ttyUSB' + port
-        print('connected to arduino\n')
         time.sleep(0.5)
 
     def close(self):
@@ -49,11 +49,17 @@ class CommPressure:
 
 if __name__ == "__main__":
     ports = list(serial.tools.list_ports.comports())
+    
+    foundPort = False
     for p in ports:
-        if "Arduino" in p[1]:
+        print p
+        if "Arduino Micro" in p[1]:
             print "Port =", p[0]
+            compress = CommPressure(port = p[0])
+            foundPort = True
+    if foundPort == False:
+        print "No Port Found (Arduino Micro)"
 
-    compress = CommPressure(port = p[0])
     while True:
         attached = compress.read_pressure()
 

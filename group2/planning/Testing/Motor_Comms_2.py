@@ -15,15 +15,21 @@ class MoveSpatula:
     def __init__(self, port="/dev/ttyACM1"):
         # on linux use port="/dev/ttyUSB2"
         # attempt to connect
+        foundPort = False
         ports = list(serial.tools.list_ports.comports())
         for p in ports:
             if "Arduino Mega" in p[1]:
                 print "Port =", p[0]
                 port = p[0]
+                print port
+                foundPort = True
+        if foundPort == False:
+            print "No Port Found (Arduino Mega)"
 
         while True:
             try:
                 self.com = Serial(port, 9600)
+                print('connected to arduino\n')            
                 break
             except SerialException:
                 print 'Error: No device is on port' + port
@@ -32,7 +38,6 @@ class MoveSpatula:
                 if port.isdigit():
                     port = '/dev/ttyUSB' + port
         self.send_commands([0, 0, 0, 0])
-        print('connected to arduino\n')
         time.sleep(0.5)
 
     def close(self):
