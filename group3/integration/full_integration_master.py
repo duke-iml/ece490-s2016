@@ -184,16 +184,15 @@ class FullIntegrationMaster:
 
         qmin,qmax = self.robotModel.getJointLimits()
         for i in range(1000):
-            point2_local = vectorops.add(VACUUM_POINT_XFORM[1], [0, 0, -1])
-            point2_world = vectorops.add(right_target, [-1, 0, 0])
-            point3_local = vectorops.add(VACUUM_POINT_XFORM[1], [0, 1, 0])
-            point3_world = vectorops.add(right_target, [0, 1, 0])
+            point2_local = vectorops.add(VACUUM_POINT_XFORM[1], [.1, 0, 0])
+            point2_world = vectorops.add(right_target, [0, 0, -.1])
             goal1 = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
             goal2 = ik.objective(self.robotModel.link('right_wrist'),local=point2_local,world=point2_world)
-            goal3 = ik.objective(self.robotModel.link('right_wrist'),local=point3_local,world=point3_world)
-            if ik.solve([goal1, goal2, goal3],tol=0.0001) and (self.elbow_up() or ignore_elbow_up_constraint):
+            if ik.solve([goal1, goal2],tol=0.0001) and (self.elbow_up() or ignore_elbow_up_constraint):
                 return True
         print FAIL_COLOR + "right_arm_ik failed for " + str(right_target) + END_COLOR
+        if not (self.elbow_up or ignore_elbow_up_constraint):
+            print FAIL_COLOR + "IK found but elbow wasn't up" + END_COLOR
         return False
 
     # Main control loop
@@ -205,8 +204,8 @@ class FullIntegrationMaster:
 
                 if self.state == 'VISUAL_DEBUG':
                     # Feel free to change these values
-                    self.object_com = [1.0857115024889756, -0.50434947132423846, 1.1568829277798645]
-                    self.set_model_right_arm([0.4402524856201172, -0.6668981467712403, -0.03988350043945313, 1.5144225311096193, -0.32443693626708986, -0.9441651738647462, 0.0])
+                    self.object_com = [1.2141349100693453, -0.54453585242089697, 1.1350369373495723]
+                    self.set_model_right_arm([.68049, -.49200, -.219497, 1.252187, .11675, -.73805, .107165])
                 else:
                     self.load_real_robot_state()
 
@@ -234,11 +233,11 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVE_TO_SCAN_BIN':
                     for milestone in eval('Q_BEFORE_SCAN_' + self.current_bin):
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
                         while motion.robot.right_mq.moving():
                             time.sleep(1)
                         time.sleep(1)
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_SCAN_BIN_' + self.current_bin))
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(eval('Q_SCAN_BIN_' + self.current_bin)))
                     self.state = 'MOVING_TO_SCAN_BIN'
 
                 elif self.state == 'MOVING_TO_SCAN_BIN':
@@ -381,7 +380,7 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
                     for milestone in eval('Q_AFTER_SCAN_' + self.current_bin):
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
                         while motion.robot.right_mq.moving():
                             time.sleep(1)
                         time.sleep(1)
@@ -446,13 +445,13 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
                     for milestone in eval('Q_AFTER_SCAN_' + self.current_bin)[::-1]:
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
                         while motion.robot.right_mq.moving():
                             time.sleep(1)
                         time.sleep(1)
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, eval('Q_SCAN_BIN_' + self.current_bin))
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(eval('Q_SCAN_BIN_' + self.current_bin)))
                     for milestone in eval('Q_BEFORE_SCAN_' + self.current_bin)[::-1]:
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, milestone)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
                         while motion.robot.right_mq.moving():
                             time.sleep(1)
                         time.sleep(1)

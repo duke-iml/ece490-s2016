@@ -45,8 +45,8 @@ while 1
     cloud( ~any(cloud,2), : ) = []; %delete the all zero point
     cloudcopy=cloud;
     cloud = cloud(:,1:3);
-    figure(80)
-    pcshow(cloud)
+%     figure(80)
+%     pcshow(cloud)
     ns1=createns(cloud,'nsmethod','kdtree');
     [idx1,dist]=knnsearch(ns1,cloud,'k',20); %kd-tree algorithm
     dmin=floor(0.5*length(cloud));  %number of start point
@@ -141,8 +141,8 @@ while 1
         if size(r,1)>100
             name = strcat('seg',int2str(ooo))
             save(name,'r');
-            figure(ooo)
-            pcshow(r(:,1:3))
+%             figure(ooo)
+%             pcshow(r(:,1:3))
             %{
     sellistpoint(:,1:3)=pointdownstore(sellist(:,1),:);
     ns2=createns(point1,'nsmethod','kdtree');
