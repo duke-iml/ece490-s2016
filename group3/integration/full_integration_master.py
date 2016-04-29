@@ -184,14 +184,15 @@ class FullIntegrationMaster:
 
         qmin,qmax = self.robotModel.getJointLimits()
         for i in range(1000):
-            point2_local = vectorops.add(VACUUM_POINT_XFORM[1], [.1, 0, 0])
-            point2_world = vectorops.add(right_target, [0, 0, -.1])
+            point2_local = vectorops.add(VACUUM_POINT_XFORM[1], [.5, 0, 0])
+            point2_world = vectorops.add(right_target, [0, 0, -.5])
             goal1 = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
             goal2 = ik.objective(self.robotModel.link('right_wrist'),local=point2_local,world=point2_world)
             if ik.solve([goal1, goal2],tol=0.0001) and (self.elbow_up() or ignore_elbow_up_constraint):
                 return True
         print FAIL_COLOR + "right_arm_ik failed for " + str(right_target) + END_COLOR
-        if not (self.elbow_up or ignore_elbow_up_constraint):
+        if not (self.elbow_up() or ignore_elbow_up_constraint):
+            print FAIL_COLOR + str([self.robotModel.getConfig()[v] for v in self.right_arm_indices]) + END_COLOR
             print FAIL_COLOR + "IK found but elbow wasn't up" + END_COLOR
         return False
 
@@ -224,9 +225,11 @@ class FullIntegrationMaster:
                     sys.stdout.flush()
 
                 elif self.state == 'FAKE_PATH_PLANNING':
-                    self.object_com = [1.0857115024889756, -0.50434947132423846, 1.1568829277798645]
+                    self.object_com = [1.04966, -.58895, 1.65583]
                     self.right_arm_ik(self.object_com)
-                    self.state = 'DONE'
+                    self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), self.calibratedCameraXform)
+                    self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
+                    time.sleep(2342340)
 
                 elif self.state == 'START':
                     self.state = "MOVE_TO_SCAN_BIN"
