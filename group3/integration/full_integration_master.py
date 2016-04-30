@@ -62,6 +62,7 @@ class FullIntegrationMaster:
             if self.serial.isOpen():
                 self.serial.write("hello")
                 response = self.serial.read(self.serial.inWaiting())
+            self.turnOffVacuum()
 
         # Load JSON
         with open(PICK_JSON_PATH) as pick_json_file:
@@ -175,7 +176,7 @@ class FullIntegrationMaster:
                 return False
         return True
 
-    def right_arm_ik(self, right_target, ignore_elbow_up_constraint=False):
+    def right_arm_ik(self, right_target, ignore_elbow_up_constraint=True):
         """Solves IK to move the right arm to the specified
             right_target ([x, y, z] in world space)
         """
@@ -205,8 +206,8 @@ class FullIntegrationMaster:
 
                 if self.state == 'VISUAL_DEBUG':
                     # Feel free to change these values
-                    self.object_com = [1.2141349100693453, -0.54453585242089697, 1.1350369373495723]
-                    self.set_model_right_arm([.68049, -.49200, -.219497, 1.252187, .11675, -.73805, .107165])
+                    self.object_com = [1.2071213301737487, -0.03593091090915318, 1.6628585983074351]
+                    self.set_model_right_arm([0.7266800961315294, -0.5932891410510368, 1.5314155722581653, 0.3960599354295223, -1.8854118661788237, 0.6151212167162947, 0.5122478958211075])
                 else:
                     self.load_real_robot_state()
 
@@ -225,7 +226,7 @@ class FullIntegrationMaster:
                     sys.stdout.flush()
 
                 elif self.state == 'FAKE_PATH_PLANNING':
-                    self.object_com = [1.04966, -.58895, 1.65583]
+                    self.object_com = [1.114, -.077, 1.412]
                     self.right_arm_ik(self.object_com)
                     self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), self.calibratedCameraXform)
                     self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
@@ -236,6 +237,7 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVE_TO_SCAN_BIN':
                     for milestone in eval('Q_BEFORE_SCAN_' + self.current_bin):
+                        print "Moving to " + str(milestone)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
                         while motion.robot.right_mq.moving():
                             time.sleep(1)
@@ -286,7 +288,6 @@ class FullIntegrationMaster:
                         fo.close()
 
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
-                        self.object_com[2] = self.object_com[2] + GRASP_MOVE_DISTANCE
 
                         if CALIBRATE:
                             self.state = "CALIBRATE"
@@ -298,9 +299,7 @@ class FullIntegrationMaster:
                         print FAIL_COLOR + "Got an invalid cloud, trying again" + END_COLOR
 
                 elif self.state == 'FAKE_SCANNING_BIN':
-                    #self.object_com = [1.1091014481339707, -0.259730410405869, 1.1715260595889734] #Bin H
-                    self.object_com = [1.22737, -0.1353256, 1.10643225] #Bin H
-                    #self.object_com = [1.060669, -.2757538, 1.3859138] #Bin E
+                    self.object_com = [1.1114839836097854, -0.6087936130127559, 0.9899267043340634]
                     self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'CALIBRATE':
@@ -383,16 +382,19 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
                     for milestone in eval('Q_AFTER_SCAN_' + self.current_bin):
+                        print "Moving to " + str(milestone)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
                         while motion.robot.right_mq.moving():
                             time.sleep(1)
-                        time.sleep(1)
+                        time.sleep(2)
 
+                    self.object_com[1] = self.object_com[1] + COM_Y_ADJUSTMENT
+                    self.object_com[2] = self.object_com[2] + GRASP_MOVE_DISTANCE
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
                         print WARNING_COLOR + "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices]) + END_COLOR
                         motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
-                        self.state = 'MOVING_TO_GRASP_OBJECT'                   
+                        self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print FAIL_COLOR + "Error: IK failed" + END_COLOR
                         sys.stdout.flush()
@@ -400,11 +402,12 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
+                        time.sleep(2)
                         self.state = 'GRASP_OBJECT'
 
                 elif self.state == 'GRASP_OBJECT':
                     move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                    move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE
+                    move_target[2] = move_target[2] - GRASP_MOVE_DISTANCE - (MEAN_OBJ_HEIGHT / 2)
                     if self.right_arm_ik(move_target):
                         self.turnOnVacuum()
                         destination = self.robotModel.getConfig()
@@ -431,29 +434,11 @@ class FullIntegrationMaster:
                         print FAIL_COLOR + "Error: IK failed" + END_COLOR
                         sys.stdout.flush()
                         time.sleep(50000)
-                    self.state = 'MOVING_TO_RETRACT'
-
-                elif self.state == 'MOVING_TO_RETRACT':
-                    if not motion.robot.right_mq.moving():
-                        self.state = 'RETRACT'
-
-                elif self.state == 'RETRACT':
-                    for i in range(40):
-                        move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                        move_target[0] = move_target[0] - .005 * i
-                        if self.right_arm_ik(move_target):
-                            destination = self.robotModel.getConfig()
-                            motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                     self.state = 'MOVE_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
-                    for milestone in eval('Q_AFTER_SCAN_' + self.current_bin)[::-1]:
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
-                        while motion.robot.right_mq.moving():
-                            time.sleep(1)
-                        time.sleep(1)
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(eval('Q_SCAN_BIN_' + self.current_bin)))
-                    for milestone in eval('Q_BEFORE_SCAN_' + self.current_bin)[::-1]:
+                    for milestone in eval('Q_AFTER_GRASP_' + self.current_bin):
+                        print "Moving to " + str(milestone)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))
                         while motion.robot.right_mq.moving():
                             time.sleep(1)
@@ -496,10 +481,10 @@ class FullIntegrationMaster:
 
 def setupWorld():
     world = WorldModel()
-    #print "Loading full Baxter model (be patient, this will take a minute)..."
-    #world.loadElement(os.path.join(model_dir,"baxter.rob"))
-    print "Loading simplified Baxter model..."
-    world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"))
+    print "Loading full Baxter model (be patient, this will take a minute)..."
+    world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"baxter.rob"))
+    #print "Loading simplified Baxter model..."
+    #world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"))
     print "Loading Kiva pod model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"kiva_pod/model.obj"))
     print "Loading plane model..."
