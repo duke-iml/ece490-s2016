@@ -1279,6 +1279,13 @@ class PickingController:
         for solution in ikSolutions:
             # this line was buggy: the sortedSolutions only had one entry after the sort !!
             # sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolutions])
+
+            # Add initial joint values to additional joints
+            n = solution[0]
+            if len(initialConfig) < n:
+                initialConfig += [0.0]*(n-len(initialConfig))
+                print "# links in qcmd < # links in ik solution"
+
             dist = vectorops.distanceSquared(solution[0],initialConfig)
             config = solution[0]
             ind = solution[1]
