@@ -32,6 +32,7 @@ while 1
     delete('*.txt')
     delete('seg*.mat')
     clear
+    a=5
     load('cloud.mat')
     
     pause(0.5)
@@ -61,8 +62,6 @@ while 1
     listall={mat2cell(list,1,1)};
     while abs(max(max(leftpoint)))>0 && ooo<=10
         while  numel(list)>0 && oo<=5000
-            
-            
             list=cell2mat(listall{oo});
             for k=1:length(list)
                 dmin=list(1);
@@ -71,7 +70,7 @@ while 1
                 
                 [n,v,p]=svd([cloud(idx1(dmin,:),1) cloud(idx1(dmin,:),2) cloud(idx1(dmin,:),3)]);
                 dminmean=mean([cloud(idx1(dmin,:),1) cloud(idx1(dmin,:),2) cloud(idx1(dmin,:),3)],1);
-                if length(cloud) < 30
+                if length(cloud) < 25
                     break;
                 end
                 for i=1:20
@@ -79,6 +78,7 @@ while 1
                 end
                 odth=median(odth1);
                 pointss=[];
+                pointnum = [];
                 for i=1:20
                     if dist(dmin,i)<=edth && dist(dmin,i)<=edthall && dot([(cloud(idx1(dmin,i),1)-dminmean(1)),(cloud(idx1(dmin,i),2)-dminmean(2)),(cloud(idx1(dmin,i),3)-dminmean(3))],p(:,3))<=odth
                         

@@ -205,9 +205,8 @@ class FullIntegrationMaster:
                 print OKBLUE + "Bin " + str(self.current_bin) + ": " + self.state + END_COLOR
 
                 if self.state == 'VISUAL_DEBUG':
-                    # Feel free to change these values
-                    self.object_com = [1.2071213301737487, -0.03593091090915318, 1.6628585983074351]
-                    self.set_model_right_arm([0.7266800961315294, -0.5932891410510368, 1.5314155722581653, 0.3960599354295223, -1.8854118661788237, 0.6151212167162947, 0.5122478958211075])
+                    self.object_com = [0.84258819506047966, -0.25013047852941228, 1.0465066373841427]
+                    self.set_model_right_arm([0.8007379703613282, -1.0408059633911133, -0.1975000262145996, 2.5813061678649905, -0.10316020786743164, -1.5700293346069336, 0.0])
                 else:
                     self.load_real_robot_state()
 
@@ -313,7 +312,7 @@ class FullIntegrationMaster:
 
                 elif self.state == 'POSTPROCESS_SEGMENTATION':
                     object_blobs = []
-                    time.sleep(15)
+                    time.sleep(5)
                     for i in range(1,20):
                         seg_file_path = MAT_PATH + "seg" + str(i) + ".mat"
                         print seg_file_path
@@ -328,57 +327,60 @@ class FullIntegrationMaster:
                         print object_blobs
                         print "============="
 
-                    object_list = [ITEM_NUMBERS[item_str] for item_str in self.bin_state[self.current_bin]['contents']]
-                    target = ITEM_NUMBERS[self.bin_state[self.current_bin]['target']]
-
-                    histogram_dict = perception.loadHistogram(object_list)
-                    cloud_label = {} # key is the label of object, value is cloud points
-                    label_score = {} # key is the label, value is the current score for the object 
-                    for object_cloud in object_blobs:
-                        if PRINT_BLOBS:
-                            print "====================="
-                            print 'object_cloud'
-                            print object_cloud
-                            print '====================='
-                        object_cloud = perception.resample(cloud,object_cloud,3)
-                        label,score = perception.objectMatch(object_cloud,histogram_dict)
-                        if label in cloud_label:
-                            if label_score[label] < score:
-                                label_score[label] = score
-                                cloud_label[label] = object_cloud
-                        else:
-                            cloud_label[label] = object_cloud
-                            label_score[label] = score
-
-                    if PRINT_LABELS_AND_SCORES:
-                        print cloud_label
-                        print "============="
-                        print label_score
-                    if target in cloud_label:
-                        self.object_com = se3.apply(self.Tcamera, perception.com(cloud_label[target]))
-
-                        self.points1 = []
-                        for point in cloud_label[target]:
-                            transformed = se3.apply(self.Tcamera, point)
-                            self.points1.append(transformed)
-
-                        self.points2 = []
+                    if len(object_blobs) == 0:
+                        self.state = 'BIN_DONE'
                     else:
-                        cloud_score = {}
-                        histogram_dict = perception.loadHistogram([target])
+                        object_list = [ITEM_NUMBERS[item_str] for item_str in self.bin_state[self.current_bin]['contents']]
+                        target = ITEM_NUMBERS[self.bin_state[self.current_bin]['target']]
+
+                        histogram_dict = perception.loadHistogram(object_list)
+                        cloud_label = {} # key is the label of object, value is cloud points
+                        label_score = {} # key is the label, value is the current score for the object 
                         for object_cloud in object_blobs:
+                            if PRINT_BLOBS:
+                                print "====================="
+                                print 'object_cloud'
+                                print object_cloud
+                                print '====================='
                             object_cloud = perception.resample(cloud,object_cloud,3)
                             label,score = perception.objectMatch(object_cloud,histogram_dict)
-                            cloud_score[score] = object_cloud
-                        sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(0),reverse = True)
-                        score  = sorted_cloud[0][0]
-                        com = perception.com(sorted_cloud[0][1])
-                        self.points1 = []
-                        for point in sorted_cloud[0][1]:
-                            transformed = se3.apply(self.Tcamera, point)
-                            self.points1.append(transformed)
-                        self.object_com = se3.apply(self.Tcamera, com)
-                    self.state = 'MOVE_TO_GRASP_OBJECT'
+                            if label in cloud_label:
+                                if label_score[label] < score:
+                                    label_score[label] = score
+                                    cloud_label[label] = object_cloud
+                            else:
+                                cloud_label[label] = object_cloud
+                                label_score[label] = score
+
+                        if PRINT_LABELS_AND_SCORES:
+                            print cloud_label
+                            print "============="
+                            print label_score
+                        if target in cloud_label:
+                            self.object_com = se3.apply(self.Tcamera, perception.com(cloud_label[target]))
+
+                            self.points1 = []
+                            for point in cloud_label[target]:
+                                transformed = se3.apply(self.Tcamera, point)
+                                self.points1.append(transformed)
+
+                            self.points2 = []
+                        else:
+                            cloud_score = {}
+                            histogram_dict = perception.loadHistogram([target])
+                            for object_cloud in object_blobs:
+                                object_cloud = perception.resample(cloud,object_cloud,3)
+                                label,score = perception.objectMatch(object_cloud,histogram_dict)
+                                cloud_score[score] = object_cloud
+                            sorted_cloud = sorted(cloud_score.items(), key=operator.itemgetter(0),reverse = True)
+                            score  = sorted_cloud[0][0]
+                            com = perception.com(sorted_cloud[0][1])
+                            self.points1 = []
+                            for point in sorted_cloud[0][1]:
+                                transformed = se3.apply(self.Tcamera, point)
+                                self.points1.append(transformed)
+                            self.object_com = se3.apply(self.Tcamera, com)
+                        self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'MOVE_TO_GRASP_OBJECT':
                     for milestone in eval('Q_AFTER_SCAN_' + self.current_bin):
@@ -388,12 +390,32 @@ class FullIntegrationMaster:
                             time.sleep(1)
                         time.sleep(2)
 
+                    self.load_real_robot_state()
+                    self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
+
+                    print "Vacuum point: " + str(se3.apply(self.Tvacuum, [0, 0, 0]))
+
                     self.object_com[1] = self.object_com[1] + COM_Y_ADJUSTMENT
                     self.object_com[2] = self.object_com[2] + GRASP_MOVE_DISTANCE
+
+                    current_vacuum_point = se3.apply(self.Tvacuum, [0, 0, 0])
+                    milestone = vectorops.add(current_vacuum_point, self.object_com)
+                    milestone = vectorops.div(milestone, 2)
+
+                    if self.right_arm_ik(milestone):
+                        destination = self.robotModel.getConfig()
+                        print WARNING_COLOR + "IK config for " + str(milestone) + ": " + str([destination[v] for v in self.right_arm_indices]) + END_COLOR
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                        self.state = 'MOVING_TO_GRASP_OBJECT'
+                    else:
+                        print FAIL_COLOR + "Error: IK failed" + END_COLOR
+                        sys.stdout.flush()
+                        time.sleep(50000)
+
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
                         print WARNING_COLOR + "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices]) + END_COLOR
-                        motion.robot.right_mq.appendLinear(.05, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print FAIL_COLOR + "Error: IK failed" + END_COLOR

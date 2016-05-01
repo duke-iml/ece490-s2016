@@ -15,7 +15,8 @@ def cleanJointConfig(q):
     if len(q) != 7:
         print "This function is not being used as intended"
     else:
-        q[6] = 0.0
+        #q[6] = 0.0
+        pass
     return q
 
 def getBinScore(bin_state, bin_to_score):
