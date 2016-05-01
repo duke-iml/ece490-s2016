@@ -288,8 +288,8 @@ class FullIntegrationMaster:
 
                         self.object_com = se3.apply(self.Tcamera, perception.com(np_cloud))
 
-                        if CALIBRATE:
-                            self.state = "CALIBRATE"
+                        if CALIBRATE_CAMERA:
+                            self.state = "CALIBRATE_CAMERA"
                         elif SEGMENT:
                             self.state = "WAITING_FOR_SEGMENTATION"
                         else:
@@ -301,7 +301,7 @@ class FullIntegrationMaster:
                     self.object_com = [1.1114839836097854, -0.6087936130127559, 0.9899267043340634]
                     self.state = 'MOVE_TO_GRASP_OBJECT'
 
-                elif self.state == 'CALIBRATE':
+                elif self.state == 'CALIBRATE_CAMERA':
                     self.calibrateCamera()
                     self.state = 'SCANNING_BIN'
 
@@ -319,7 +319,9 @@ class FullIntegrationMaster:
                         if os.path.isfile(seg_file_path):
                             print seg_file_path + " exists"
                             mat_contents = sio.loadmat(seg_file_path)
-                            object_blobs.append(mat_contents['r'])
+                            r = mat_contents['r']
+                            r = r[r[:,1]!=0, :]
+                            object_blobs.append(r)
                             os.remove(seg_file_path)
                     if PRINT_BLOBS:
                         print "============="
@@ -376,6 +378,7 @@ class FullIntegrationMaster:
                             score  = sorted_cloud[0][0]
                             com = perception.com(sorted_cloud[0][1])
                             self.points1 = []
+                            self.points2 = []
                             for point in sorted_cloud[0][1]:
                                 transformed = se3.apply(self.Tcamera, point)
                                 self.points1.append(transformed)
@@ -395,8 +398,8 @@ class FullIntegrationMaster:
 
                     print "Vacuum point: " + str(se3.apply(self.Tvacuum, [0, 0, 0]))
 
-                    self.object_com[1] = self.object_com[1] + COM_Y_ADJUSTMENT
-                    self.object_com[2] = self.object_com[2] + GRASP_MOVE_DISTANCE
+
+                    self.object_com = vectorops.add(self.object_com, COM_ADJUSTMENT)
 
                     current_vacuum_point = se3.apply(self.Tvacuum, [0, 0, 0])
                     milestone = vectorops.add(current_vacuum_point, self.object_com)
@@ -404,13 +407,18 @@ class FullIntegrationMaster:
 
                     if self.right_arm_ik(milestone):
                         destination = self.robotModel.getConfig()
-                        print WARNING_COLOR + "IK config for " + str(milestone) + ": " + str([destination[v] for v in self.right_arm_indices]) + END_COLOR
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                        self.q_milestone = [destination[v] for v in self.right_arm_indices]
+                        print WARNING_COLOR + "IK config for " + str(milestone) + ": " + str(self.q_milestone) + END_COLOR
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(self.q_milestone))
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
                         print FAIL_COLOR + "Error: IK failed" + END_COLOR
                         sys.stdout.flush()
                         time.sleep(50000)
+
+                    while motion.robot.right_mq.moving():
+                        time.sleep(1)
+                    time.sleep(1)
 
                     if self.right_arm_ik(self.object_com):
                         destination = self.robotModel.getConfig()
@@ -424,7 +432,7 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
-                        time.sleep(2)
+                        time.sleep(1)
                         self.state = 'GRASP_OBJECT'
 
                 elif self.state == 'GRASP_OBJECT':
@@ -447,7 +455,7 @@ class FullIntegrationMaster:
 
                 elif self.state == 'MOVE_UP_BEFORE_RETRACT':
                     move_target = se3.apply(self.Tvacuum, [0, 0, 0])
-                    move_target[2] = move_target[2] + GRASP_MOVE_DISTANCE
+                    move_target[2] = move_target[2] + GRASP_MOVE_DISTANCE + (MEAN_OBJ_HEIGHT / 2)
                     if self.right_arm_ik(move_target):
                         self.turnOnVacuum()
                         destination = self.robotModel.getConfig()
@@ -459,6 +467,11 @@ class FullIntegrationMaster:
                     self.state = 'MOVE_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
+                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(self.q_milestone))
+                    while motion.robot.right_mq.moving():
+                        time.sleep(1)
+                    time.sleep(1)
+
                     for milestone in eval('Q_AFTER_GRASP_' + self.current_bin):
                         print "Moving to " + str(milestone)
                         motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(milestone))

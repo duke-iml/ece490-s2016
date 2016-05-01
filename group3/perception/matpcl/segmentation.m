@@ -138,7 +138,7 @@ while 1
         end
         
         r( ~any(r,2), : ) = [];
-        if size(r,1)>100
+        if size(r,1)>80
             name = strcat('seg',int2str(ooo))
             save(name,'r');
 %             figure(ooo)
