@@ -41,14 +41,19 @@ class binSelector:
             prediction=self.addPredict(key,itemvol);
             if prediction[2]>10: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
-        print validlist;
+        print(validlist);
+
+    def binSort(self, binlist):
+        #Sorts the binsin order of priority. 
         
     def addPredict(self,itembin,itemvol):
         #Predicts the free space in a bin after a particular item is added to a specified bin. Returns total volume and percentage free 
         estsize=self.bin_dict[itembin][1]+1;
+        orgsize=self.bin_dict[itembin][2];
+        oversize=estsize-1-orgsize;
         estvol=self.bin_dict[itembin][3]+itemvol;
         estpf=100-estvol*100/self.maxbinvolume;
-        return itembin, estsize, estpf
+        return itembin, estsize, oversize, estpf
         
     def printBin(self):
         for key in self.bin_dict.keys():
