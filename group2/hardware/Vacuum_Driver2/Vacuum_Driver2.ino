@@ -8,19 +8,23 @@ void setup() {
   while (!Serial) {
     ; // wait for port to connect
   }
-  Serial.println("Connected");
+  //Serial.println("Vacuum Driver Arduino");
 }
 
+
 void loop() {
-  delay(100);
+  Serial.println("c");
   while (Serial.available() > 0) {
+    
+    // 49 is ascii number for "1"
+    // send "1" (49) --> vacuum state = 49-48 = 1 --> HIGH
     vacuum_state = int(Serial.read()) - 48;
     if (vacuum_state == 1) {
       digitalWrite(53, HIGH);
-      Serial.println(vacuum_state);
     }
     else{
       digitalWrite(53, LOW);
     }
+    Serial.println(vacuum_state);    
   }
 }
