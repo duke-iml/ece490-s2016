@@ -41,6 +41,9 @@ if PHYSICAL_SIMULATION:
     import Motor_Comms_2
     spatulaController = Motor_Comms_2.MoveSpatula()
     spatulaCommand = [0,0,0,0]
+
+    import Vacuum_Comms
+    vacuumController = VacuumComms.CommVacuum()
     #subprocess.Popen(['python', 'Pressure_Comms.py'])
 
 # The path of the klampt_models directory
@@ -518,6 +521,9 @@ class PickingController:
 
                 # New Version
                 if PHYSICAL_SIMULATION:
+                    # turn vacuum on
+                    vacuumController.change_vacuum_state(1)
+
                     val = 0
                     step = 2
                     while val==0:
@@ -1092,6 +1098,10 @@ class PickingController:
                 # now open the gripper
                 self.controller.commandGripper('right',[1])
                 self.waitForMove()
+
+                if PHYSICAL_SIMULATION:
+                    # turn vacuum off
+                    vacuumController.change_vacuum_state(0)
 
                 knowledge.order_bin_contents.append(self.held_object)
                 print "Successfully placed",self.held_object.info.name,"into order bin"
