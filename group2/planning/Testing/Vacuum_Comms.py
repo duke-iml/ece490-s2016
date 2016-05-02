@@ -40,6 +40,11 @@ class CommVacuum:
             print('connected to an arduino... checking ID...')
             time.sleep(0.5)
 
+            # Reset Arduino
+            self.com.setDTR(False) # Drop DTR
+            time.sleep(0.022)    # Read somewhere that 22ms is what the UI does.
+            self.com.setDTR(True)  # UP the DTR back
+
             arduinoID = self.com.readline()
             while not ("c" in arduinoID) or ("b" in arduinoID) or ("a" in arduinoID):
                 arduinoID = self.com.readline()
@@ -60,5 +65,5 @@ class CommVacuum:
 if __name__ == "__main__":
     comm = CommVacuum()
     while True:
-        # comm.change_vacuum_state(0)
-        comm.change_vacuum_state(1)
+        comm.change_vacuum_state(0)
+        #comm.change_vacuum_state(1)
