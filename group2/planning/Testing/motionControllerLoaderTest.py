@@ -43,7 +43,7 @@ if PHYSICAL_SIMULATION:
     spatulaCommand = [0,0,0,0]
 
     import Vacuum_Comms
-    vacuumController = VacuumComms.CommVacuum()
+    vacuumController = Vacuum_Comms.CommVacuum()
     #subprocess.Popen(['python', 'Pressure_Comms.py'])
 
 # The path of the klampt_models directory
@@ -395,6 +395,8 @@ class PhysicalLowLevelController(LowLevelController):
     def commandGripper(self,limb,command,spatulaPart = None):
         global spatulaController
         global spatulaCommand
+        global vacuumController
+
         # spatula
         if limb == 'left':
             if command[0] == 1:
@@ -404,7 +406,8 @@ class PhysicalLowLevelController(LowLevelController):
 
         # vacuum
         elif limb == 'right':
-            print "need to implement vacuum controller"
+            # turn vacuum on
+            vacuumController.change_vacuum_state(command[0])
         return
 
 class PickingController:
@@ -521,9 +524,6 @@ class PickingController:
 
                 # New Version
                 if PHYSICAL_SIMULATION:
-                    # turn vacuum on
-                    vacuumController.change_vacuum_state(1)
-
                     val = 0
                     step = 2
                     while val==0:
@@ -532,6 +532,7 @@ class PickingController:
                         step += 1
                         with open("pressureReading.pkl", "rb") as f:
                             val = pickle.load(f)
+                            print "Vacuum sensor state:", val
                     print "GRASPED OBJECT"
 
                 else:
@@ -588,8 +589,8 @@ class PickingController:
                 while self.incrementalMove('down'):
                     self.waitForMove()
 
-                self.spatula('out')
-                self.waitForMove()
+                #self.spatula('out')
+                #self.waitForMove()
                 #return False
 
                 # method 1
@@ -597,8 +598,8 @@ class PickingController:
                     self.tilt_wrist('up', step=i+1)
                     self.waitForMove()
 
-                self.spatula('in')
-                self.waitForMove()
+                #self.spatula('in')
+                #self.waitForMove()
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
 
@@ -1095,13 +1096,11 @@ class PickingController:
 
                 self.move_to_order_bin(self.held_object,step=2)
                 self.waitForMove()
-                # now open the gripper
-                self.controller.commandGripper('right',[1])
-                self.waitForMove()
 
-                if PHYSICAL_SIMULATION:
-                    # turn vacuum off
-                    vacuumController.change_vacuum_state(0)
+                # now open the gripper
+                time.sleep(5)
+                self.controller.commandGripper('right',[0])
+                self.waitForMove()
 
                 knowledge.order_bin_contents.append(self.held_object)
                 print "Successfully placed",self.held_object.info.name,"into order bin"
@@ -1291,7 +1290,7 @@ class PickingController:
             # sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolutions])
 
             # Add initial joint values to additional joints
-            n = solution[0]
+            n = len(solution[0])
             if len(initialConfig) < n:
                 initialConfig += [0.0]*(n-len(initialConfig))
                 print "# links in qcmd < # links in ik solution"
