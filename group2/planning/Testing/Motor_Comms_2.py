@@ -63,6 +63,8 @@ class MoveSpatula:
         while m != 1:
             msg = self.com.readline()
             m = re.search('<([\d,]+)>', msg)
+            if m == None:
+                continue
             feedback = m.group(1)
             feedback = str.split(feedback, ",")
             if all(i >= 0 for i in feedback) and len(feedback) == msg_length:
@@ -79,6 +81,8 @@ class MoveSpatula:
         while m != 1:
             msg = self.com.readline()
             m = re.search('<([\d,]+)>', msg)
+            if m == None:
+                continue            
             feedback = m.group(1)
             feedback = str.split(feedback, ",")
             if all(i >= 0 for i in feedback) and len(feedback) == msg_length:
@@ -96,21 +100,24 @@ class MoveSpatula:
         if config == 1:
             # advance just the fence
             command = [255, 0, 0, 1]
-            while (k < 3) and (self.read_touch() < 700):
+            #while (k < 3) and (self.read_touch() < 700):
+            while (k < 3):                
                 self.to_stall(command)
                 k += 1
             return command
         elif config == 2:
             # advance the narrow spatula
             command = [255, 0, 0, 0]
-            while (k < 3) and (self.read_touch() < 700):
+            #while (k < 3) and (self.read_touch() < 700):
+            while (k < 3):                
                 self.to_stall(command)
                 k += 1
             return command
         elif config == 3:
             # advance the wide spatula
             command = [255, 0, 1, 0]
-            while (k < 3) and (self.read_touch() < 700):
+            #while (k < 3) and (self.read_touch() < 700):
+            while (k < 3):            
                 self.to_stall(command)
                 k += 1
             return command
