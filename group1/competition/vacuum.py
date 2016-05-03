@@ -1,9 +1,12 @@
 ##Runs vacuum control commands
-import os 
+from Arduino import Arduino
 class vacuum:
+    def __init__:
+        self.board=Arduino('9600');
+        self.board.pinMode(13, "OUTPUT")
 
     def on(self):
-        os.system("powerusb 2:0:3 on");
+        self.board.digitalWrite(13,"LOW");
     def off(self):
-        os.system("powerusb 2:0:3 off");
+        self.board.digitalWrite(13,"HIGH");
         
