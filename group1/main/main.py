@@ -32,6 +32,7 @@ class Supervisor:
         return False # Didn't meet any of our end conditions
 
     def compete(self):
+        
         print "Competing"
         while(True):
             # Go to the bin
