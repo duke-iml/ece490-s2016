@@ -40,22 +40,35 @@ class Supervisor:
             # Get Perception Data
             print "Getting Perception Data ..."
             # Send perception data to bump function
+
+
+            # TODO: For demo, pick a random coordinate set and bump to there
             print "Bumping to coordinates ..."
+
             # Pick up item
+            # TODO: For demo, close the hand and turn on the vacuum
             print "Picking up item ..."
+
             # Based on item, pick a shelf to go to
             self.current_item = "DUMMY ITEM"
-            self.target_shelf = random.randrange(1,13) # Work on better heuristic
+            # TODO: Add in Craig's bin picker instead of picking random shelf
+            self.target_shelf = random.randrange(1,13) 
             print "Going to shelf", self.target_shelf
             # Go to that shelf
             self.state_machine.move_to_shelf(self.target_shelf)
             # Figure out if need to bump
             print "Getting perception data to figure out any bumps"
+
+
             # Bump to that location
+            # TODO: For demo, pick a random coordinate set and bump to there
             print "Bumping to coordinates ..."
+
             # Drop item
+            # TODO: For Demo, open the hand and turn off the vacuum
             print "Dropping item ..."
             # Update JSON file and count
+
             print "Updating JSON File"
             self.items_to_stow = self.items_to_stow - 1
             # If time is up or we've finished all items, break
