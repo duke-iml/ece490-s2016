@@ -105,7 +105,7 @@ def choose_mode():
 
 def make_file():
     with open(filename, "w") as file:
-        json.dump({"bin_contents":{bin_list[i]:bin_map[bin_list[i]] for i in range(0, len(bin_list))}, "work_order":[]}, file, indent=4, sort_keys=True)
+        json.dump({"bin_contents":{bin_list[i]:bin_map[bin_list[i]] for i in range(0, len(bin_list))}, "work_order":[not_used]}, file, indent=4, sort_keys=True)
 
 def initialize_map():
     for i in range(0, len(bin_list)):

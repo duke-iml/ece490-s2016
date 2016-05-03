@@ -35,6 +35,7 @@ class Supervisor:
         return False # Didn't meet any of our end conditions
 
     def compete(self):
+        
         print "Competing"
         # If time is up or we've finished all items, break
         # Otherwise, loop

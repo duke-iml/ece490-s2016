@@ -2,10 +2,12 @@
     "bin_contents": {
         "bin_A": [
             "fitness_gear_3lb_neoprene_dumbbell", 
-            "boots_and_barkley_beefhide_bones"
+            "boots_and_barkley_beefhide_bones", 
+            "hanes_tube_socks"
         ], 
         "bin_B": [
-            "scotch_bubble_mailer"
+            "scotch_bubble_mailer", 
+            "up_and_up_glucose_tablets"
         ], 
         "bin_C": [
             "ticonderoga_#2_pencils_12_count", 
@@ -16,19 +18,22 @@
         ], 
         "bin_D": [
             "folgers_classic_roast_coffee", 
-            "easter_turtle_figural_sippy_cup"
+            "easter_turtle_figural_sippy_cup", 
+            "womens_knit_gloves"
         ], 
         "bin_E": [
             "dasani_water_bottle"
         ], 
         "bin_F": [
-            "jane_eyre_dvd"
+            "jane_eyre_dvd", 
+            "cherokee_easy_tee_t_shirt"
         ], 
         "bin_G": [
             "laugh_out_loud_jokes_for_kids_paperback_book", 
             "crayola_crayons", 
             "scotch_cloth_duct_tape", 
-            "cool_shot_mini_glue_sticks"
+            "cool_shot_mini_glue_sticks", 
+            "rawlings_recreational_use_baseball"
         ], 
         "bin_H": [], 
         "bin_I": [
@@ -45,11 +50,6 @@
     }, 
     "work_order": [
         [
-            "up_and_up_glucose_tablets", 
-            "rawlings_recreational_use_baseball", 
-            "hanes_tube_socks", 
-            "womens_knit_gloves", 
-            "cherokee_easy_tee_t_shirt", 
             "cloud_b_plush_bear", 
             "plush_puppies_squeakin_eggs", 
             "safety_1st_ultra_clear_outlet_plugs", 
