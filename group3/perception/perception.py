@@ -13,6 +13,7 @@ import struct
 import os
 import color
 import operator
+from numpy.linalg import norm,svd
 
 def isCloudValid(cloud):
     """
@@ -150,6 +151,40 @@ def objectMatch(cloud,histogram_dict):
         print com(cloud)
         print "\n" 
     return (obj-1)/NUM_HIST_PER_OBJECT+1,score
+
+def objectMatch1(cloud,histogram_dict):
+    """
+    Input: Numpy array of cloud with RGB of current object, dictionary of all the object in the shelf
+    Output: ID of specific point cloud 
+    """
+    uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in cloud[:,4:7]]
+    hist = color.make_uv_hist(uv)
+    scores = dict([ (obj, dtw(svd(hist)[1].reshape(-1, 1),svd(histogram)[1].reshape(-1, 1),dist=lambda t13, t14: norm(svd(hist)[1].reshape(-1, 1) - svd(histogram)[1].reshape(-1, 1), ord=1))) for (obj, histogram) in histogram_dict.items()])
+    sorted_score = sorted(scores.items(), key=operator.itemgetter(1),reverse = True)
+    obj = sorted_score[0][0]
+    score = sorted_score[0][1]
+    if DEBUG_PERCEPTION:
+        print 'found object ' + str((obj-1)/NUM_HIST_PER_OBJECT+1) + '\nscore is ' + str(score)+ '\ncloud com is '
+        print com(cloud)
+        print "\n" 
+    return (obj-1)/NUM_HIST_PER_OBJECT+1,score
+
+def dtw(x, y, dist):
+    assert len(x)
+    assert len(y)
+    r, c = len(x), len(y)
+    D0 = np.zeros((r + 1, c + 1))
+    D0[0, 1:] = np.inf
+    D0[1:, 0] = np.inf
+    D1 = D0[1:, 1:]
+    for i in range(r):
+        for j in range(c):
+            D1[i, j] = dist(x[i], y[j])
+    C = D1.copy()
+    for i in range(r):
+        for j in range(c):
+            D1[i, j] += min(D0[i, j], D0[i, j+1], D0[i+1, j])
+    return sum(D1.shape)/D1[-1, -1]
 
 def loadHistogram(objects):
     """

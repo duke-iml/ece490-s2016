@@ -237,8 +237,9 @@ class FullIntegrationMaster:
                 print OKBLUE + "Bin " + str(self.current_bin) + ": " + self.state + END_COLOR
 
                 if self.state == 'VISUAL_DEBUG':
-                    self.object_com = [1.1132474508931385, -0.27562899494486626, 1.607533780404659]
-                    self.set_model_right_arm( [0.1868786927065213, -1.567604604679142, 0.6922768776941961, 1.5862815343628953, -0.005567750307534711, -0.017979599494945674, 0.0035268645585939083])
+                    self.object_com = [1.0839953170961105, -0.25145094946424207, 1.1241831909823194]
+                    #self.set_model_right_arm( [0.1868786927065213, -1.567604604679142, 0.6922768776941961, 1.5862815343628953, -0.005567750307534711, -0.017979599494945674, 0.0035268645585939083])
+                    self.load_real_robot_state()
                 else:
                     self.load_real_robot_state()
 
@@ -331,6 +332,10 @@ class FullIntegrationMaster:
 
                 elif self.state == 'FAKE_SCANNING_BIN':
                     self.object_com = [1.1114839836097854, -0.6087936130127559, 0.9899267043340634]
+
+                    if DRY_RUN:
+                        raw_input("Hit enter to continue: ")
+
                     self.state = 'MOVE_TO_GRASP_OBJECT'
 
                 elif self.state == 'CALIBRATE_CAMERA':
@@ -433,35 +438,45 @@ class FullIntegrationMaster:
                     self.load_real_robot_state()
                     self.Tvacuum = se3.mul(self.robotModel.link('right_wrist').getTransform(), VACUUM_POINT_XFORM)
 
+                    print WARNING_COLOR + str(self.object_com) + END_COLOR
                     self.object_com = vectorops.add(self.object_com, COM_ADJUSTMENT)
 
                     current_vacuum_point = se3.apply(self.Tvacuum, [0, 0, 0])
                     milestone = vectorops.add(current_vacuum_point, self.object_com)
                     milestone = vectorops.div(milestone, 2)
-
-                    if self.right_arm_ik(milestone):
-                        destination = self.robotModel.getConfig()
-                        self.q_milestone = [destination[v] for v in self.right_arm_indices]
-                        print WARNING_COLOR + "IK config for " + str(milestone) + ": " + str(self.q_milestone) + END_COLOR
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(self.q_milestone))
-                    else:
-                        print FAIL_COLOR + "Error: IK failed" + END_COLOR
-                        sys.stdout.flush()
-                        time.sleep(50000)
-
-                    while motion.robot.right_mq.moving():
-                        time.sleep(1)
-                    time.sleep(1)
-
-                    if self.right_arm_ik(self.object_com):
-                        destination = self.robotModel.getConfig()
-                        print WARNING_COLOR + "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices]) + END_COLOR
-                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                    
+                    if DRY_RUN:
                         self.state = 'MOVING_TO_GRASP_OBJECT'
                     else:
-                        print FAIL_COLOR + "Error: IK failed" + END_COLOR
-                        sys.stdout.flush()
-                        time.sleep(50000)
+                        if self.right_arm_ik(milestone):
+                            destination = self.robotModel.getConfig()
+                            self.q_milestone = [destination[v] for v in self.right_arm_indices]
+                            print WARNING_COLOR + "IK config for " + str(milestone) + ": " + str(self.q_milestone) + END_COLOR
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(self.q_milestone))
+                        else:
+                            print FAIL_COLOR + "Error: IK failed" + END_COLOR
+                            sys.stdout.flush()
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(eval('Q_IK_SEED_' + self.current_bin)))
+                            while motion.robot.right_mq.moving():
+                                time.sleep(1)
+                            time.sleep(1)
+
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
+                        time.sleep(1)
+
+                        if self.right_arm_ik(self.object_com):
+                            destination = self.robotModel.getConfig()
+                            print WARNING_COLOR + "IK config for " + str(self.object_com) + ": " + str([destination[v] for v in self.right_arm_indices]) + END_COLOR
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig([destination[v] for v in self.right_arm_indices]))
+                            self.state = 'MOVING_TO_GRASP_OBJECT'
+                        else:
+                            print FAIL_COLOR + "Error: IK failed" + END_COLOR
+                            sys.stdout.flush()
+                            motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(eval('Q_IK_SEED_' + self.current_bin)))
+                            while motion.robot.right_mq.moving():
+                                time.sleep(1)
+                            time.sleep(1)
 
                 elif self.state == 'MOVING_TO_GRASP_OBJECT':
                     if not motion.robot.right_mq.moving():
@@ -478,7 +493,10 @@ class FullIntegrationMaster:
                     else:
                         print FAIL_COLOR + "Error: IK failed" + END_COLOR
                         sys.stdout.flush()
-                        time.sleep(50000)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(eval('Q_IK_SEED_' + self.current_bin)))
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
+                        time.sleep(1)
                     self.wait_start_time = time.time()
                     self.state = 'WAITING_TO_GRASP_OBJECT'
 
@@ -496,7 +514,10 @@ class FullIntegrationMaster:
                     else:
                         print FAIL_COLOR + "Error: IK failed" + END_COLOR
                         sys.stdout.flush()
-                        time.sleep(50000)
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(eval('Q_IK_SEED_' + self.current_bin)))
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
+                        time.sleep(1)
                     self.state = 'MOVE_TO_STOW_OBJECT'
 
                 elif self.state == 'MOVE_TO_STOW_OBJECT':
@@ -505,10 +526,11 @@ class FullIntegrationMaster:
                         time.sleep(1)
                     time.sleep(1)
 
-                    motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(self.q_milestone))
-                    while motion.robot.right_mq.moving():
+                    if not DRY_RUN:
+                        motion.robot.right_mq.appendLinear(MOVE_TIME, planning.cleanJointConfig(self.q_milestone))
+                        while motion.robot.right_mq.moving():
+                            time.sleep(1)
                         time.sleep(1)
-                    time.sleep(1)
 
                     for milestone in eval('Q_AFTER_GRASP_' + self.current_bin):
                         print "Moving to " + str(milestone)
