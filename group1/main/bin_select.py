@@ -39,21 +39,21 @@ class binSelector:
         validlist=[];
         for key in self.bin_dict.keys():
             prediction=self.addPredict(key,itemvol);
-            if prediction[2]>30: #If there is less than 10% free space in the bin don't add it to the list to be considered 
+            if prediction[3]>20: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
         validlist.sort(cmp=self.comparator);
-        print(validlist);
+        return validlist[0][0]
 
     
     def comparator(self, a,b):
         #Comparator for the bin sort module
-        if a[5]-b[5]!=0: #Compare strikes
-            return a[5]-b[5];
-        if a[2]-b[2]!=0: #Compare score
-            return a[2]-b[2];
-        if a[4]-b[4]!=0: #Compare freedom
-            return a[4]-b[4];
-        if a[1]-b[1]!=0: #compare number of elements 
+        if b[4]-a[4]!=0: #Compare strikes
+            return b[4]-a[4];
+        if b[2]-a[2]!=0: #Compare score
+            return b[2]-a[2];
+        if b[3]-a[3]!=0: #Compare freedom
+            return b[3]-a[3];
+        if b[1]-a[1]!=0: #compare number of elements 
             return a[1]-b[1];
         return 0
         
@@ -63,7 +63,8 @@ class binSelector:
         points=self.bin_dict[itembin][2];#points level (higher is better)
         estvol=self.bin_dict[itembin][3]+itemvol;
         estpf=100-estvol*100/self.maxbinvolume;
-        return itembin, estnumel, points, estpf
+        strikes=self.bin_dict[itembin][5]; #gets strikes
+        return itembin, estnumel, points, estpf,strikes
 
     def start(self):
         #copy the value of Calculate score of each bin and write it to position 2
@@ -86,3 +87,24 @@ class binSelector:
             binlist=self.bin_dict[key];
             print "bin ",key," contains ",binlist[0]," w/ ",binlist[1]," items ",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes";
             
+    def test(self):
+        self.addtoBin(1,1,100)
+        self.addtoBin(2,1,75)
+        self.addtoBin(3,1,120)
+        self.addtoBin(4,1,50)
+        self.addtoBin(5,1,90)
+        self.addtoBin(6,1,100)
+        self.addtoBin(7,2,100)
+        self.addtoBin(8,2,75)
+        self.addtoBin(9,4,100)
+        self.addtoBin(10,5,200)
+        self.addtoBin(11,5,50)
+        self.addtoBin(12,5,50)
+        self.addtoBin(13,5,50)
+        self.addtoBin(14,5,50)
+        self.addtoBin(15,7,100)
+        self.addtoBin(16,7,100)
+        self.addtoBin(17,7,100)
+        self.addtoBin(18,7,100)
+        self.addtoBin(19,7,100)
+        self.addtoBin(20,11,175)
