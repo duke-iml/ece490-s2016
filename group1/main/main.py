@@ -46,11 +46,11 @@ class Supervisor:
             # Get Perception Data
             print "Getting Perception Data ..."
             # Send perception data to bump function
-            pos = (random.uniform(0, 0.203), random.uniform(-0.279, 0.279), random.uniform(-0.165, 165))
+            pos = (random.uniform(-0.165, 0.165), random.uniform(-0.279, 0.279), random.uniform(-0.203, 0))
 
             # TODO: For demo, pick a random coordinate set and bump to there
             print "Bumping to coordinates ..."
-            self.bumper.bumpRightLocalCoords(pos)
+            self.bumper.bumpRight(pos)
 
             # Pick up item
             # TODO: For demo, close the hand and turn on the vacuum

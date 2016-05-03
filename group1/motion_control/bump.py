@@ -108,24 +108,6 @@ class Bumper:
         self.iksolve(coords, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
 
     ##
-    # @brief Moves the right arm to the specified coordinates IN WRIST COORDINATES
-    #
-    # @param coords The coordinates to move to
-    ##
-    def bumpRightLocalCoords(self, coords):
-        pos = self.kRobot.link("right_wrist").getWorldPosition(map(add, self.hand_position, coords))
-        self.iksolve(pos, self.kRobot.link("right_wrist"), self.pRobot.right_limb, self.pRobot.right_mq)
-
-    ##
-    # @brief Moves the left arm to the specified coordinates IN WRIST COORDINATES
-    #
-    # @param coords The coordinates to move to
-    ##
-    def bumpLeftLocalCoords(self, coords):
-        pos = self.kRobot.link("left_wrist").getWorldPosition(map(add, self.hand_position, coords))
-        self.iksolve(pos, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
-
-    ##
     # @brief Rotates the right wrist to the given (absolute) angle.
     #
     # Zero is defined as the position where the built-in camera is on the top of the wrist

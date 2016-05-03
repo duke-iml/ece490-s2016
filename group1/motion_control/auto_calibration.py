@@ -56,7 +56,8 @@ Dennis Lynch
 2-29-16
 '''
 
-names = ["rbin_shelf_1",
+names = ["bin_right",
+        "rbin_shelf_1",
         "rbin_shelf_2",
         "rbin_shelf_3",
         "rbin_inter_r1_a",
