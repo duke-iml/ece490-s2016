@@ -41,6 +41,7 @@ class binSelector:
             prediction=self.addPredict(key,itemvol);
             if prediction[2]>30: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
+        validlist.sort(cmp=self.comparator);
         print(validlist);
 
     
@@ -54,7 +55,7 @@ class binSelector:
             return a[4]-b[4];
         if a[1]-b[1]!=0: #compare number of elements 
             return a[1]-b[1];
-        
+        return 0
         
     def addPredict(self,itembin,itemvol):
         #Predicts the free space in a bin after a particular item is added to a specified bin. Returns total volume and percentage free 
