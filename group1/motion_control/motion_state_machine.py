@@ -109,6 +109,8 @@ class motion_state_machine:
         global rbin_shelf_12
 
         # Open up the joint angle json files and load them into appropriate variables
+        import os
+        print os.getcwd()
         with open("state_json_files/bin_right.json") as file:
             bin_right = json.load(file)
 

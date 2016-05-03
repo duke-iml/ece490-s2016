@@ -31,9 +31,10 @@ class Bumper:
     ##
     # @brief Constructor
     #
-    def __init__(self):
+    def __init__(self, hand_position=(0,0,0)):
         klampt_model = "common/klampt_models/baxter_col.rob"
         mode = "client"
+        self.hand_position = hand_position
 
         print "Loading Motion Module model", klampt_model
         motion.setup(mode=mode,klampt_model=klampt_model,libpath="common/",)
@@ -55,7 +56,7 @@ class Bumper:
     ##
     def getLeftArmCoords(self):
         self.setKlamptPos()
-        return self.kRobot.link("left_wrist").getWorldPosition((0,0,0))
+        return self.kRobot.link("left_wrist").getWorldPosition(self.hand_position)
 
     ##
     # @brief Returns the coordinates of the right arm (x, y, z)
@@ -64,7 +65,7 @@ class Bumper:
     ##
     def getRightArmCoords(self):
         self.setKlamptPos()
-        return self.kRobot.link("right_wrist").getWorldPosition((0,0,0))
+        return self.kRobot.link("right_wrist").getWorldPosition(self.hand_position)
 
     ##
     # @brief Bumps the left arm to the specified coordinates (in end effector coordinates)
@@ -105,6 +106,24 @@ class Bumper:
     ##
     def moveLeftArmTo(self, coords):
         self.iksolve(coords, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
+
+    ##
+    # @brief Moves the right arm to the specified coordinates IN WRIST COORDINATES
+    #
+    # @param coords The coordinates to move to
+    ##
+    def bumpRightLocalCoords(self, coords):
+        pos = self.kRobot.link("right_wrist").getWorldPosition(map(add, self.hand_position, coords))
+        self.iksolve(pos, self.kRobot.link("right_wrist"), self.pRobot.right_limb, self.pRobot.right_mq)
+
+    ##
+    # @brief Moves the left arm to the specified coordinates IN WRIST COORDINATES
+    #
+    # @param coords The coordinates to move to
+    ##
+    def bumpLeftLocalCoords(self, coords):
+        pos = self.kRobot.link("left_wrist").getWorldPosition(map(add, self.hand_position, coords))
+        self.iksolve(pos, self.kRobot.link("left_wrist"), self.pRobot.left_limb, self.pRobot.left_mq)
 
     ##
     # @brief Rotates the right wrist to the given (absolute) angle.
@@ -163,7 +182,7 @@ class Bumper:
     # @param mq The motion queue for the particular end effector
     ##
     def iksolve(self, config, kEE, pEE, mq):
-        goal = ik.objective(kEE,local=(0,0,0), world=config)
+        goal = ik.objective(kEE,local=self.hand_position, world=config)
         self.setKlamptPos()
         if ik.solve(goal):
             print "success!"
