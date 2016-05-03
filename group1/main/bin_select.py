@@ -11,19 +11,19 @@ class binSelector:
         #Create empty bin objects
         self.bin_dict={};
         #Keys are the number of the bin and the value is a list
-        #The list contains a list of items, current number of items,points score, total volume, and percent free
-        self.bin_dict['1']=[[],0,0,0,100];
-        self.bin_dict['2']=[[],0,0,0,100];
-        self.bin_dict['3']=[[],0,0,0,100];
-        self.bin_dict['4']=[[],0,0,0,100];
-        self.bin_dict['5']=[[],0,0,0,100]; 
-        self.bin_dict['6']=[[],0,0,0,100];
-        self.bin_dict['7']=[[],0,0,0,100]; 
-        self.bin_dict['8']=[[],0,0,0,100];
-        self.bin_dict['9']=[[],0,0,0,100]; 
-        self.bin_dict['10']=[[],0,0,0,100];
-        self.bin_dict['11']=[[],0,0,0,100]; 
-        self.bin_dict['12']=[[],0,0,0,100];
+        #The list contains a list of items, current number of items,points score, total volume, percent free, strikes
+        self.bin_dict['1']=[[],0,0,0,100,0];
+        self.bin_dict['2']=[[],0,0,0,100,0];
+        self.bin_dict['3']=[[],0,0,0,100,0];
+        self.bin_dict['4']=[[],0,0,0,100,0];
+        self.bin_dict['5']=[[],0,0,0,100,0]; 
+        self.bin_dict['6']=[[],0,0,0,100,0];
+        self.bin_dict['7']=[[],0,0,0,100,0]; 
+        self.bin_dict['8']=[[],0,0,0,100,0];
+        self.bin_dict['9']=[[],0,0,0,100,0]; 
+        self.bin_dict['10']=[[],0,0,0,100,0];
+        self.bin_dict['11']=[[],0,0,0,100,0]; 
+        self.bin_dict['12']=[[],0,0,0,100,0];
         self.maxbinvolume=1485 #total volume constant for each bin 
         
     def addtoBin(self,itemid,itembin,itemvol):
@@ -39,14 +39,22 @@ class binSelector:
         validlist=[];
         for key in self.bin_dict.keys():
             prediction=self.addPredict(key,itemvol);
-            if prediction[2]>10: #If there is less than 10% free space in the bin don't add it to the list to be considered 
+            if prediction[2]>30: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
         print(validlist);
 
     
     def comparator(self, a,b):
         #Comparator for the bin sort module
-       print null
+        if a[5]-b[5]!=0: #Compare strikes
+            return a[5]-b[5];
+        if a[2]-b[2]!=0: #Compare score
+            return a[2]-b[2];
+        if a[4]-b[4]!=0: #Compare freedom
+            return a[4]-b[4];
+        if a[1]-b[1]!=0: #compare number of elements 
+            return a[1]-b[1];
+        
         
     def addPredict(self,itembin,itemvol):
         #Predicts the free space in a bin after a particular item is added to a specified bin. Returns total volume and percentage free 
@@ -75,5 +83,5 @@ class binSelector:
     def printBin(self):
         for key in self.bin_dict.keys():
             binlist=self.bin_dict[key];
-            print "bin ",key," contains ",binlist[0]," with ",binlist[1]," items taking up ",binlist[3]," units or ",binlist[4],"% free for ",binlist[2];
+            print "bin ",key," contains ",binlist[0]," w/ ",binlist[1]," items ",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes";
             
