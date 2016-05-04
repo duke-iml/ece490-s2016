@@ -65,6 +65,7 @@ class Supervisor:
             print "Picking up item ..."
             self.vac.on()
             self.hand.closeHand()
+            time.sleep(1)
             # Based on item, pick a shelf to go to
             self.current_item = self.workOrder[0][0]
             # TODO: Add in Craig's bin picker instead of picking random shelf
@@ -78,12 +79,15 @@ class Supervisor:
             # Bump to that location
             # TODO: For demo, pick a random coordinate set and bump to there
             print "Bumping to coordinates ..."
+            self.bumper.bumpRight((0.1, 0, 0))
 
             # Drop item
             # TODO: For Demo, open the hand 
             print "Dropping item ..."
             self.hand.openHand()
             self.vac.off()
+            time.sleep(1)
+            self.bumper.bumpRight((-0.1, 0, 0))
             # Update JSON file and count
             self.binSelect.addtoBin(self.current_item,self.target_bin)
             self.workOrder[0].remove(self.current_item)

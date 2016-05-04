@@ -173,7 +173,8 @@ class Bumper:
     ##
     def iksolve(self, config, kEE, pEE, mq):
         goal = ik.objective(kEE,local=self.hand_position, world=config)
-        self.setKlamptPos()
+        q = self.setKlamptPos()
+        pEE.positionCommand(pEE.configFromKlampt(q))
         if ik.solve(goal):
             print "success!"
             q = self.kRobot.getConfig()
