@@ -12,18 +12,18 @@ class binSelector:
         self.bin_dict={};
         #Keys are the number of the bin and the value is a list
         #The list contains a list of items, current number of items,points score, total volume, percent free, strikes
-        self.bin_dict['1']=[[],0,0,0,100,0];
-        self.bin_dict['2']=[[],0,0,0,100,0];
-        self.bin_dict['3']=[[],0,0,0,100,0];
-        self.bin_dict['4']=[[],0,0,0,100,0];
-        self.bin_dict['5']=[[],0,0,0,100,0]; 
-        self.bin_dict['6']=[[],0,0,0,100,0];
-        self.bin_dict['7']=[[],0,0,0,100,0]; 
-        self.bin_dict['8']=[[],0,0,0,100,0];
-        self.bin_dict['9']=[[],0,0,0,100,0]; 
-        self.bin_dict['10']=[[],0,0,0,100,0];
-        self.bin_dict['11']=[[],0,0,0,100,0]; 
-        self.bin_dict['12']=[[],0,0,0,100,0];
+        self.bin_dict['bin_A']=[[],0,0,0,100,0];
+        self.bin_dict['bin_B']=[[],0,0,0,100,0];
+        self.bin_dict['bin_C']=[[],0,0,0,100,0];
+        self.bin_dict['bin_D']=[[],0,0,0,100,0];
+        self.bin_dict['bin_E']=[[],0,0,0,100,0]; 
+        self.bin_dict['bin_F']=[[],0,0,0,100,0];
+        self.bin_dict['bin_G']=[[],0,0,0,100,0]; 
+        self.bin_dict['bin_H']=[[],0,0,0,100,0];
+        self.bin_dict['bin_I']=[[],0,0,0,100,0]; 
+        self.bin_dict['bin_J']=[[],0,0,0,100,0];
+        self.bin_dict['bin_K']=[[],0,0,0,100,0]; 
+        self.bin_dict['bin_L']=[[],0,0,0,100,0];
         self.maxbinvolume=1485 #total volume constant for each bin 
         
     def addtoBin(self,itemid,itembin):
