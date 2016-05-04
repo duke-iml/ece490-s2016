@@ -56,11 +56,11 @@ class binSelector:
         if b[4]-a[4]!=0: #Compare strikes
             return b[4]-a[4];
         if b[2]-a[2]!=0: #Compare score
-            return b[2]-a[2];
+            return int(b[2]-a[2]);
         if b[3]-a[3]!=0: #Compare freedom
-            return b[3]-a[3];
+            return int(b[3]-a[3]);
         if b[1]-a[1]!=0: #compare number of elements 
-            return a[1]-b[1];
+            return int(a[1]-b[1]);
         return 0
         
     def addPredict(self,itembin,itemvol):
@@ -92,7 +92,7 @@ class binSelector:
     def printBin(self):
         for key in self.bin_dict.keys():
             binlist=self.bin_dict[key];
-            print (,key," has ",binlist[1]," items and",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes. Contents",binlist[0]);
+            print (key, "has ",binlist[1]," items and",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes. Contents",binlist[0]);
 
     def initialize(self,filename):
         jH=jsonHandler()
