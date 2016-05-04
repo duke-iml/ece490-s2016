@@ -3,7 +3,7 @@
 
 import time
 import json
-
+from json_handler import jsonHandler
 class binSelector:
     
     
@@ -86,8 +86,16 @@ class binSelector:
     def printBin(self):
         for key in self.bin_dict.keys():
             binlist=self.bin_dict[key];
-            print "bin ",key," contains ",binlist[0]," w/ ",binlist[1]," items ",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes";
-            
+            print ("bin ",key," contains ",binlist[0]," w/ ",binlist[1]," items ",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes");
+
+    def initialize(self,filename):
+        jH=jsonHandler()
+        binlist=jH.readInFile(filename)[0];
+        for key in binlist:
+            for item in binlist[key]:
+                print(item," in ",key)
+        
+
     def test(self):
         self.addtoBin("folgers_classic_roast_coffee",1)
         self.addtoBin("elmers_glue_all",1)
