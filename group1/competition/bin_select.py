@@ -24,7 +24,8 @@ class binSelector:
         self.bin_dict['bin_J']=[[],0,0,0,100,0];
         self.bin_dict['bin_K']=[[],0,0,0,100,0]; 
         self.bin_dict['bin_L']=[[],0,0,0,100,0];
-        self.maxbinvolume=1485 #total volume constant for each bin 
+        self.maxbinvolume=1485 #total volume constant for each bin
+        self.addItemLookup();
         
     def addtoBin(self,itemid,itembin):
         itemvol=self.item_lookup[itemid];
@@ -35,8 +36,9 @@ class binSelector:
         binlist[4]=100-binlist[3]*100/self.maxbinvolume; #recalculate percentage free
         self.bin_dict[str(itembin)]=binlist;
         
-    def chooseBin(self,itemvol):
+    def chooseBin(self,itemid):
         #This method selects a bin and returns that to the caller.
+        itemvol=self.item_lookup[itemid];
         validlist=[];
         for key in self.bin_dict.keys():
             prediction=self.addPredict(key,itemvol);
@@ -96,7 +98,7 @@ class binSelector:
                 self.addtoBin(item,key)
         self.start();
 
-    def itemlookup(self):
+    def addItemLookup(self):
         self.item_lookup={};
         self.item_lookup["i_am_a_bunny_hardcover_book"]=200;
         self.item_lookup["laugh_out_loud_jokes_for_kids_paperback_book"]=200;
