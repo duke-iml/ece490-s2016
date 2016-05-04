@@ -93,30 +93,8 @@ class binSelector:
         binlist=jH.readInFile(filename)[0];
         for key in binlist:
             for item in binlist[key]:
-                print(item," in ",key)
-        
-
-    def test(self):
-        self.addtoBin("folgers_classic_roast_coffee",1)
-        self.addtoBin("elmers_glue_all",1)
-        self.addtoBin("hanes_tube_socks",1)
-        self.addtoBin("womens_knit_gloves",1)
-        self.addtoBin(5,1)
-        self.addtoBin(6,1)
-        self.addtoBin(7,2)
-        self.addtoBin(8,2)
-        self.addtoBin(9,4)
-        self.addtoBin(10,5)
-        self.addtoBin(11,5)
-        self.addtoBin(12,5)
-        self.addtoBin(13,5)
-        self.addtoBin(14,5)
-        self.addtoBin(15,7)
-        self.addtoBin(16,7)
-        self.addtoBin(17,7)
-        self.addtoBin(18,7)
-        self.addtoBin(19,7)
-        self.addtoBin(20,11)
+                self.addtoBin(item,key)
+        self.start();
 
     def itemlookup(self):
         self.item_lookup={};
