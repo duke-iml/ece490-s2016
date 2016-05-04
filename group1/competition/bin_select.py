@@ -35,6 +35,8 @@ class binSelector:
         binlist[3]=binlist[3]+itemvol; #add volume to total volume
         binlist[4]=100-binlist[3]*100/self.maxbinvolume; #recalculate percentage free
         self.bin_dict[str(itembin)]=binlist;
+    deff addStrike(self,itembin):
+        self.bin_dict[itembin]=self.bin_dict[itembin]+1;
         
     def chooseBin(self,itemid):
         #This method selects a bin and returns that to the caller.
