@@ -11,19 +11,19 @@ class binSelector:
         #Create empty bin objects
         self.bin_dict={};
         #Keys are the number of the bin and the value is a list
-        #The list contains a list of items, current number of items,points score, total volume, percent free, strikes
-        self.bin_dict['bin_A']=[[],0,0,0,100,0];
-        self.bin_dict['bin_B']=[[],0,0,0,100,0];
-        self.bin_dict['bin_C']=[[],0,0,0,100,0];
-        self.bin_dict['bin_D']=[[],0,0,0,100,0];
-        self.bin_dict['bin_E']=[[],0,0,0,100,0]; 
-        self.bin_dict['bin_F']=[[],0,0,0,100,0];
-        self.bin_dict['bin_G']=[[],0,0,0,100,0]; 
-        self.bin_dict['bin_H']=[[],0,0,0,100,0];
-        self.bin_dict['bin_I']=[[],0,0,0,100,0]; 
-        self.bin_dict['bin_J']=[[],0,0,0,100,0];
-        self.bin_dict['bin_K']=[[],0,0,0,100,0]; 
-        self.bin_dict['bin_L']=[[],0,0,0,100,0];
+        #The list contains a list of items, current number of items,points score, total volume, percent free, strikes, number
+        self.bin_dict['bin_A']=[[],0,0,0,float(100),0,1];
+        self.bin_dict['bin_B']=[[],0,0,0,float(100),0,2];
+        self.bin_dict['bin_C']=[[],0,0,0,float(100),0,3];
+        self.bin_dict['bin_D']=[[],0,0,0,float(100),0,4];
+        self.bin_dict['bin_E']=[[],0,0,0,float(100),0,5]; 
+        self.bin_dict['bin_F']=[[],0,0,0,float(100),0,6];
+        self.bin_dict['bin_G']=[[],0,0,0,float(100),0,7]; 
+        self.bin_dict['bin_H']=[[],0,0,0,float(100),0,8];
+        self.bin_dict['bin_I']=[[],0,0,0,float(100),0,9]; 
+        self.bin_dict['bin_J']=[[],0,0,0,float(100),0,10];
+        self.bin_dict['bin_K']=[[],0,0,0,float(100),0,11]; 
+        self.bin_dict['bin_L']=[[],0,0,0,float(100),0,12];
         self.maxbinvolume=1485 #total volume constant for each bin
         self.addItemLookup();
         
@@ -35,7 +35,8 @@ class binSelector:
         binlist[3]=binlist[3]+itemvol; #add volume to total volume
         binlist[4]=100-binlist[3]*100/self.maxbinvolume; #recalculate percentage free
         self.bin_dict[str(itembin)]=binlist;
-    deff addStrike(self,itembin):
+        
+    def addStrike(self,itembin):
         self.bin_dict[itembin]=self.bin_dict[itembin]+1;
         
     def chooseBin(self,itemid):
@@ -47,7 +48,7 @@ class binSelector:
             if prediction[3]>20: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
         validlist.sort(cmp=self.comparator);
-        return validlist[0][0]
+        return validlist[0][5]
 
     
     def comparator(self, a,b):
@@ -69,7 +70,8 @@ class binSelector:
         estvol=self.bin_dict[itembin][3]+itemvol;
         estpf=100-estvol*100/self.maxbinvolume;
         strikes=self.bin_dict[itembin][5]; #gets strikes
-        return itembin, estnumel, points, estpf,strikes
+        num=self.bin_dict[itembin][6]; #Gets number since supervisor is stupid and takes numbers
+        return itembin, estnumel, points, estpf,strikes,num
 
     def start(self):
         #copy the value of Calculate score of each bin and write it to position 2
