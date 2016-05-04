@@ -5,9 +5,11 @@ import json
 import sys
 import random
 import time, os
+from json_handler import jsonHandler 
 from bin_select import binSelector
 import motion_state_machine as msm
 import bump
+from vacuum import vacuum
 
 class Supervisor:
     def __init__(self):
@@ -17,6 +19,8 @@ class Supervisor:
         self.bumper = bump.Bumper((0.161, 0, 0))
         self.start_time = time.time()
         self.items_to_stow = 20
+        self.vac=vacuum()
+        self.handler=jsonHandler()
         ##Load bin Selector
         binSelect=binSelector()
         # Potentially more to load here with everything else going on?
@@ -38,12 +42,11 @@ class Supervisor:
         print "Competing"
         print "Going to the tote"
         self.state_machine.move_to_bin_from_config(2)
+
         # If time is up or we've finished all items, break
         # Otherwise, loop
         while(not self.done()):
             # Go to the bin 
-            print "Going to the tote"
-            self.state_machine.move_to_bin_from_config(2)
             # Get Perception Data
             print "Getting Perception Data ..."
             # Send perception data to bump function
@@ -53,9 +56,9 @@ class Supervisor:
             self.bumper.bumpRight(pos)
 
             # Pick up item
-            # TODO: For demo, close the hand and turn on the vacuum
+            # TODO: For demo, close the hand
             print "Picking up item ..."
-
+            self.vac.on()
             # Based on item, pick a shelf to go to
             self.current_item = "DUMMY ITEM"
             # TODO: Add in Craig's bin picker instead of picking random shelf
@@ -72,8 +75,9 @@ class Supervisor:
             print "Bumping to coordinates ..."
 
             # Drop item
-            # TODO: For Demo, open the hand and turn off the vacuum
+            # TODO: For Demo, open the hand 
             print "Dropping item ..."
+            self.vac.off()
             # Update JSON file and count
 
             print "Updating JSON File"
