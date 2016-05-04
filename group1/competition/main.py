@@ -1,21 +1,20 @@
+#!/usr/bin/python
 #The "supervisor" module for the Amazing Stowing Team
 import time
 import json
 import sys
 import random
-import time
+import time, os
 from bin_select import binSelector
-
-sys.path.insert(0, '/home/group1/ece490-s2016/group1/motion_control')
 import motion_state_machine as msm
 import bump
 
 class Supervisor:
     def __init__(self):
         print "Initialized new supervisor"
-        #Uncomment only if connected to baxter
+        self.time_limit = 3
         self.state_machine = msm.motion_state_machine()
-        #self.bumper = bump.Bumper()
+        self.bumper = bump.Bumper((0.161, 0, 0))
         self.start_time = time.time()
         self.items_to_stow = 20
         ##Load bin Selector
@@ -27,7 +26,7 @@ class Supervisor:
         # Need to integrate JSON functionality into supervisor
 
     def done(self):
-        if ((time.time() - self.start_time) > 60*3): #  Should be 20, but we're testing
+        if ((time.time() - self.start_time) > 60*self.time_limit): #  Should be 20, but we're testing
             return True
         elif (self.items_to_stow == 0):
             return True
@@ -37,17 +36,21 @@ class Supervisor:
     def compete(self):
         
         print "Competing"
-        while(True):
-            # Go to the bin
+        print "Going to the tote"
+        self.state_machine.move_to_bin_from_config(2)
+        # If time is up or we've finished all items, break
+        # Otherwise, loop
+        while(not self.done()):
+            # Go to the bin 
             print "Going to the tote"
             self.state_machine.move_to_bin_from_config(2)
             # Get Perception Data
             print "Getting Perception Data ..."
             # Send perception data to bump function
+            pos = (random.uniform(-0.114, 0.013), random.uniform(-0.127, 0.127), random.uniform(-0.15, 0))
 
-
-            # TODO: For demo, pick a random coordinate set and bump to there
-            print "Bumping to coordinates ..."
+            print "Bumping to coordinates", pos
+            self.bumper.bumpRight(pos)
 
             # Pick up item
             # TODO: For demo, close the hand and turn on the vacuum
@@ -64,7 +67,6 @@ class Supervisor:
             # Figure out if need to bump
             print "Getting perception data to figure out any bumps"
 
-
             # Bump to that location
             # TODO: For demo, pick a random coordinate set and bump to there
             print "Bumping to coordinates ..."
@@ -77,11 +79,15 @@ class Supervisor:
             print "Updating JSON File"
             self.items_to_stow = self.items_to_stow - 1
             #binSelect.addtoBin(itemid,self.target_shelf);--TODO insert item id 
-            # If time is up or we've finished all items, break
-            # Otherwise, loop
-            if (self.done()):
-                break
 
+            if self.target_shelf >= 1 and self.target_shelf <= 3:
+                self.state_machine.move_to_bin_from_config(1)
+            if self.target_shelf >= 4 and self.target_shelf <= 6:
+                self.state_machine.move_to_bin_from_config(2)
+            if self.target_shelf >= 7 and self.target_shelf <= 9:
+                self.state_machine.move_to_bin_from_config(3)
+            if self.target_shelf >= 10 and self.target_shelf <= 12:
+                self.state_machine.move_to_bin_from_config(4)
 
 ''' Main code '''
 #Initialize the supervisor
@@ -95,5 +101,3 @@ else:
 
 # Begin competing!
 sup.compete()
-
-
