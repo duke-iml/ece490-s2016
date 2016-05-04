@@ -92,7 +92,7 @@ class binSelector:
     def printBin(self):
         for key in self.bin_dict.keys():
             binlist=self.bin_dict[key];
-            print ("bin ",key," contains ",binlist[0]," w/ ",binlist[1]," items ",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes");
+            print (,key," has ",binlist[1]," items and",binlist[4],"% free for ",binlist[2],"points with ",binlist[5]," strikes. Contents",binlist[0]);
 
     def initialize(self,filename):
         jH=jsonHandler()
