@@ -1,0 +1,68 @@
+{
+    "bin_contents": {
+        "bin_A": [
+            "kleenex_cool_touch_tissue_box", 
+            "staples_3x5_ruled_index_cards"
+        ], 
+        "bin_B": [
+            "rawlings_recreational_use_baseball", 
+            "platinum_pets_dog_bowl"
+        ], 
+        "bin_C": [
+            "womens_knit_gloves"
+        ], 
+        "bin_D": [
+            "plush_puppies_squeakin_eggs", 
+            "cloud_b_plush_bear"
+        ], 
+        "bin_E": [
+            "peva_shower_curtain_liner", 
+            "kleenex_viva_paper_towels", 
+            "up_and_up_glucose_tablets"
+        ], 
+        "bin_F": [
+            "woods_6ft_extension_cord"
+        ], 
+        "bin_G": [], 
+        "bin_H": [], 
+        "bin_I": [
+            "laugh_out_loud_jokes_for_kids_paperback_book", 
+            "dasani_water_bottle"
+        ], 
+        "bin_J": [
+            "rolodex_wire_mesh_jumbo_pencil_holder", 
+            "boots_and_barkley_beefhide_bones", 
+            "scotch_bubble_mailer", 
+            "expo_white_board_care_eraser"
+        ], 
+        "bin_K": [
+            "jane_eyre_dvd"
+        ], 
+        "bin_L": [
+            "easter_turtle_figural_sippy_cup", 
+            "fitness_gear_3lb_neoprene_dumbbell"
+        ]
+    }, 
+    "work_order": [
+        [
+            "i_am_a_bunny_hardcover_book", 
+            "folgers_classic_roast_coffee", 
+            "elmers_glue_all", 
+            "hanes_tube_socks", 
+            "cherokee_easy_tee_t_shirt", 
+            "cool_shot_mini_glue_sticks", 
+            "creativity_street_chenille_stems_100_count", 
+            "40w_soft_white_lightbulb", 
+            "safety_1st_ultra_clear_outlet_plugs", 
+            "oral_b_cavity_defense_toothbrush", 
+            "dr_browns_natural_flow_bottle_brush", 
+            "command_hooks", 
+            "fiskars_scissors_5inch_blunt_tip_red", 
+            "scotch_cloth_duct_tape", 
+            "clorox_utility_brush", 
+            "ticonderoga_#2_pencils_12_count", 
+            "crayola_crayons", 
+            "dove_dry_oil_beauty_bar"
+        ]
+    ]
+}

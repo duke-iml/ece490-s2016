@@ -19,44 +19,6 @@ void loop() {
 //You can call the functions to control the
 //actuator here, as well as reading sensors, etc..
 
-/*for(;;;)
-{
-  double reading = analogRead(ANALOG_POTENTIOMETER);
-  if (extending)
-  {
-    if (reading < POT_UPPER_BOUND)
-    {
-      extendActuator(0);
-    }
-    else
-    {
-      retractActuator(0);
-      extending = false;
-    }
-  }
-  else
-  {
-    if(reading > POT_LOWER_BOUND)
-    {
-      retractActuator(0);
-    }
-    else
-    {
-      extendActuator(0);
-      extending = true;
-    }
-  }
-}*/
-
-//openHand();
-//closeHand();
-
-
-
-//stopActuator(0);
-
-//exit(0);
-
 if (Serial.available() > 0)
 {
   // Read the incoming byte
