@@ -4,6 +4,7 @@ import json
 import sys
 import random
 import time
+from bin_select import binSelector
 
 sys.path.insert(0, '/home/group1/ece490-s2016/group1/motion_control')
 import motion_state_machine as msm
@@ -17,6 +18,8 @@ class Supervisor:
         #self.bumper = bump.Bumper()
         self.start_time = time.time()
         self.items_to_stow = 20
+        ##Load bin Selector
+        binSelect=binSelector()
         # Potentially more to load here with everything else going on?
 
     def load_config_file(self, file_name):
@@ -53,7 +56,8 @@ class Supervisor:
             # Based on item, pick a shelf to go to
             self.current_item = "DUMMY ITEM"
             # TODO: Add in Craig's bin picker instead of picking random shelf
-            self.target_shelf = random.randrange(1,13) 
+            self.target_shelf = random.randrange(1,13)
+            #self.target_shelf = binSelect.chooseBin(itemid); --TODO fix item ID
             print "Going to shelf", self.target_shelf
             # Go to that shelf
             self.state_machine.move_to_shelf(self.target_shelf)
@@ -72,6 +76,7 @@ class Supervisor:
 
             print "Updating JSON File"
             self.items_to_stow = self.items_to_stow - 1
+            #binSelect.addtoBin(itemid,self.target_shelf);--TODO insert item id 
             # If time is up or we've finished all items, break
             # Otherwise, loop
             if (self.done()):
