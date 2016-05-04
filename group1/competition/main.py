@@ -18,11 +18,14 @@ class Supervisor:
         self.state_machine = msm.motion_state_machine()
         self.bumper = bump.Bumper((0.161, 0, 0))
         self.start_time = time.time()
-        self.items_to_stow = 20
         self.vac=vacuum()
         self.handler=jsonHandler()
+        (self.origMap,self.workOrder)=self.handler.readInFile("RandomTestA.json")
+        self.items_to_stow = len(self.workOrder[0])
         ##Load bin Selector
-        binSelect=binSelector()
+        self.binSelect=binSelector()
+        ##Initialize bin Selector 
+        self.binSelect.initialize("RandomTestA.json")
         # Potentially more to load here with everything else going on?
 
     def load_config_file(self, file_name):
@@ -60,10 +63,9 @@ class Supervisor:
             print "Picking up item ..."
             self.vac.on()
             # Based on item, pick a shelf to go to
-            self.current_item = "DUMMY ITEM"
+            self.current_item = self.workOrder[0][0]
             # TODO: Add in Craig's bin picker instead of picking random shelf
-            self.target_shelf = random.randrange(1,13)
-            #self.target_shelf = binSelect.chooseBin(itemid); --TODO fix item ID
+            (self.target_bin,self.target_shelf) = self.binSelect.chooseBin(self.current_item);
             print "Going to shelf", self.target_shelf
             # Go to that shelf
             self.state_machine.move_to_shelf(self.target_shelf)
@@ -79,10 +81,12 @@ class Supervisor:
             print "Dropping item ..."
             self.vac.off()
             # Update JSON file and count
-
+            self.binSelect.addtoBin(self.current_item,self.target_bin)
+            self.workOrder[0].remove(self.current_item)
+            self.origMap[self.target_bin].append(self.current_item)
             print "Updating JSON File"
             self.items_to_stow = self.items_to_stow - 1
-            #binSelect.addtoBin(itemid,self.target_shelf);--TODO insert item id 
+            
 
             if self.target_shelf >= 1 and self.target_shelf <= 3:
                 self.state_machine.move_to_bin_from_config(1)
@@ -105,3 +109,4 @@ else:
 
 # Begin competing!
 sup.compete()
+sup.handler.writeOutFile('Cheese.json',sup.origMap,sup.workOrder)

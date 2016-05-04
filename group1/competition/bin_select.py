@@ -48,7 +48,8 @@ class binSelector:
             if prediction[3]>20: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
         validlist.sort(cmp=self.comparator);
-        return validlist[0][5]
+        print "Sent to ",validlist[0][0], " which is now ",validlist[0][3]," % fill"
+        return (validlist[0][0],validlist[0][5])
 
     
     def comparator(self, a,b):
