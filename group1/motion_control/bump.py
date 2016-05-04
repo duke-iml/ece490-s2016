@@ -33,7 +33,7 @@ class Bumper:
     #
     def __init__(self, hand_position=(0,0,0)):
         klampt_model = "common/klampt_models/baxter_col.rob"
-        mode = "client"
+        mode = "physical"
         self.hand_position = hand_position
 
         print "Loading Motion Module model", klampt_model
@@ -118,6 +118,8 @@ class Bumper:
         q = self.setKlamptPos()
         q[42] = angle
         self.pRobot.right_mq.setRamp(self.pRobot.right_limb.configFromKlampt(q))
+        while(self.pRobot.right_mq.moving()):
+            time.sleep(0.1)
         
     ##
     # @brief Rotates the left wrist to the given (absolute) angle.
@@ -130,6 +132,8 @@ class Bumper:
         q = self.setKlamptPos()
         q[22] = angle
         self.pRobot.left_mq.setRamp(self.pRobot.left_limb.configFromKlampt(q))
+        while(self.pRobot.left_mq.moving()):
+            time.sleep(0.1)
 
     ##
     # @brief Rotates the right wrist to the given (relative) angle.
@@ -142,6 +146,8 @@ class Bumper:
         q = self.setKlamptPos()
         q[42] = q[42] + angle
         self.pRobot.right_mq.setRamp(self.pRobot.right_limb.configFromKlampt(q))
+        while(self.pRobot.right_mq.moving()):
+            time.sleep(0.1)
         
     ##
     # @brief Rotates the left wrist to the given (relative) angle.
@@ -154,6 +160,8 @@ class Bumper:
         q = self.setKlamptPos()
         q[22] = q[22] + angle
         self.pRobot.left_mq.setRamp(self.pRobot.left_limb.configFromKlampt(q))
+        while(self.pRobot.left_mq.moving()):
+            time.sleep(0.1)
 
     ##
     # @brief Performs IK on a position and moves baxter there
@@ -165,11 +173,16 @@ class Bumper:
     ##
     def iksolve(self, config, kEE, pEE, mq):
         goal = ik.objective(kEE,local=self.hand_position, world=config)
+        while(mq.moving()):
+            time.sleep(0.1)
         self.setKlamptPos()
         if ik.solve(goal):
             print "success!"
             q = self.kRobot.getConfig()
             mq.setRamp(pEE.configFromKlampt(q))
+            while(mq.moving()):
+                time.sleep(0.1)
+            
         else:
             print "failed. Residual:", ik.solver(goal).getResidual()
 
@@ -189,35 +202,35 @@ class Bumper:
 # @param bump a Bumper object
 ##
 def run(bump):
-        while True:
-            command = raw_input("Command: ")
-            if command == 'q':
-                exit(0)
-            elif command == 'c':
-                print "right:", bump.getRightArmCoords()
-                print "left:", bump.getLeftArmCoords()
-            elif command[0] == 'l':
-                bump.moveLeftArmTo(make_tuple(command[1:]))
-            elif command[0] == 'r':
-                bump.moveRightArmTo(make_tuple(command[1:]))
-            elif command[0] == 'b':
-                coords = make_tuple(command[2:])
-                if command[1] =='r':
-                    bump.bumpRight(coords)
-                elif command[1] =='l':
-                    bump.bumpLeft(coords)
-                else:
-                    print "Unknown command"
-            elif command[0] == 'w':
-                angle = make_tuple(command[2:])
-                if command[1] == 'l':
-                    bump.rotateLeftWristTo(angle)
-                elif command[1] == 'r':
-                    bump.rotateRightWristTo(angle)
-                else:
-                    print "Unknown command"
+    while True:
+        command = raw_input("Command: ")
+        if command == 'q':
+            exit(0)
+        elif command == 'c':
+            print "right:", bump.getRightArmCoords()
+            print "left:", bump.getLeftArmCoords()
+        elif command[0] == 'l':
+            bump.moveLeftArmTo(make_tuple(command[1:]))
+        elif command[0] == 'r':
+            bump.moveRightArmTo(make_tuple(command[1:]))
+        elif command[0] == 'b':
+            coords = make_tuple(command[2:])
+            if command[1] =='r':
+                bump.bumpRight(coords)
+            elif command[1] =='l':
+                bump.bumpLeft(coords)
             else:
                 print "Unknown command"
+        elif command[0] == 'w':
+            angle = make_tuple(command[2:])
+            if command[1] == 'l':
+                bump.rotateLeftWristTo(angle)
+            elif command[1] == 'r':
+                bump.rotateRightWristTo(angle)
+            else:
+                print "Unknown command"
+        else:
+            print "Unknown command"
 
 ##
 # @brief Main method.  Creates a Bumper and runs the test method run()
