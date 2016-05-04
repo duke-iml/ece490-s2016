@@ -1,7 +1,8 @@
 import threading
 import serial
+import time
 
-class SerialManager:
+class SerialManager(object):
     def __init__(self):
         self.ser = None
         self.running = False

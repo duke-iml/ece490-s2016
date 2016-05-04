@@ -37,7 +37,7 @@ class binSelector:
         self.bin_dict[str(itembin)]=binlist;
         
     def addStrike(self,itembin):
-        self.bin_dict[itembin]=self.bin_dict[itembin]+1;
+        self.bin_dict[itembin][5]=self.bin_dict[itembin][5]+1;
         
     def chooseBin(self,itemid):
         #This method selects a bin and returns that to the caller.
@@ -48,14 +48,14 @@ class binSelector:
             if prediction[3]>20: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
         validlist.sort(cmp=self.comparator);
-        print "Sent to ",validlist[0][0], " which is now ",validlist[0][3]," % fill"
+        print "Sent to ",validlist[0][0], " which is now ",validlist[0][3]," % free"
         return (validlist[0][0],validlist[0][5])
 
     
     def comparator(self, a,b):
         #Comparator for the bin sort module
-        if b[4]-a[4]!=0: #Compare strikes
-            return b[4]-a[4];
+        if a[4]-b[4]!=0: #Compare strikes
+            return a[4]-b[4];
         if b[2]-a[2]!=0: #Compare score
             return int(b[2]-a[2]);
         if b[3]-a[3]!=0: #Compare freedom

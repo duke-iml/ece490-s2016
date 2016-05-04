@@ -9,6 +9,7 @@ from json_handler import jsonHandler
 from bin_select import binSelector
 import motion_state_machine as msm
 import bump
+from hand_handler import HandHandler
 from vacuum import vacuum
 
 class Supervisor:
@@ -19,13 +20,14 @@ class Supervisor:
         self.bumper = bump.Bumper((0.161, 0, 0))
         self.start_time = time.time()
         self.vac=vacuum()
+        self.hand = HandHandler()
         self.handler=jsonHandler()
-        (self.origMap,self.workOrder)=self.handler.readInFile("RandomTestA.json")
+        (self.origMap,self.workOrder)=self.handler.readInFile("RandomTestB.json")
         self.items_to_stow = len(self.workOrder[0])
         ##Load bin Selector
         self.binSelect=binSelector()
         ##Initialize bin Selector 
-        self.binSelect.initialize("RandomTestA.json")
+        self.binSelect.initialize("RandomTestB.json")
         # Potentially more to load here with everything else going on?
 
     def load_config_file(self, file_name):
@@ -62,6 +64,7 @@ class Supervisor:
             # TODO: For demo, close the hand
             print "Picking up item ..."
             self.vac.on()
+            self.hand.closeHand()
             # Based on item, pick a shelf to go to
             self.current_item = self.workOrder[0][0]
             # TODO: Add in Craig's bin picker instead of picking random shelf
@@ -79,6 +82,7 @@ class Supervisor:
             # Drop item
             # TODO: For Demo, open the hand 
             print "Dropping item ..."
+            self.hand.openHand()
             self.vac.off()
             # Update JSON file and count
             self.binSelect.addtoBin(self.current_item,self.target_bin)

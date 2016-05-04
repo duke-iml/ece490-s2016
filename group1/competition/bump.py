@@ -173,8 +173,6 @@ class Bumper:
     ##
     def iksolve(self, config, kEE, pEE, mq):
         goal = ik.objective(kEE,local=self.hand_position, world=config)
-        while(mq.moving()):
-            time.sleep(0.1)
         self.setKlamptPos()
         if ik.solve(goal):
             print "success!"
@@ -182,7 +180,6 @@ class Bumper:
             mq.setRamp(pEE.configFromKlampt(q))
             while(mq.moving()):
                 time.sleep(0.1)
-            
         else:
             print "failed. Residual:", ik.solver(goal).getResidual()
 
