@@ -69,9 +69,11 @@ CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
 class binOrder:
     def __init__(self):
         self.parser=json_parser.json_parser()
-        self.BinOrder=CONST_BIN_NAMES
     def workBinOrder(self,filename):
-        # filename="apc_pick_task.json"
+        # filenames=['pickA.json','pickB.json','pickC.json','pickD.json','pickE.json']
+        # for l in range(5):
+        BinOrder=CONST_BIN_NAMES
+        # filename=filenames[l]
         (binMap, workOrder)=self.parser.readInFile(filename)
         numObject=[]
         objectWeight=dict()
@@ -79,52 +81,59 @@ class binOrder:
         binWeight=[]
         sortedBinIndex=[]
         objectOrder=[]
-        threshold=48
+        threshold=10
         notTry=0
         giveup=True
         for i in range(len(CONST_ITEM_NAMES)):
             objectWeight[CONST_ITEM_NAMES[i]]=CONST_ITEM_WEIGHTS[i]
-
+        print i
         for i in range(len(CONST_BIN_NAMES)):
+            print i
             target=workOrder[i]["item"]
             objectOrder=objectOrder+[target]
             numObject=numObject+[len(binMap[CONST_BIN_NAMES[i]])]
+            if i==9:
+                notTry+=1
+                numObject[i]=50
+                continue
             weight=0
-            # print target
-            if target=="rawlings_baseball" or target=="rolodex_jumbo_pencil_cup":
+            print target
+            if target=="rawlings_baseball" or target=="rolodex_jumbo_pencil_cup" or target=="scotch_duct_tape":
                 numObject[i]=50
                 notTry+=1
                 continue
             for j in range(len(binMap[CONST_BIN_NAMES[i]])):
                 binList=binMap[CONST_BIN_NAMES[i]]
                 weight=weight+objectWeight[binList[j]]
+                if binList[j]=="creativity_chenille_stems":
+                    numObject[i]=40
                 if objectWeight[binList[j]]==16.9 or objectWeight[binList[j]]==48:
                     numObject[i]=50
                     giveup=False
                     notTry+=1
                     continue
-
             binWeightDict[CONST_BIN_NAMES[i]]=weight
             binWeight=binWeight+[weight]
             if weight>threshold and giveup:
                 numObject[i]=50
                 notTry+=1
-        # print numObject
+        print numObject
         # print binWeight
         sortedBinIndex= sorted(range(len(numObject)), key=lambda k: numObject[k])
         sortedBinIndex=[sortedBinIndex[i] for i in range(len(sortedBinIndex)-notTry)]
         centerBins=[]
         sideBins=[]
+        print sortedBinIndex
         for i in sortedBinIndex:
             if i%3==1:
                 centerBins.append(i)
             else:
                 sideBins.append(i)
         sortedBinIndex=sideBins+centerBins
-        # print sortedBinIndex
-        self.BinOrder=[self.BinOrder[sortedBinIndex[i]] for i in range(len(sortedBinIndex))]
+        print sortedBinIndex
+        BinOrder=[BinOrder[sortedBinIndex[i]] for i in range(len(sortedBinIndex))]
         oneOrNot=[numObject[i]==1 for i in sortedBinIndex]
         objectOrder=[objectOrder[i] for i in sortedBinIndex]
-        return (self.BinOrder, objectOrder, oneOrNot)
+        return (BinOrder, objectOrder, oneOrNot)
 # if __name__ == "__main__":
 #     a=binOrder()
