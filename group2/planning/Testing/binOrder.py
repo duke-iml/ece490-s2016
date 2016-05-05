@@ -84,12 +84,13 @@ class binOrder:
         giveup=True
         for i in range(len(CONST_ITEM_NAMES)):
             objectWeight[CONST_ITEM_NAMES[i]]=CONST_ITEM_WEIGHTS[i]
+
         for i in range(len(CONST_BIN_NAMES)):
             target=workOrder[i]["item"]
             objectOrder=objectOrder+[target]
             numObject=numObject+[len(binMap[CONST_BIN_NAMES[i]])]
             weight=0
-            print target
+            # print target
             if target=="rawlings_baseball" or target=="rolodex_jumbo_pencil_cup":
                 numObject[i]=50
                 notTry+=1
@@ -108,10 +109,19 @@ class binOrder:
             if weight>threshold and giveup:
                 numObject[i]=50
                 notTry+=1
-        print numObject
-        print binWeight
+        # print numObject
+        # print binWeight
         sortedBinIndex= sorted(range(len(numObject)), key=lambda k: numObject[k])
         sortedBinIndex=[sortedBinIndex[i] for i in range(len(sortedBinIndex)-notTry)]
+        centerBins=[]
+        sideBins=[]
+        for i in sortedBinIndex:
+            if i%3==1:
+                centerBins.append(i)
+            else:
+                sideBins.append(i)
+        sortedBinIndex=sideBins+centerBins
+        # print sortedBinIndex
         self.BinOrder=[self.BinOrder[sortedBinIndex[i]] for i in range(len(sortedBinIndex))]
         oneOrNot=[numObject[i]==1 for i in sortedBinIndex]
         objectOrder=[objectOrder[i] for i in sortedBinIndex]
