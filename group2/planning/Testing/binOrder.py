@@ -104,8 +104,8 @@ class binOrder:
 				numObject[i]=50
 				notTry+=1
 
-		print numObject
-		print binWeight
+		#print numObject
+		#print binWeight
 		sortedBinIndex= sorted(range(len(numObject)), key=lambda k: numObject[k])
 		sortedBinIndex=[sortedBinIndex[i] for i in range(len(sortedBinIndex)-notTry)]
 		self.BinOrder=[self.BinOrder[sortedBinIndex[i]] for i in range(len(sortedBinIndex))]
