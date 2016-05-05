@@ -92,7 +92,7 @@ class binOrder:
             target=workOrder[i]["item"]
             objectOrder=objectOrder+[target]
             numObject=numObject+[len(binMap[CONST_BIN_NAMES[i]])]
-            if i==9:
+            if i==9 or i==10 or i==11:
                 notTry+=1
                 numObject[i]=50
                 continue
