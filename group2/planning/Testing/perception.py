@@ -119,7 +119,8 @@ class Perceiver():
 	
 	def show_image(self):
 		img = self.rgb
-		print "Image shape is:", img.shape
+		# print "Image shape is:", img.shape
+		scipy.misc.imsave("saved_"+str(time.time())+".png", img)
 		plt.figure()
 		plt.imshow(img)
 		plt.show(block=False)
