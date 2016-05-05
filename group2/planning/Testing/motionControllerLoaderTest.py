@@ -39,8 +39,8 @@ perceiver = perception.Perceiver()
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 1 or ALL_ARDUINOS
@@ -651,21 +651,22 @@ class PickingController:
                     self.waitForMove()
                 #return False
                 # push spatula out a little bit
-                self.spatula('partial')
-                self.waitForMove()
+                
+                #self.spatula('partial')
+                #self.waitForMove()
 
                 # move up incrementally
-                for i in range(10):
-                    self.incrementalMove('up')
-                    self.waitForMove()
+                #for i in range(10):
+                #    self.incrementalMove('up')
+                #    self.waitForMove()
 
                 # pull spatula back fully
-                self.spatula('in')
-                self.waitForMove()
+                #self.spatula('in')
+                #self.waitForMove()
 
                 # move down incrementally
-                while self.incrementalMove('down'):
-                    self.waitForMove()
+                #while self.incrementalMove('down'):
+                #    self.waitForMove()
 
                 # push spatula out fully
                 self.spatula('out')
@@ -674,7 +675,7 @@ class PickingController:
                 # flat out spatula
                 self.tilt_wrist('down', step = 4)
                 self.waitForMove()
-                return False
+                #return False
 
                 self.spatula('in')
                 self.waitForMove()
@@ -920,7 +921,7 @@ class PickingController:
             elif step == 2:
                 # print "moving up/side (tilt-wrist part 2)"
                 #left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.1,0.4675-0.02]))))
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.15,0.4675-0.02]))))
                 # print "goal pos =", vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.05,0.4675-0.02]))
                 maxSmoothIters=3
                 incremental = True
@@ -937,7 +938,7 @@ class PickingController:
 
                 # [(+Right/-Left), (+Up/-Down), (+In/-Out)
                 #world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
-                world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.055,0.4425])
+                world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.055,0.4375])
 
                 t_camera = vectorops.add(world_center,world_offset)
                 dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)                                

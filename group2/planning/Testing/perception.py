@@ -210,7 +210,7 @@ class Perceiver():
 		'''
 		N,h,w,_ = imgs.shape
 		assert h==50 and w==50, "image is not 50 x 50"
-		result = self.y_net.eval(feed_dict={self.x_net:imgs, self.keep_prob: 1.0})
+		result = self.y_net.eval(session=self.sess, feed_dict={self.x_net:imgs, self.keep_prob: 1.0})
 		# print "shape of result should be N x 39:", result.shape, "where N is", N
 		return result
 
