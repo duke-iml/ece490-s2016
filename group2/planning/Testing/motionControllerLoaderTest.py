@@ -28,6 +28,10 @@ from operator import itemgetter
 import cPickle as pickle
 import subprocess
 
+# JSON parser
+import binOrder
+binOrderParser = binOrder.binOrder()
+
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
 FAKE_SIMULATION = 1
@@ -1775,15 +1779,25 @@ def run_controller(controller,command_queue):
                 # controller.fulfillOrderAction(orderList)
                 controller.moveToRestConfig()
 
-                binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
+                global binOrderParser
+                (binList, objList) = binOrderParser.workBinOrder("apc_pick_task.json")
+
+                print "================================"
+                print "Bin Order:", binList
+                print "Object Order:", objList
+                print "================================\n"
+
+
+                #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
+
                 for i in range(len(binList)):
-                    controller.viewBinAction('bin_'+binList[i])
+                    controller.viewBinAction(binList[i])
                     controller.scoopAction()
                     controller.move_spatula_to_center()
                     controller.move_gripper_to_center()
                     controller.graspAction()
                     controller.placeInOrderBinAction()
-                    controller.viewBinAction('bin_'+binList[i])
+                    controller.viewBinAction(binList[i])
                     controller.unscoopAction()
                     controller.moveToRestConfig()
             elif c == 's':
