@@ -12,31 +12,54 @@ class MoveSpatula:
     # COMMUNICATION COMMANDS
 
     # initialize the serial comm
-    def __init__(self, port="/dev/ttyACM1"):
+    def __init__(self):
         # on linux use port="/dev/ttyUSB2"
         # attempt to connect
         foundPort = False
         ports = list(serial.tools.list_ports.comports())
+        portArray = []
         for p in ports:
             if "Arduino Mega" in p[1]:
-                print "Port =", p[0]
+                #print "Port =", p[0]
                 port = p[0]
-                print port
+                #print port
+                portArray.append(port)
                 foundPort = True
         if foundPort == False:
             print "No Port Found (Arduino Mega)"
 
-        while True:
-            try:
-                self.com = Serial(port, 9600)
-                print('connected to arduino\n')            
+        for i in range(len(portArray)):
+            port = portArray[i]
+            while True:
+                try:
+                    self.com = Serial(port, 9600)
+                    break
+                except SerialException:
+                    print 'Error: No device is on port' + port
+                    print 'Type an alternative ttyUSB number or a full port name'
+                    port = input('Port = ')
+                    if port.isdigit():
+                        port = '/dev/ttyUSB' + port
+            print('connected to an arduino... checking ID (motor)...')
+            time.sleep(0.5)
+
+            # Reset Arduino
+            self.com.setDTR(False)
+            time.sleep(0.022)
+            self.com.setDTR(True)
+
+            arduinoID = self.com.readline()
+            while not (("c" in arduinoID) or ("b" in arduinoID) or ("a" in arduinoID)):
+                arduinoID = self.com.readline()
+                time.sleep(0.01)
+
+            # print "ID:", arduinoID
+            if "b" in arduinoID:
+                print "ID Checked (motor controller)"
                 break
-            except SerialException:
-                print 'Error: No device is on port' + port
-                print 'Type an alternative ttyUSB number or a full port name'
-                port = input('Port = ')
-                if port.isdigit():
-                    port = '/dev/ttyUSB' + port
+            else:
+                print "Wrong ID:", arduinoID
+
         self.send_commands([0, 0, 0, 0])
         time.sleep(0.5)
 
@@ -53,7 +76,7 @@ class MoveSpatula:
             if i < len(motor_values) - 1:
                 msg += ','
         msg += '>'
-        print msg
+        #print msg
         self.com.write(msg)
         self.com.flush()
 
@@ -65,13 +88,13 @@ class MoveSpatula:
         while m != 1:
             msg = self.com.readline()
             m = re.search('<([\d,]+)>', msg)
-            if m=None:
+            if m==None:
                 continue
             feedback = m.group(1)
             feedback = str.split(feedback, ",")
             if all(i >= 0 for i in feedback) and len(feedback) == msg_length:
                 measured_current = int(feedback[0])
-                print str(measured_current)
+                #print str(measured_current)
                 return measured_current
             print 'Error: Could not read current - trying again.'
 
@@ -116,12 +139,15 @@ class MoveSpatula:
     def prepare(self):
         command = [255, 1, 0, 0]
         stall_current = 600
-        advance_time = 3
+        advance_time = 1
         t_end = time.time() + advance_time
         curr = 0
         while (time.time() < t_end) & (curr < stall_current):
             curr = self.read_current()
+            #print "current =", curr
             self.send_commands(command)
+        command = [0, 0, 0, 0]
+        self.send_commands(command)        
 
     # [0,0,0,0]
     # reset the spatula to the resting state
@@ -142,7 +168,7 @@ class MoveSpatula:
         while (curr < stall_current) & (switch_val == 0):
             curr = self.read_current()
             switch_val = self.read_switches(which_switch)
-            print(str(switch_val))
+            #print(str(switch_val))
             self.send_commands(previous_command)
         # after running it to stall, let the motor current go to zero
         previous_command[0] = 0
@@ -160,7 +186,7 @@ class MoveSpatula:
         # let the motor current go to zero
         while curr > rest_current:
             curr = self.read_current()
-            print(str(curr) + '\n')
+            #print(str(curr) + '\n')
             self.send_commands(previous_command)
             time.sleep(.02)
         time.sleep(.5)
@@ -170,7 +196,7 @@ class MoveSpatula:
 
 if __name__ == "__main__":
     spat = MoveSpatula()
-    # spat.reset_spatula()
-    # spat.advance(3)
-    spat.prepare()
-    print spat.read_switches(0)
+    #spat.reset_spatula()
+    # spat.advance(2)
+    #spat.prepare()
+    #print spat.read_switches(0)

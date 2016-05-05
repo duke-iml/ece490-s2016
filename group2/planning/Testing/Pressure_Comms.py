@@ -36,7 +36,7 @@ class CommPressure:
         self.com.reset_input_buffer()
         self.com.reset_output_buffer()
         time.sleep(self.message_time)
-        msg_length = 1
+        msg_length = 2
         msg = self.com.readline()
         m = re.search('<([\d,]+)>', msg)
         if m:
@@ -44,7 +44,8 @@ class CommPressure:
             feedback = str.split(feedback, ",")
             if all(i >= 0 for i in feedback) and len(feedback) == msg_length:
                 pressure_threshold = int(feedback[0])
-                return pressure_threshold
+                pressure_val = feedback[1]
+                return [pressure_threshold, pressure_val]
         print 'Error: Could not read pressure - trying again.'
 
 if __name__ == "__main__":
@@ -68,7 +69,7 @@ if __name__ == "__main__":
         #     attached = 0
 
         # attached = random.uniform(0,10)
-        print 'attached: ', attached
+        print 'attached: ', attached[0], "pressure:", attached[1]
         with open("pressureReading.pkl", "wb") as f:
             pickle.dump(attached, f)
         time.sleep(1)

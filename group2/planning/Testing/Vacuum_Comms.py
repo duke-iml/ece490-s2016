@@ -9,7 +9,7 @@ class CommVacuum:
     message_time = .01
 
     # initialize the serial comm
-    def __init__(self, port="COM7"):
+    def __init__(self):
         # on linux use port="/dev/ttyUSB2"
         # attempt to connect
         foundPort = False
@@ -37,7 +37,7 @@ class CommVacuum:
                     port = input('Port = ')
                     if port.isdigit():
                         port = '/dev/ttyUSB' + port
-            print('connected to an arduino... checking ID...')
+            print('connected to an arduino... checking ID (vacuum)...')
             time.sleep(0.5)
 
             # Reset Arduino
@@ -46,13 +46,14 @@ class CommVacuum:
             self.com.setDTR(True)  # UP the DTR back
 
             arduinoID = self.com.readline()
-            while not ("c" in arduinoID) or ("b" in arduinoID) or ("a" in arduinoID):
+            while not (("c" in arduinoID) or ("b" in arduinoID) or ("a" in arduinoID)):
                 arduinoID = self.com.readline()
                 time.sleep(0.01)
 
             # print "ID:", arduinoID
             if "c" in arduinoID:
                 print "ID Checked (vacuum controller)"
+                break
             else:
                 print "Wrong ID:", arduinoID
 
