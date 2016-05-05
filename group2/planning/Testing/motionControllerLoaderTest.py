@@ -32,23 +32,33 @@ import subprocess
 import binOrder
 binOrderParser = binOrder.binOrder()
 
+# Perception
+import perception 
+perceiver = perception.Perceiver()
+
+
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
+
+ALL_ARDUINOS = 0
+MOTOR = 1 or ALL_ARDUINOS
+VACUUM = 1 or ALL_ARDUINOS
 
 SPEED = 5
 
 # NOTE: Arduino stuff
 # import Pressure_Comms
 if PHYSICAL_SIMULATION:
-    import Motor_Comms_2
-    spatulaController = Motor_Comms_2.MoveSpatula()
-    spatulaCommand = [0,0,0,0]
+    if MOTOR:
+        import Motor_Comms_2
+        spatulaController = Motor_Comms_2.MoveSpatula()
+        spatulaCommand = [0,0,0,0]
 
-    import Vacuum_Comms
-    vacuumController = Vacuum_Comms.CommVacuum()
-    #subprocess.Popen(['python', 'Pressure_Comms.py'])
+    if VACUUM:
+        import Vacuum_Comms
+        vacuumController = Vacuum_Comms.CommVacuum()
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -58,6 +68,10 @@ order_bin_xform = (so3.identity(),[.65,-0.55,0])
 order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 # Order list. Can be parsed from JSON input
+global binList
+global objList
+global singleItemList
+
 global orderList
 orderList = ['tall_item', 'med_item',  'tall_item',
              'med_item',  'tall_item', 'med_item',
@@ -323,7 +337,7 @@ class FakeLowLevelController:
 
 class PhysicalLowLevelController(LowLevelController):
     """A low-level controller for the real robot."""
-    def __init__(self,robotModel,klampt_model="baxter_with_new_spatula_col2.rob"):
+    def __init__(self,robotModel,klampt_model="baxter_with_new_spatula_col3.rob"):
         print "Setting up motion_physical library with model",klampt_model
         #motion.setup(klampt_model = "../klampt_models/"+klampt_model)
         #motion.setup(mode="physical",libpath="", klampt_model = klampt_model)
@@ -407,7 +421,8 @@ class PhysicalLowLevelController(LowLevelController):
                 spatulaCommand = spatulaController.advance(spatulaPart)
             elif command[0] == 0:
                 spatulaController.reset_spatula()
-            elif: command[0] == 0.5:
+            elif command[0] == 0.5:
+                "running prepare"
                 spatulaController.prepare()
 
         # vacuum
@@ -479,7 +494,9 @@ class PickingController:
         self.move_gripper_to_center()
         self.waitForMove()
         # TODO: call perception calibration here
-
+        time.sleep(5)        
+        perceiver.show_image()
+        # perceiver.detect_background()
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
@@ -529,11 +546,11 @@ class PickingController:
             # if self.move_gripper_to_center():
             #     self.waitForMove()
 
-            # now close the gripper
-            self.controller.commandGripper('right', [1])
-            self.waitForMove()
-
             if self.move_to_grasp_object(self.held_object, step=1):
+                self.waitForMove()
+
+                # now close the gripper
+                self.controller.commandGripper('right', [1])
                 self.waitForMove()
 
                 # New Version
@@ -545,8 +562,9 @@ class PickingController:
                         self.waitForMove()
                         step += 1
                         with open("pressureReading.pkl", "rb") as f:
-                            val = pickle.load(f)
-                            print "Vacuum sensor state:", val
+                            valList = pickle.load(f)
+                            val = valList[0]
+                            print "Vacuum sensor state:", val, "Pressure:", valList[1]
                     print "GRASPED OBJECT"
 
                 else:
@@ -624,13 +642,13 @@ class PickingController:
                 self.spatula('out')
                 self.waitForMove()
 
+                self.spatula('in')
+                self.waitForMove()
+
                 # method 1
                 for i in range(5):
                     self.tilt_wrist('up', step=i+1)
                     self.waitForMove()
-
-                self.spatula('in')
-                self.waitForMove()
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
 
@@ -921,6 +939,9 @@ class PickingController:
         self.waitForMove()
         self.robot.setConfig(self.controller.getCommandedConfig())
 
+        # initialize spatulaPart to narrow base
+        spatulaPart = 2 
+
         bin_name = self.current_bin
         if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
             spatulaPart = 2 #"narrow_base"
@@ -934,7 +955,8 @@ class PickingController:
         elif direction=="in":
             direction = 0
         elif direction=="partial":
-            direction = 0.2
+            print "direction = 0.5"
+            direction = 0.5
 
         if direction=="fence_out":
             direction = 1
@@ -1397,26 +1419,40 @@ class PickingController:
         if step == 1:
             offset = 0.25
         elif step == 2:
-            offset = 0.25 - 0.10 - 0.01*step
+            offset = 0.25 - 0.10 - 0.025*step
         elif step >= 3:
-            offset = 0.25 - 0.10 - 0.01*step
+            offset = 0.25 - 0.10 - 0.025*step
 
         self.waitForMove()
         self.robot.setConfig(self.controller.getCommandedConfig())
 
+        global xPos
+        global yPos 
+        xPos = 0.5
+        yPos = 0.5
+
         # TODO: get this from perception group
-        # xPerception, yPerception = runPerception()
-        # xPos = xPerception*0.33
-        # yPos = yPerception*0.425
-        #xPos = random.uniform(0,0.33)
-        #yPos = random.uniform(0,0.435)
-        xPos = 0.33
-        yPos = 0.435
-        self.held_object.randRt = [ so3.rotation([0,1,0], math.pi/4),
-                                   vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
+        # if single item:
+        if step == 1:
+            print "\n=========================="        
+            if PHYSICAL_SIMULATION:
+                print "Running perception on bin", binIndex,"=", self.current_bin
+                #if singleItemList[binIndex]:
+                #    print "Single object..."
+                #    (xPos, yPos) = perceiver.perceive_single_object()
+                #else:
+                #    print "Multiple objects..."
+                #    (xPos, yPos) = perceiver.perceive(objList[binIndex])
+            else:
+                print "Running FAKE perception on bin", binIndex,"=", self.current_bin
+                xPos = 0.33
+                yPos = 0.435
+
+            self.held_object.randRt = [ so3.rotation([0,1,0], math.pi/4),
+                                       vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
 
         t_obj = object.randRt[1]
-        print "t_obj =",t_obj
+        #print "t_obj =",t_obj
 
         # t_obj = [0,0,0]
         R_obj = so3.identity()
@@ -1799,16 +1835,21 @@ def run_controller(controller,command_queue):
                 controller.moveToRestConfig()
 
                 global binOrderParser
-                (binList, objList) = binOrderParser.workBinOrder("apc_pick_task.json")
+                global binList
+                global objList
+                global singleItemList
+                (binList, objList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
 
                 print "================================"
                 print "Bin Order:", binList
                 print "Object Order:", objList
+                print "Single Item?:", singleItemList
                 print "================================\n"
 
 
                 #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
-
+                global binIndex 
+                binIndex = 0
                 for i in range(len(binList)):
                     controller.viewBinAction(binList[i])
                     controller.scoopAction()
@@ -1819,12 +1860,13 @@ def run_controller(controller,command_queue):
                     controller.viewBinAction(binList[i])
                     controller.unscoopAction()
                     controller.moveToRestConfig()
+                    binIndex += 1
             elif c == 's':
                 controller.scoopAction()
             elif c == 'y':
                 controller.unscoopAction()
             elif c == 't':
-                controller.spatula("out")
+                controller.spatula('partial')
             elif c == 'n':
                 controller.move_spatula_to_center()
             elif c == 'm':
@@ -2283,7 +2325,6 @@ if __name__ == "__main__":
         q = motion.robot.getKlamptSensedPosition()
         simworld.robot(0).setConfig(q)
         world.robot(0).setConfig(q)
-
         res = world.readFile(config.klampt_model)
         if not res:
             raise RuntimeError("Unable to load Klamp't model ")
