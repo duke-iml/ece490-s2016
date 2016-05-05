@@ -30,8 +30,8 @@ import subprocess
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 SPEED = 5
 
@@ -403,6 +403,9 @@ class PhysicalLowLevelController(LowLevelController):
                 spatulaCommand = spatulaController.advance(spatulaPart)
             elif command[0] == 0:
                 spatulaController.reset_spatula(spatulaCommand)
+            # TODO: 
+            #elif: command[0] == 0.5:
+            #    spatulaController.partially_advance(spatulaPart)
 
         # vacuum
         elif limb == 'right':
@@ -589,17 +592,34 @@ class PickingController:
                 while self.incrementalMove('down'):
                     self.waitForMove()
 
-                #self.spatula('out')
-                #self.waitForMove()
-                #return False
+                # push spatula out a little bit
+                self.spatula('partial')
+                self.waitForMove()
+
+                # move up incrementally
+                for i in range(3):
+                    self.incrementalMove('up')
+                    self.waitForMove()
+
+                # pull spatula back fully
+                self.spatula('in')
+                self.waitForMove()
+
+                # move down incrementally
+                while self.incrementalMove('down'):
+                    self.waitForMove()
+
+                # push spatula out fully
+                self.spatula('out')
+                self.waitForMove()
 
                 # method 1
                 for i in range(5):
                     self.tilt_wrist('up', step=i+1)
                     self.waitForMove()
 
-                #self.spatula('in')
-                #self.waitForMove()
+                self.spatula('in')
+                self.waitForMove()
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
 
@@ -902,6 +922,8 @@ class PickingController:
             direction = 1
         elif direction=="in":
             direction = 0
+        elif direction=="partial":
+            direction = 0.2
 
         if direction=="fence_out":
             direction = 1
@@ -1769,7 +1791,7 @@ def run_controller(controller,command_queue):
             elif c == 'y':
                 controller.unscoopAction()
             elif c == 't':
-                controller.spatula()
+                controller.spatula("out")
             elif c == 'n':
                 controller.move_spatula_to_center()
             elif c == 'm':

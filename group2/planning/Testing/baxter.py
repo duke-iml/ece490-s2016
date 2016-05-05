@@ -39,13 +39,14 @@ def set_model_gripper_command(robot,limb,command,spatulaPart = None):
     to [1] (open).
     """
     value = command[0]
+    print limb, spatulaPart
     if limb=='left':
         # print "Opening left gripper to",value
-        if spatulaPart == "wide_base":
+        if spatulaPart == 1:
             robot.driver(15).setValue(value*0.4) # wide base
-        elif spatulaPart == "narrow_base":
+        elif spatulaPart == 2:
             robot.driver(16).setValue(value*0.385) # narrow base
-        elif spatulaPart == "fence":
+        elif spatulaPart == 3:
             robot.driver(17).setValue(value*0.375) # fence
     else:
         # print "Opening right gripper to",value
