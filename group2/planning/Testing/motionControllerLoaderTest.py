@@ -1389,8 +1389,10 @@ class PickingController:
         '''
         if step == 1:
             offset = 0.25
-        elif step >= 2:
-            offset = 0.25 - 0.01*step
+        elif step == 2:
+            offset = 0.25 - 0.10 - 0.01*step
+        elif step >= 3:
+            offset = 0.25 - 0.10 - 0.01*step
 
         self.waitForMove()
         self.robot.setConfig(self.controller.getCommandedConfig())
@@ -1425,7 +1427,7 @@ class PickingController:
 
         if step==1:
             print "Solving for GRASP_OBJECT"
-        for i in range(100):
+        for i in range(500):
             sortedSolutions = self.get_ik_solutions(right_goal, limbs, qcmd, maxResults=100, maxIters=100, rangeVal = 0.001)
 
             if len(sortedSolutions)==0:
