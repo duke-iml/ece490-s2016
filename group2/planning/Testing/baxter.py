@@ -39,7 +39,6 @@ def set_model_gripper_command(robot,limb,command,spatulaPart = None):
     to [1] (open).
     """
     value = command[0]
-    print limb, spatulaPart
     if limb=='left':
         # print "Opening left gripper to",value
         if spatulaPart == 1:
