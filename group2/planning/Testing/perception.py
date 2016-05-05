@@ -42,22 +42,23 @@ class Perceiver():
 		recovered_x, recovered_y = int((x+side_len/2)*down_ratio), int((y+side_len/2)*down_ratio)
 		print "original position in score_map:", x, y
 		print "restored position:", recovered_x, recovered_y
-		plt.figure()
-		plt.imshow(img[::-1,:,:])
-		plt.hold(True)
-		plt.plot(recovered_y, img.shape[0]-recovered_x, 'ro')
-		plt.gca().set_aspect('equal', adjustable='box')
-		plt.axis([0,640,0,480])
-		plt.show(block=False)
-		return recovered_x, recovered_y # the order is correct
+		if self.show:
+			plt.figure()
+			plt.imshow(img[::-1,:,:])
+			plt.hold(True)
+			plt.plot(recovered_y, img.shape[0]-recovered_x, 'ro')
+			plt.gca().set_aspect('equal', adjustable='box')
+			plt.axis([0,640,0,480])
+			plt.show(block=False)
+		return recovered_x/img.shape[0], recovered_y/img.shape[1] # the order is correct
 
-	def detect_background(self, sigma=7):
+	def detect_background(self, sigma=10):
 		'''sigma is the parameter of blurring'''
 		img = self.rgb
 		if img is None:
 			print "not yet received data"
 			return None
-		self.cropped_background_img = self.crop_image(self.blur_image(img, sigma))
+		self.cropped_blurred_background_img = self.blur_image(self.crop_image(img))
 
 	def perceive_single_object(self, tol=50):
 		'''
@@ -65,21 +66,29 @@ class Perceiver():
 		return either a tuple of normalized location in range of 0 to 1 or None if detection failed
 		this function does NOT verify the identity of object
 		'''
-		assert self.cropped_background_img is not None
+		assert self.cropped_blurred_background_img is not None
 		img = self.rgb
-		img = self.crop_image(img)
-		diff = self.diff_image(img, self.cropped_background_img)
-		binarized = (diff < tol).astype('uint8')
-		
+		cropped_blurred_img = self.blur_image(self.crop_image(img))
+		binarized = self.binarize_foreground(cropped_blurred_img)
+		cc = self.get_largest_cc(binarized)
+		if cc is None:
+			return None
+		x, y = self.get_median_of_cc(cc)
+		print "Single object perception x:", x, "y:", y
+		x_normalized, y_normalized = x/img.shape[0], y/img.shape[1]
+		print "Normalized x:", x_normalized, "y:", y_normalized
+		return x_normalized, y_normalized
+
 
 
 	'''==================END PUBLIC INTERFACE=================='''
 
 
-	def __init__(self, ckpt_file='iter525500.ckpt', arch_file='architecture_spec.txt'):
+	def __init__(self, ckpt_file='iter525500.ckpt', arch_file='architecture_spec.txt', show=True):
+		self.show = show
 		self.init_ros()
 		self.init_tf(ckpt_file, arch_file)
-		self.cropped_background_img = None
+		self.cropped_blurred_background_img = None
 		time.sleep(3)
 
 	def init_ros(self):
@@ -102,16 +111,49 @@ class Perceiver():
 	def get_label_for_name(self, name):
 		return item_dict[official_to_short_mapping[name]]
 
+	def to_uv_color(self, img):
+		return cv2.cvtColor(img, cv2.cv.CV_RGB2YCrCb)[:,:,1:3]
+
 	def crop_image(self, img):
 		'''
 		crop img to only the part with the scoop
 		'''
-		return img
+		angle = -3
+		rotated = scipy.misc.imrotate(img, angle)
+		cropped = rotated[69:390,88:580,:]
+		return cropped
 
 	def diff_image(self, img1, img2):
 		diff = img1.astype(np.double) - img2.astype(np.double)
 		return np.linalg.norm(diff, axis=2)
 
+	def binarize_foreground(self, img_cropped_blurred, threshold=30):
+		'''
+		img_cropped_blurred is the image after cropping and blurring
+		'''
+		assert self.cropped_blurred_background_img is not None
+		background_blurred_uv = self.to_uv_color(self.cropped_blurred_background_img)
+		img_blurred_uv = self.to_uv_color(img_cropped_blurred)
+		diff_original = self.diff_image(self.cropped_blurred_background_img, img_cropped_blurred)/5
+		diff_uv = self.diff_image(background_blurred_uv, img_blurred_uv)
+		diff = diff_original + diff_uv
+		binarized = (diff > threshold)
+		if self.show:
+			plt.figure()
+			plt.imshow(self.cropped_blurred_background_img)
+			plt.title('Background Blurred')
+			plt.figure()
+			plt.imshow(img_cropped_blurred)
+			plt.title('Current View Blurred')
+			plt.figure()
+			plt.imshow(diff)
+			plt.title('Total RGB and UV Difference')
+			plt.colorbar()
+			plt.figure()
+			plt.title('Binarized')
+			plt.imshow(binarized)
+			plt.show(block=False)
+		return binarized.astype('uint8')
 
 	def dist3(self, p1, p2):
 		return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2+(p1[2]-p2[2])**2)**0.5
@@ -155,8 +197,9 @@ class Perceiver():
 		print "down_ratio:", down_ratio, "side length:", side_len
 		print "score map size: ", score_map.shape
 		print "score_map min:", score_map.min(), "score_map max:", score_map.max()
-		plt.figure()
-		plt.imshow(score_map)
+		if self.show:
+			plt.figure()
+			plt.imshow(score_map)
 		return (score_map>0.5).astype('uint8'), down_ratio, 50
 
 	def get_score_many_imgs(self, imgs):
@@ -239,7 +282,7 @@ class Perceiver():
 			new_img[:, int((h-w)/2):int((h-w)/2+w), :] = img
 		return new_img
 
-	def blur_image(self, img, sigma=7):
+	def blur_image(self, img, sigma=10):
 		return filters.gaussian_filter(img, [sigma, sigma, 0])
 
 

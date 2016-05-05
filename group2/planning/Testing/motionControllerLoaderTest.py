@@ -39,14 +39,14 @@ perceiver = perception.Perceiver()
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
 MOTOR = 1 or ALL_ARDUINOS
 VACUUM = 1 or ALL_ARDUINOS
 
-SPEED = 5
+SPEED = 3
 
 # NOTE: Arduino stuff
 # import Pressure_Comms
@@ -152,7 +152,7 @@ class KnowledgeBase:
             local_center = vectorops.add(local_center, [-0.01,0,0])
 
         if bin_name == 'bin_J':
-            local_center = vectorops.add(local_center, [-0.005,0,0])
+            local_center = vectorops.add(local_center, [-0.01,0,0])
         if bin_name == 'bin_K':
             local_center = vectorops.add(local_center, [-0.025,0,0])
         # in/out adjustment
@@ -493,10 +493,15 @@ class PickingController:
         self.waitForMove()
         self.move_gripper_to_center()
         self.waitForMove()
+        #self.move_gripper_to_center()
+        #self.waitForMove()
+        #self.move_gripper_to_center()
+        #self.waitForMove()                
         # TODO: call perception calibration here
         time.sleep(5)        
-        perceiver.show_image()
-        # perceiver.detect_background()
+        # perceiver.show_image()
+        perceiver.detect_background()
+        print "Camera calibration DONE\n"
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
@@ -533,6 +538,26 @@ class PickingController:
     def graspAction(self):
         self.waitForMove()
 
+
+        # for quick debugging perception
+        self.current_bin = "center"
+        self.stateRight = "ready"
+        self.stateLeft = "holding"
+        xPos = 0.33*0.5
+        yPos = 0.435*0.5
+        run_perception_on_bin(knowledge, 'bin_A')
+        self.held_object = knowledge.bin_contents['bin_A'].pop()        
+        self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
+                                   vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
+        global binIndex
+        binIndex = 0
+        global binList
+        global objList
+        global singleItemList
+        (binList, objList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
+
+
+
         if self.current_bin != "center":
             print "Spatula is not located at the center bin"
             return False
@@ -549,6 +574,9 @@ class PickingController:
             if self.move_to_grasp_object(self.held_object, step=1):
                 self.waitForMove()
 
+                self.move_to_grasp_object(self.held_object, step=2)
+                self.waitForMove()
+
                 # now close the gripper
                 self.controller.commandGripper('right', [1])
                 self.waitForMove()
@@ -556,15 +584,15 @@ class PickingController:
                 # New Version
                 if PHYSICAL_SIMULATION:
                     val = 0
-                    step = 2
+                    step = 3
                     while val==0:
-                        self.move_to_grasp_object(self.held_object, step=step)
-                        self.waitForMove()
-                        step += 1
                         with open("pressureReading.pkl", "rb") as f:
                             valList = pickle.load(f)
                             val = valList[0]
                             print "Vacuum sensor state:", val, "Pressure:", valList[1]
+                        self.move_to_grasp_object(self.held_object, step=step)
+                        self.waitForMove()
+                        step += 1
                     print "GRASPED OBJECT"
 
                 else:
@@ -617,16 +645,17 @@ class PickingController:
                 #pos = loadFromFile("../Positions/"+self.current_bin)
                 #print pos
                 # self.controller.appendMilestone(pos)
+                #return False
 
                 while self.incrementalMove('down'):
                     self.waitForMove()
-
+                #return False
                 # push spatula out a little bit
                 self.spatula('partial')
                 self.waitForMove()
 
                 # move up incrementally
-                for i in range(3):
+                for i in range(10):
                     self.incrementalMove('up')
                     self.waitForMove()
 
@@ -642,21 +671,33 @@ class PickingController:
                 self.spatula('out')
                 self.waitForMove()
 
+                # flat out spatula
+                self.tilt_wrist('down', step = 4)
+                self.waitForMove()
+                return False
+
                 self.spatula('in')
                 self.waitForMove()
 
-                # method 1
-                for i in range(5):
-                    self.tilt_wrist('up', step=i+1)
+                # move up incrementally
+                for i in range(15):
+                    self.incrementalMove('up')
                     self.waitForMove()
+
+                # method 1
+                #for i in range(5):
+                #    self.tilt_wrist('up', step=i+1)
+                #    self.waitForMove()
 
                 self.held_object = knowledge.bin_contents[self.current_bin].pop()
 
                 # self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
                 #                             [random.uniform(-0.07,0.07) , 0.005+(self.held_object.info.bmax[1]-self.held_object.info.bmin[1])/2 , random.uniform(-0.05, -0.25)]]
 
-                xPos = random.uniform(0,0.33)
-                yPos = random.uniform(0,0.435)
+                #xPos = random.uniform(0,0.33)
+                #yPos = random.uniform(0,0.435)
+                xPos = 0.33*0.5
+                yPos = 0.435*0.5
                 self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
                                            vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
 
@@ -683,10 +724,14 @@ class PickingController:
         #     return False
         else:
             # if self.move_camera_to_bin(self.current_bin):
-            if self.tilt_wrist('up', step=3):
+            if self.tilt_wrist('down', step = 1):
                 self.waitForMove()
 
-                self.tilt_wrist('down')
+                self.tilt_wrist('down', step = 2)
+                self.waitForMove()
+                #return False
+
+                self.tilt_wrist('down', step = 3)
                 self.waitForMove()
 
                 self.spatula('fence_out')
@@ -788,7 +833,7 @@ class PickingController:
         if direction == "down":
             offset = [0,0,-0.005]
         if direction == "up":
-            offset = [0,0,0.005]
+            offset = [0,0,0.01]
 
         targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
 
@@ -854,9 +899,13 @@ class PickingController:
 
         # tilted angle view for spatula
         if direction == 'down':
-            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*20))
+            #R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*20))
+            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*30))
+
             # [(+Right/-Left), (+Up/-Down), (+In/-Out)
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
+            #world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
+            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.155,0.4225])
+
             t_camera = vectorops.add(world_center,world_offset)
             dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
             if step == 0:
@@ -871,7 +920,7 @@ class PickingController:
             elif step == 2:
                 # print "moving up/side (tilt-wrist part 2)"
                 #left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.05,0.4675-0.02]))))
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.1,0.4675-0.02]))))
                 # print "goal pos =", vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.05,0.4675-0.02]))
                 maxSmoothIters=3
                 incremental = True
@@ -881,6 +930,23 @@ class PickingController:
                 left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
                 maxSmoothIters=5
                 incremental = True
+
+            elif step == 4:
+                #R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*20))
+                R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*10))
+
+                # [(+Right/-Left), (+Up/-Down), (+In/-Out)
+                #world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
+                world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.055,0.4425])
+
+                t_camera = vectorops.add(world_center,world_offset)
+                dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)                                
+
+                # print "tilting down (tilt-wrist part 3)"
+                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
+                maxSmoothIters=1
+                incremental = True
+
 
         elif direction == 'up':
             # method 1
@@ -901,7 +967,7 @@ class PickingController:
         qcmd = self.controller.getCommandedConfig()
 
         print "Solving for TILT_WRIST (", direction, step, ")"
-        for i in range(50):
+        for i in range(500):
             sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,rangeVal=dist/1000)
 
             if len(sortedSolutions)==0:
@@ -1064,6 +1130,9 @@ class PickingController:
                     q += [0.0]*(n-len(q))
                 self.controller.setMilestone(q)
             else:
+                # make a copy of start position
+                q0 = copy.deepcopy(path[0])
+
                 # make a copy of goal position
                 q1 = copy.deepcopy(path[-1])
 
@@ -1071,10 +1140,11 @@ class PickingController:
                 q1[35] = -0.3
 
                 # first step (move up)
-                self.sendPath([q1])
+                self.sendPath([q0, q1], maxSmoothIters = 1)
+                self.waitForMove()
 
                 # secpmd step (move left, above spatula)
-                self.sendPath([path[-1]])
+                self.sendPath([q1, path[-1]], maxSmoothIters = 1)
             return True
         else:
         # if LOAD_TRAJECTORY and not FAKE_SIMULATION:
@@ -1152,10 +1222,11 @@ class PickingController:
                 self.move_to_order_bin(self.held_object,step=2)
                 self.waitForMove()
 
-                # now open the gripper
+                # now turn off vacuum
                 time.sleep(5)
                 self.controller.commandGripper('right',[0])
                 self.waitForMove()
+                time.sleep(3)
 
                 knowledge.order_bin_contents.append(self.held_object)
                 print "Successfully placed",self.held_object.info.name,"into order bin"
@@ -1374,6 +1445,10 @@ class PickingController:
                 self.controller.setMilestone(q)
             else:
                 self.sendPathClosedLoop(path, clearRightArm=True)
+                #if self.stateLeft == 'ready' and self.held_object == None:
+                #    self.sendPath(path, clearRightArm=True)
+                #else:
+                #    self.sendPathClosedLoop(path, clearRightArm=True)
             return True
 
         # If we are backing off from bin to view camera
@@ -1419,41 +1494,60 @@ class PickingController:
         if step == 1:
             offset = 0.25
         elif step == 2:
-            offset = 0.25 - 0.10 - 0.025*step
+            offset = 0.25
         elif step >= 3:
-            offset = 0.25 - 0.10 - 0.025*step
+            offset = 0.25 - 0.15 - 0.01*step
 
         self.waitForMove()
         self.robot.setConfig(self.controller.getCommandedConfig())
 
         global xPos
         global yPos 
-        xPos = 0.5
-        yPos = 0.5
+        xScale = 0.33
+        yScale = 0.435
+        xPos = 0.5 * xScale
+        yPos = 0.5 * yScale
 
         # TODO: get this from perception group
         # if single item:
         if step == 1:
             print "\n=========================="        
             if PHYSICAL_SIMULATION:
-                print "Running perception on bin", binIndex,"=", self.current_bin
-                #if singleItemList[binIndex]:
-                #    print "Single object..."
-                #    (xPos, yPos) = perceiver.perceive_single_object()
-                #else:
-                #    print "Multiple objects..."
-                #    (xPos, yPos) = perceiver.perceive(objList[binIndex])
+                print "Running perception on order #", binIndex
+                time.sleep(5)
+                if singleItemList[binIndex]:
+                    print "Single object..."
+                    xyPos = perceiver.perceive_single_object()
+                    if xyPos == None:
+                        print "Failed to detect object"
+                        return False
+                    xPos = xyPos[0]
+                    yPos = xyPos[1]
+                else:
+                    print "Multiple objects..."
+                    xyPos = perceiver.perceive(objList[binIndex])
+                    if xyPos == None:
+                        print "Failed to detect object"
+                        return False
+                    xPos = xyPos[0]
+                    yPos = xyPos[1]
+                # change coordinate 
+                print "pre-adjust object position =", (xPos, yPos)                
+                temp = yPos
+                yPos = 1 - xPos
+                xPos = temp                    
+                print "adjusted object position =", (xPos, yPos)
+                xPos = xPos * xScale
+                yPos = yPos * yScale
             else:
                 print "Running FAKE perception on bin", binIndex,"=", self.current_bin
                 xPos = 0.33
                 yPos = 0.435
-
             self.held_object.randRt = [ so3.rotation([0,1,0], math.pi/4),
                                        vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
-
+            time.sleep(5)
         t_obj = object.randRt[1]
         #print "t_obj =",t_obj
-
         # t_obj = [0,0,0]
         R_obj = so3.identity()
 
@@ -1854,12 +1948,12 @@ def run_controller(controller,command_queue):
                     controller.viewBinAction(binList[i])
                     controller.scoopAction()
                     controller.move_spatula_to_center()
-                    controller.move_gripper_to_center()
+                    controller.move_gripper_to_center()                                     
                     controller.graspAction()
                     controller.placeInOrderBinAction()
                     controller.viewBinAction(binList[i])
                     controller.unscoopAction()
-                    controller.moveToRestConfig()
+                    #controller.moveToRestConfig()
                     binIndex += 1
             elif c == 's':
                 controller.scoopAction()

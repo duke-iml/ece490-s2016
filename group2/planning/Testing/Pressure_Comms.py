@@ -50,7 +50,6 @@ class CommPressure:
 
 if __name__ == "__main__":
     ports = list(serial.tools.list_ports.comports())
-    
     foundPort = False
     for p in ports:
         print p

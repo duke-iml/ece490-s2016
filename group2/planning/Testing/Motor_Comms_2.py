@@ -94,7 +94,7 @@ class MoveSpatula:
             feedback = str.split(feedback, ",")
             if all(i >= 0 for i in feedback) and len(feedback) == msg_length:
                 measured_current = int(feedback[0])
-                #print str(measured_current)
+                print str(measured_current)
                 return measured_current
             print 'Error: Could not read current - trying again.'
 
@@ -159,13 +159,14 @@ class MoveSpatula:
 
     # run the spatula to stall in whichever direction the previous command specifies
     def to_stall(self, previous_command, which_switch):
-        stall_current = 600  # stall current
+        stall_current = 700  # stall current
         stall_power = 255    # motor power
         rest_current = 10
         switch_val = 0
         curr = 0
         previous_command[0] = stall_power
-        while (curr < stall_current) & (switch_val == 0):
+        endTime = time.time() + 10
+        while (curr < stall_current) & (switch_val == 0) & (time.time() < endTime):
             curr = self.read_current()
             switch_val = self.read_switches(which_switch)
             #print(str(switch_val))
@@ -196,7 +197,7 @@ class MoveSpatula:
 
 if __name__ == "__main__":
     spat = MoveSpatula()
-    #spat.reset_spatula()
-    # spat.advance(2)
+    spat.reset_spatula()
+    #spat.advance(2)
     #spat.prepare()
     #print spat.read_switches(0)
