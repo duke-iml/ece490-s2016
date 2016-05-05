@@ -406,10 +406,9 @@ class PhysicalLowLevelController(LowLevelController):
             if command[0] == 1:
                 spatulaCommand = spatulaController.advance(spatulaPart)
             elif command[0] == 0:
-                spatulaController.reset_spatula(spatulaCommand)
-            # TODO: 
-            #elif: command[0] == 0.5:
-            #    spatulaController.partially_advance(spatulaPart)
+                spatulaController.reset_spatula()
+            elif: command[0] == 0.5:
+                spatulaController.prepare()
 
         # vacuum
         elif limb == 'right':
@@ -473,6 +472,14 @@ class PickingController:
             iters += 1
         # print "--> done\n"
         return True
+
+    def calibratePerception(self):
+        self.moveToRestConfig()
+        self.waitForMove()
+        self.move_gripper_to_center()
+        self.waitForMove()
+        # TODO: call perception calibration here
+
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
@@ -1398,9 +1405,19 @@ class PickingController:
         self.robot.setConfig(self.controller.getCommandedConfig())
 
         # TODO: get this from perception group
-        t_obj = object.randRt[1]
+        # xPerception, yPerception = runPerception()
+        # xPos = xPerception*0.33
+        # yPos = yPerception*0.425
+        #xPos = random.uniform(0,0.33)
+        #yPos = random.uniform(0,0.435)
+        xPos = 0.33
+        yPos = 0.435
+        self.held_object.randRt = [ so3.rotation([0,1,0], math.pi/4),
+                                   vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
 
-        # print "t_obj =",t_obj
+        t_obj = object.randRt[1]
+        print "t_obj =",t_obj
+
         # t_obj = [0,0,0]
         R_obj = so3.identity()
 
@@ -1813,7 +1830,7 @@ def run_controller(controller,command_queue):
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == '`':
-                print motion.robot.getKlamptSensedPosition()
+                controller.calibratePerception()
             elif c=='q':
                 break
         else:
