@@ -1,9 +1,21 @@
 import rospy
 import baxter_interface
+from constants import *
 
+import sys
+
+
+if(len(sys.argv) == 2):
+	print sys.argv[1]
+	q_target = eval(sys.argv[1])
+	print 'Moving to ' , q_target
+elif (len(sys.argv) == 3):
+	q_target = eval(sys.argv[1])
+	q_target = q_target[eval(sys.argv[2])]
+else:
+	q_target = Q_STOW
+	print 'Moving to ', q_target
 # Change me!
-q_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-q_target = [1.1508690847961427, -0.7558690323669434, -0.3704563598510742, 1.1922865660217286, 0.19596604542846682, 1.2455923983398438, -0.07708253450317383]
 
 
 rospy.init_node('oeu')

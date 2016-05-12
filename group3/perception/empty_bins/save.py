@@ -5,6 +5,9 @@
 # Usage: python save_calibrated_shelf.py shelf
 
 import sys
+sys.path.insert(0, "../..")
+
+import sys
 import rospy
 import numpy as np
 from sensor_msgs.msg import PointCloud2
@@ -12,17 +15,13 @@ import sensor_msgs.point_cloud2 as pc2
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import perception
-
-STEP = 25
-ROS_TOPIC = "/realsense/pc"
-
-print sys.argv
+from util.constants import *
 
 if len(sys.argv) >= 2:
     SAVE_LOCATION = sys.argv[1]
 else:
-    print "ERROR: You must supply a path (no need for .npz extension) to save to"
-    print "Usage: python save_calibrated_shelf.py myfile"
+    print "ERROR: You must supply the bin letter"
+    print "Usage: python save_calibrated_shelf.py [uppercase bin letter]"
     sys.exit(0)
 
 class SaveF200DepthSnapshot:
@@ -49,7 +48,7 @@ class SaveF200DepthSnapshot:
             # cloud, _ = perception.calPointCloud(cloud)
             #add end
             #cloud = cloud.transpose()
-            cloud = cloud[::STEP]
+            cloud = cloud[::10]
             print cloud
             xs = cloud[:,0]
             ys = cloud[:,1]
@@ -66,7 +65,7 @@ class SaveF200DepthSnapshot:
 
     def listener(self):
         rospy.init_node("listener", anonymous=True)
-        rospy.Subscriber(ROS_TOPIC, PointCloud2, self.callback)
+        rospy.Subscriber(ROS_DEPTH_TOPIC, PointCloud2, self.callback)
         rospy.spin()
 
 if __name__ == '__main__':

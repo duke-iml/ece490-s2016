@@ -10,6 +10,10 @@ from scipy.spatial import KDTree, cKDTree
 import copy
 import ctypes
 import struct
+import os
+import color
+import operator
+from numpy.linalg import norm,svd
 
 def isCloudValid(cloud):
     """
@@ -46,7 +50,7 @@ def convertPc2ToNp(data):
     Input: PointCloud2 message
     Output: NumPy array of point cloud [x,y,z,index]
     """
-    STEP = 15 # Plot every STEPth point for speed, set to 1 to plot all
+    STEP = 1 # Plot every STEPth point for speed, set to 1 to plot all
 
     # Load cloud data
     xs = []
@@ -56,7 +60,7 @@ def convertPc2ToNp(data):
     r = []
     g = []
     b = []
-    i = 1
+    idxnum = 0
     for point in pc2.read_points(data,skip_nans=False,field_names=("rgb","x","y","z")):
         # print point
         xs.append(point[0])
@@ -69,15 +73,18 @@ def convertPc2ToNp(data):
         i = struct.unpack('>l',s)[0]
         # you can get back the float value by the inverse operations
         pack = ctypes.c_uint32(i).value
-        a = (pack & 0xFF000000)>> 24
-        r = (pack & 0x00FF0000)>> 16
-        g = (pack & 0x0000FF00)>> 8
-        b = (pack & 0x000000FF)
-        idx.append(i)
-        i = i+1
+        # a = (pack & 0xFF000000)>> 24
+        r1 = (pack & 0x00FF0000)>> 16
+        g1 = (pack & 0x0000FF00)>> 8
+        b1 = (pack & 0x000000FF)
+        r.append(r1)
+        g.append(g1)
+        b.append(b1)
+        idx.append(idxnum)
+        idxnum = idxnum+1
     print "Point cloud count: " + str(len(xs))
-    print r,g,b,a
-    cloud = np.array([xs,ys,zs,idx])
+    # print r,g,b,a
+    cloud = np.array([xs,ys,zs,idx,r,g,b])
     cloud = cloud.transpose()
     nans = np.isnan(cloud)
     cloud[nans] = 0
@@ -86,20 +93,20 @@ def convertPc2ToNp(data):
     cloud = cloud[::STEP]
     return cloud
 
-def subtractShelf(cloud):
+def subtractShelf(cloud, bin_letter):
     """
     Input: Numpy array of points with index as the forth number
     Output: Numpy array of points without shelf points
     """
     # Load shelf data
-    data_shelf = np.load(SHELF_NPZ_FILE)
+    data_shelf = np.load(BIN_NPZ_FOLDER + bin_letter + '.npz')
     dshel = np.mat([data_shelf['arr_0'],data_shelf['arr_1'],data_shelf['arr_2']])
     dshel = dshel.transpose()
 
     # Construct kd-tree and remove nearest neighbors
     pCloud = copy.copy(cloud[:,0:3])
     t = cKDTree(pCloud)
-    d, idx = t.query(dshel, k=20, eps=0, p=2, distance_upper_bound=0.1)
+    d, idx = t.query(dshel, k=20, eps=0, p=2, distance_upper_bound=10)
     Points_To_Delete = []
     for i in range(0,len(idx)):
        for j in range(0,19):
@@ -111,115 +118,87 @@ def subtractShelf(cloud):
     cloud = cloud[cloud[:,0] != 0 , :]
     return cloud
 
-def segmentation(cloud):
+def resample(cloud, np_cloud, n = 5):
     """
-    Input: Numpy array of point cloud with index as the forth number
-    Output: List of planes (Np arrays) with index as the forth number
-    object is cloud without index now
+    Input: Numpy array of point cloud without downsample, 
+            Numpy array of downsampled point cloud
+    Method: take the left n points and right n points in downsampled point cloud
+            add the to the final point cloud;
+    Output: resampled point cloud
     """
-    print 'start segmentation'
-    STEP = 50
-    o = 1
-    oo = 1
-    ooo = 1
-    object = copy.copy(cloud[:,0:3])
-    tree = cKDTree(object)
-    dist1,idx1 = tree.query(object,k=20, eps=0, p=2, distance_upper_bound=5)
 
-    dmin = len(object)/2
-    print "dmin"
-    print dmin
-    point_list = np.array([dmin])#index number of points in each iteration
-    sellist = np.array([dmin])#selected points for one area
-    edthall = np.median(dist1)
-    print "edthall is "
-    print edthall
-    leftpoint = np.ones(len(object))
-    listall = [point_list]
-    show = 1
-    while max(leftpoint) > 0 and ooo <= 5:
-        print("segment ",ooo)
-        r = np.zeros((1,4))
-        while len(point_list) >0 and oo<=5000:
-            print "segmentation loop..."
-            number = len(point_list)
-            print("length of point list", number)
-            for k in range(0,number):
-                dmin = point_list[0]
-                edth = np.median(dist1[dmin-1])
-                n,v,p = np.linalg.svd(object[idx1[dmin-1,:],:])
-                p = p.transpose()
-                dminmean = np.mean(object[idx1[dmin-1,:],:], axis=0)
-                odth1 = np.zeros((20,1))
-                for i in range(0,20):
-                    odth1[i] = abs(np.dot((object[idx1[dmin-1,i],:] - dminmean),p[:,2])) 
-                odth = np.median(odth1)
-                pointss = np.zeros((20,4))
-                pointnum = np.zeros(20)
-                pointnum1 = np.zeros(20)
-                for i in range(0,20): 
-                    if dist1[dmin-1,i]<=abs(edthall) and dist1[dmin-1,i] <= abs(edth) and np.dot((object[idx1[dmin-1,i],:] - dminmean),p[:,2])<odth:
-                        pointss [i,:] = cloud[idx1[dmin-1,i],:]
-                        pointnum[i] = idx1[dmin-1,i]
-                        leftpoint[idx1[dmin-1,i]] = 0
-                        object[idx1[dmin-1,i],0:3] = 0
-                r = np.append(r,pointss,axis =0)
-                pointnum1 = pointnum
-                mask = (pointnum1 !=0)
-                pointnum1 = pointnum1[mask]
-                for i in range(0,len(pointnum1)):
-                    if len((point_list == pointnum1[i]).ravel().nonzero()[0]):
-                        curr_number = pointnum1[i]
-                        pointnum1[i] =0
-                        if len((sellist == curr_number).ravel().nonzero()[0]):
-                            point_list = point_list[(point_list != curr_number)]
-                            pointnum1[i] = 0
-                    if len((sellist == pointnum1[i]).ravel().nonzero()[0]):
-                        point_list = point_list[(point_list != pointnum1[i])]
-                        pointnum1[i] = 0
-                    if pointnum1[0] == dmin:
-                        pointnum1[0] = 0
-                pointnum1 = pointnum1[(pointnum1 != 0)]
-                point_list =np.append(point_list,pointnum1,axis =0)
-                point_list = point_list[1:(len(point_list))]
-                point_list = point_list[(point_list != 0)]
-                if not len((sellist == dmin).ravel().nonzero()[0]):
-                    sellist = np.append(sellist,[dmin],axis =0)
-                o = o+1
-                if len(point_list) == 0:
-                    print "break"
-                    break# end of for loop
-            if len(point_list) == 0:
-                print "break"
-                break                  
-            else:
-                oo = oo+1
-                listall.append(point_list)# end of inside while loop
-        if len(r) > 1 :
-            print np.size(r,axis= 0)
-            print np.size(r,axis= 1)
-            a = 'plane'+str(ooo)
-            np.savez(a, r[:,0],r[:,1],r[:,2])
-        o =1
-        oo =1
-        #clear these three in case
-        pointss = np.zeros((20,4))
-        pointnum = np.zeros(20)
-        pointnum1 = np.zeros(20)
-        object = object[object[:,2]!=0]
-        tree = cKDTree(object)
-        dist1,idx1 = tree.query(object,k=20, eps=0, p=2, distance_upper_bound=5)
-        leftpoint = np.ones(len(object))
-        dmin = len(object)/2
-        point_list = np.array([dmin])
-        sellist = np.array([dmin])
-        edthall = np.median(dist1)
-        listall = [point_list]# why this???
-        ooo = ooo+1
-        r = r[r[:,1]!=0 , :]
-        print len(r)
-        print ("plane from segmentation: ", r)
-    return r
+    color_idx = np_cloud[:,3]
+    for i in range(1,n):
+        color_idx = np.append(color_idx, np_cloud[:,3]+i, axis = 0)
+        color_idx = np.append(color_idx, np_cloud[:,3]-i, axis = 0) 
+    color_idx =  color_idx[color_idx[:] < 307200]
+    color_idx =  color_idx[color_idx[:] > 0]
+    return cloud[color_idx.astype(int)]
+
+def objectMatch(cloud,histogram_dict):
+    """
+    Input: Numpy array of cloud with RGB of current object, dictionary of all the object in the shelf
+    Output: ID of specific point cloud 
+    """
+    uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in cloud[:,4:7]]
+    hist = color.make_uv_hist(uv)
+    scores = dict([ (obj, 2 * np.minimum(hist, histogram).sum() - np.maximum(hist, histogram).sum()) for (obj, histogram) in histogram_dict.items()])
+    sorted_score = sorted(scores.items(), key=operator.itemgetter(1),reverse = True)
+    obj = sorted_score[0][0]
+    score = sorted_score[0][1]
+    if DEBUG_PERCEPTION:
+        print 'found object ' + str((obj-1)/NUM_HIST_PER_OBJECT+1) + '\nscore is ' + str(score)+ '\ncloud com is '
+        print com(cloud)
+        print "\n" 
+    return (obj-1)/NUM_HIST_PER_OBJECT+1,score
+
+def objectMatch1(cloud,histogram_dict):
+    """
+    Input: Numpy array of cloud with RGB of current object, dictionary of all the object in the shelf
+    Output: ID of specific point cloud 
+    """
+    uv = [color.rgb_to_yuv(*rgb)[1:3] for rgb in cloud[:,4:7]]
+    hist = color.make_uv_hist(uv)
+    scores = dict([ (obj, dtw(svd(hist)[1].reshape(-1, 1),svd(histogram)[1].reshape(-1, 1),dist=lambda t13, t14: norm(svd(hist)[1].reshape(-1, 1) - svd(histogram)[1].reshape(-1, 1), ord=1))) for (obj, histogram) in histogram_dict.items()])
+    sorted_score = sorted(scores.items(), key=operator.itemgetter(1),reverse = True)
+    obj = sorted_score[0][0]
+    score = sorted_score[0][1]
+    if DEBUG_PERCEPTION:
+        print 'found object ' + str((obj-1)/NUM_HIST_PER_OBJECT+1) + '\nscore is ' + str(score)+ '\ncloud com is '
+        print com(cloud)
+        print "\n" 
+    return (obj-1)/NUM_HIST_PER_OBJECT+1,score
+
+def dtw(x, y, dist):
+    assert len(x)
+    assert len(y)
+    r, c = len(x), len(y)
+    D0 = np.zeros((r + 1, c + 1))
+    D0[0, 1:] = np.inf
+    D0[1:, 0] = np.inf
+    D1 = D0[1:, 1:]
+    for i in range(r):
+        for j in range(c):
+            D1[i, j] = dist(x[i], y[j])
+    C = D1.copy()
+    for i in range(r):
+        for j in range(c):
+            D1[i, j] += min(D0[i, j], D0[i, j+1], D0[i+1, j])
+    return sum(D1.shape)/D1[-1, -1]
+
+def loadHistogram(objects):
+    """
+    Input: list of index of objects
+    Output: dictionary of histogram, (index -1)*3+1,2,3 as Key, histogram as value
+    """
+    histo_dict = {}
+    for i in objects:
+        for j in range(1, NUM_HIST_PER_OBJECT+1):
+            idx = (i-1) * NUM_HIST_PER_OBJECT + j
+            if DEBUG_PERCEPTION:
+                print 'load histgram ' + str(idx)
+            histo_dict[idx] = np.load(PERCEPTION_DIR + '/{}.npz'.format(idx))['arr_0']
+    return histo_dict
 
 def com(cloud):
-    return np.mean(cloud,axis = 0)
+    return np.mean(cloud,axis = 0)[0:3]
