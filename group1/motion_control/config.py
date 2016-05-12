@@ -3,12 +3,12 @@
 #change this to "client" to use the MotionServer_X program
 #change this to "kinematic" to test in kinematic mode
 #change this to "physical" if you are ready to test on the real robot
-#mode = 'client'
+mode = 'client'
 #mode = 'kinematic'
-mode = 'physical'
+#mode = 'physical'
 
 #relative path, assumes everything is run from the common directory
-klampt_model = "klampt_models/baxter_with_parallel_gripper_col.rob"
+klampt_model = "klampt_models/baxter_col.rob"
 #klampt_model = "klampt_models/hstar_amp1_col.rob"
 
 #Motion server address.  Use this if you are using a server on another
@@ -26,8 +26,8 @@ def parse_args():
 def setup(parse_sys=True):
     global mode,klampt_model,motion_server_addr
     import os
-    import motion
-    motion_root = os.getenv("MOTION_API_PATH","./")
+    from common.Motion import motion
+    motion_root = os.getenv("MOTION_API_PATH","./common/")
     if parse_sys:
         parse_args()
     print "Loading Motion Module model",klampt_model

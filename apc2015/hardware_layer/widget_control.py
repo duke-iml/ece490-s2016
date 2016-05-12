@@ -11,13 +11,13 @@ from Motion import motion
 #change this to None to use the default mode linked to by libebolabot.so
 #change this to "kinematic" to test in kinematic mode
 #change this to "physical" if you are ready to test on the real robot
-mode = 'kinematic' # 'physical'
-#mode = 'physical'
+#mode = 'kinematic' # 'physical'
+mode = 'physical'
 
 #assumes ece590-s2015 is in the home directory
-#klampt_model = os.path.join(os.path.expanduser("~"),"ece590-s2015/klampt_models/baxter_col.rob")
+klampt_model = os.path.join(os.path.expanduser("~"),"ece490-s2016/klampt_models/baxter_col.rob")
 #klampt_model = os.path.join(os.path.expanduser("~"),"ece590-s2015/klampt_models/baxter_with_parallel_gripper_col.rob")
-klampt_model = os.path.join(os.path.expanduser("~"),"ece590-s2015/klampt_models/baxter_with_reflex_gripper_col.rob")
+#klampt_model = os.path.join(os.path.expanduser("~"),"ece590-s2016/klampt_models/baxter_with_reflex_gripper_col.rob")
 
 #########################################################################
 

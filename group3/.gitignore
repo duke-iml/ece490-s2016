@@ -1,0 +1,6 @@
+*.py~
+perception/._*
+planning/._*
+util/._*
+*.npz
+*.pcd
