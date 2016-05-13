@@ -15,14 +15,14 @@ class Scale_Measurement:
 		# v find the USB device
 		self.device = usb.core.find(idVendor = self.VENDOR_ID, idProduct = self.PRODUCT_ID)
 
-		#if self.device == None:
-		#	raise IOError('Device not found')
+		if self.device == None:
+			raise IOError('Device not found')
 		
 		#use the initial configuration
 
 		#first endpoint
-		#self.endpoint = self.device[0][(0,0)][0]
-		# [device number][configuration][? idk]
+		self.endpoint = self.device[0][(0,0)][0]
+		#[device number][configuration][? idk]
 
 	#read a data packet
 	def readData(self, attempts):
@@ -36,9 +36,14 @@ class Scale_Measurement:
 
 		data = None
 		while data is None and attempts >0:
+
+			print attempts
+
 			try:
 				data = self.device.read(self.endpoint.bEndpointAddress, self.endpoint.wMaxPacketSize)
 			except usb.core.USBError as e:
+				print e
+				print data
 				data = None
 				if e.args == ('Operation timed out',):
 					attempts -=1
@@ -47,7 +52,7 @@ class Scale_Measurement:
 		# ^ reads from usb until it gets data or uses max attempts
 		#print data
 
-		if data is None
+		if data is None:
 			raise IOError('Received no data')
 
 		scaling_factor = data[3]
