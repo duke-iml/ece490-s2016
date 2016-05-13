@@ -5,11 +5,16 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
-NPZ_FILE = 'shelf.npz'
-STEP = 100 # Plot every STEPth point for speed, set to 1 to plot all
+if len(sys.argv) >= 2:
+    NPZ_FILE = sys.argv[1]
+else:
+    print "ERROR: You must supply a NPZ file to plot"
+    print "Usage: python plot_f200_depth_snapshot.py myfile.npz"
+    sys.exit(0)
+
+STEP = 1 # Plot every STEPth point for speed, set to 1 to plot all
 
 data = np.load(NPZ_FILE)
-
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.scatter(data['arr_0'][::STEP], data['arr_1'][::STEP], data['arr_2'][::STEP])
