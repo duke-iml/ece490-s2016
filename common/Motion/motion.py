@@ -597,7 +597,9 @@ class Motion:
         """Retrieves the sensed configuration as a Klamp't configuration.  The Klamp't model must be set"""
         if self.temp == None:
             n = motion_lib.getKlamptNumDofs()
-            if n < 0: return False
+            if n < 0:
+                print "num klampt dofs negative, maybe robot model not set up?" 
+                return False
             self.temp = (c_double*n)()
         temp_p = cast(self.temp,POINTER(c_double))
         if not motion_lib.getKlamptSensedPosition(temp_p): return False;
