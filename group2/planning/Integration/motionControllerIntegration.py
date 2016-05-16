@@ -85,60 +85,6 @@ orderList = ['tall_item', 'med_item',  'tall_item',
              'tall_item', 'med_item',  'tall_item',
              'med_item',  'tall_item', 'med_item']
 
-def init_ground_truth():
-    global ground_truth_items
-    ground_truth_items = [
-                          apc.ItemInBin(apc.tall_item,'bin_A'),
-                          apc.ItemInBin(apc.med_item,'bin_B'),
-                          apc.ItemInBin(apc.tall_item,'bin_C'),
-                          apc.ItemInBin(apc.med_item,'bin_D'),
-                          apc.ItemInBin(apc.tall_item,'bin_E'),
-                          apc.ItemInBin(apc.med_item,'bin_F'),
-                          apc.ItemInBin(apc.tall_item,'bin_G'),
-                          apc.ItemInBin(apc.med_item,'bin_H'),
-                          apc.ItemInBin(apc.tall_item,'bin_I'),
-                          apc.ItemInBin(apc.med_item,'bin_J'),
-                          apc.ItemInBin(apc.tall_item,'bin_K'),
-                          apc.ItemInBin(apc.med_item,'bin_L')]
-    for i in range(len(ground_truth_items)):
-        ux = random.uniform(0.25,0.5)
-        uy = random.uniform(0.2,0.4)
-        if ground_truth_items[i].info.name == 'med_item':
-            # theta = random.uniform(math.pi/4, 3*math.pi/4)
-            theta = math.pi/2
-        else:
-            theta = random.uniform(-math.pi/6, math.pi/6)
-        ground_truth_items[i].set_in_bin_xform(ground_truth_shelf_xform, ux, uy, theta)
-    for item in ground_truth_items:
-        item.info.geometry = load_item_geometry(item)
-
-def load_item_geometry(item,geometry_ptr = None):
-    """Loads the geometry of the given item and returns it.  If geometry_ptr
-    is provided, then it is assumed to be a Geometry3D object and the object
-    geometry is loaded into it."""
-    if geometry_ptr == None:
-        geometry_ptr = Geometry3D()
-    if item.info.geometryFile == None:
-        return None
-    elif item.info.geometryFile == 'box':
-        fn = model_dir + "cube.tri"
-        if not geometry_ptr.loadFile(fn):
-            print "Error loading cube file",fn
-            exit(1)
-        bmin,bmax = item.info.bmin,item.info.bmax
-        center = vectorops.mul(vectorops.add(bmin,bmax),0.5)
-        scale = [bmax[0]-bmin[0],0,0,0,bmax[1]-bmin[1],0,0,0,bmax[2]-bmin[2]]
-        translate = vectorops.sub(bmin,center)
-
-        geometry_ptr.transform(scale,translate)
-        geometry_ptr.setCurrentTransform(item.xform[0],item.xform[1])
-        return geometry_ptr
-    else:
-        if not geometry_ptr.loadFile(item.info.geometryFile):
-            print "Error loading geometry file",item.info.geometryFile
-            exit(1)
-        return geometry_ptr
-
 class KnowledgeBase:
     def __init__(self):
         self.bin_contents = dict((n,None) for n in apc.bin_names)
@@ -187,26 +133,6 @@ class KnowledgeBase:
         world_center = self.bin_center_point()
         world_offset = [0,-0.25,0.35]
         return vectorops.add(world_center,world_offset)
-
-def run_perception_on_shelf(knowledge):
-    """This is a fake perception module that simply reveals the shelf
-    xform."""
-    # NOTE: knowledge.shelf_xform = change to input from perception team
-    knowledge.shelf_xform = ground_truth_shelf_xform
-
-
-def run_perception_on_bin(knowledge,bin_name):
-    """This is a fake perception module that simply reveals all the items
-    the given bin."""
-    # if the dictionary "bin_contents" doesn't contain any values for the key "bin_name"
-    if knowledge.bin_contents[bin_name]==None:
-        # not sensed yet
-        knowledge.bin_contents[bin_name] = []
-        for item in ground_truth_items:
-            if item.bin_name == bin_name:
-                # add the item to the list of sensed items for the bin
-                knowledge.bin_contents[bin_name].append(item)
-    return
 
 class LowLevelController:
     def __init__(self,robotModel,robotController, simulator):
@@ -1735,117 +1661,6 @@ class PickingController:
                 q[i] = qmax[i]
         return q
 
-def draw_xformed(xform,localDrawFunc):
-    """Draws something given a se3 transformation and a drawing function
-    that draws the object in its local frame.
-
-    E.g., draw_xformed(xform,lambda:gldraw.box([ax,ay,az],[bx,by,bz])) draws
-    a box oriented and translated by xform."""
-    mat = zip(*se3.homogeneous(xform))
-    mat = sum([list(coli) for coli in mat],[])
-
-    glPushMatrix()
-    glMultMatrixf(mat)
-    localDrawFunc()
-    glPopMatrix()
-def draw_oriented_box(xform,bmin,bmax):
-    """Helper: draws an oriented box"""
-    draw_xformed(xform,lambda:gldraw.box(bmin,bmax))
-def draw_wire_box(bmin,bmax):
-    """Helper: draws a wireframe box"""
-    glBegin(GL_LINE_LOOP)
-    glVertex3f(bmin[0],bmin[1],bmin[2])
-    glVertex3f(bmin[0],bmin[1],bmax[2])
-    glVertex3f(bmin[0],bmax[1],bmax[2])
-    glVertex3f(bmin[0],bmax[1],bmin[2])
-    glEnd()
-    glBegin(GL_LINE_LOOP)
-    glVertex3f(bmax[0],bmin[1],bmin[2])
-    glVertex3f(bmax[0],bmin[1],bmax[2])
-    glVertex3f(bmax[0],bmax[1],bmax[2])
-    glVertex3f(bmax[0],bmax[1],bmin[2])
-    glEnd()
-    glBegin(GL_LINES)
-    glVertex3f(bmin[0],bmin[1],bmin[2])
-    glVertex3f(bmax[0],bmin[1],bmin[2])
-    glVertex3f(bmin[0],bmin[1],bmax[2])
-    glVertex3f(bmax[0],bmin[1],bmax[2])
-    glVertex3f(bmin[0],bmax[1],bmax[2])
-    glVertex3f(bmax[0],bmax[1],bmax[2])
-    glVertex3f(bmin[0],bmax[1],bmin[2])
-    glVertex3f(bmax[0],bmax[1],bmin[2])
-    glEnd()
-def draw_oriented_wire_box(xform,bmin,bmax):
-    """Helper: draws an oriented wireframe box"""
-    draw_xformed(xform,lambda:draw_wire_box(bmin,bmax))
-
-# this function is called on a thread
-def run_controller(controller,command_queue):
-    while True:
-        c = command_queue.get()
-        if c != None:
-            print "\n================================"
-            print "Running command",c
-            if c >= 'a' and c <= 'l':
-                controller.viewBinAction('bin_'+c.upper())
-            elif c == 'r':
-                controller.moveToRestConfig()
-            elif c == 'x':
-                controller.graspAction()
-            elif c == 'u':
-                controller.ungraspAction()
-            elif c == 'p':
-                controller.placeInOrderBinAction()
-            elif c == 'o':
-                # controller.fulfillOrderAction(orderList)
-                controller.moveToRestConfig()
-
-                global binOrderParser
-                global binList
-                global objList
-                global singleItemList
-                (binList, objList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
-
-                print "================================"
-                print "Bin Order:", binList
-                print "Object Order:", objList
-                print "Single Item?:", singleItemList
-                print "================================\n"
-
-
-                #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
-                global binIndex 
-                binIndex = 0
-                for i in range(len(binList)):
-                    controller.viewBinAction(binList[i])
-                    controller.scoopAction()
-                    controller.move_spatula_to_center()
-                    controller.move_gripper_to_center()                                     
-                    controller.graspAction()
-                    controller.placeInOrderBinAction()
-                    controller.viewBinAction(binList[i])
-                    controller.unscoopAction()
-                    #controller.moveToRestConfig()
-                    binIndex += 1
-            elif c == 's':
-                controller.scoopAction()
-            elif c == 'y':
-                controller.unscoopAction()
-            elif c == 't':
-                controller.spatula('partial')
-            elif c == 'n':
-                controller.move_spatula_to_center()
-            elif c == 'm':
-                controller.move_gripper_to_center()
-            elif c == '`':
-                controller.calibratePerception()
-            elif c=='q':
-                break
-        else:
-            print "Waiting for command..."
-            time.sleep(0.1)
-    print "Done"
-
 class MyGLViewer(GLRealtimeProgram):
     def __init__(self,simworld,planworld):
         GLRealtimeProgram.__init__(self,"My GL program")
@@ -2126,6 +1941,209 @@ class MyGLViewer(GLRealtimeProgram):
                 exit(0)
         glutPostRedisplay()
 
+
+def run_perception_on_shelf(knowledge, world, simworld):
+    """This is a fake perception module that simply reveals the shelf
+    xform."""
+    # NOTE: knowledge.shelf_xform = change to input from perception team
+    try:
+        global ground_truth_shelf_xform
+        global observed_shelf_xform
+
+        #print ground_truth_shelf_xform
+        #observed_shelf_xform = perceiver.get_shelf_transformation()
+        test_rotation = [0,1,0,1,0,0,0,0,-1]
+        test_translation = [-5,0,0]
+        observed_shelf_xform = (test_rotation, test_translation)
+        
+        knowledge.shelf_xform = se3.mul(ground_truth_shelf_xform, observed_shelf_xform )
+        change_world_shelf_xform(world, observed_shelf_xform)
+        change_world_shelf_xform(simworld, observed_shelf_xform)
+        print knowledge.shelf_xform
+    except:
+        knowledge.shelf_xform = ground_truth_shelf_xform
+
+
+def change_world_shelf_xform(world, transform):
+    world.terrain(0).geometry().transform(transform[0], transform[1])
+    
+def run_perception_on_bin(knowledge,bin_name):
+    """This is a fake perception module that simply reveals all the items
+    the given bin."""
+    # if the dictionary "bin_contents" doesn't contain any values for the key "bin_name"
+    if knowledge.bin_contents[bin_name]==None:
+        # not sensed yet
+        knowledge.bin_contents[bin_name] = []
+        for item in ground_truth_items:
+            if item.bin_name == bin_name:
+                # add the item to the list of sensed items for the bin
+                knowledge.bin_contents[bin_name].append(item)
+    return
+
+def init_ground_truth():
+    global ground_truth_items
+    ground_truth_items = [
+                          apc.ItemInBin(apc.tall_item,'bin_A'),
+                          apc.ItemInBin(apc.med_item,'bin_B'),
+                          apc.ItemInBin(apc.tall_item,'bin_C'),
+                          apc.ItemInBin(apc.med_item,'bin_D'),
+                          apc.ItemInBin(apc.tall_item,'bin_E'),
+                          apc.ItemInBin(apc.med_item,'bin_F'),
+                          apc.ItemInBin(apc.tall_item,'bin_G'),
+                          apc.ItemInBin(apc.med_item,'bin_H'),
+                          apc.ItemInBin(apc.tall_item,'bin_I'),
+                          apc.ItemInBin(apc.med_item,'bin_J'),
+                          apc.ItemInBin(apc.tall_item,'bin_K'),
+                          apc.ItemInBin(apc.med_item,'bin_L')]
+    for i in range(len(ground_truth_items)):
+        ux = random.uniform(0.25,0.5)
+        uy = random.uniform(0.2,0.4)
+        if ground_truth_items[i].info.name == 'med_item':
+            # theta = random.uniform(math.pi/4, 3*math.pi/4)
+            theta = math.pi/2
+        else:
+            theta = random.uniform(-math.pi/6, math.pi/6)
+        ground_truth_items[i].set_in_bin_xform(ground_truth_shelf_xform, ux, uy, theta)
+    for item in ground_truth_items:
+        item.info.geometry = load_item_geometry(item)
+
+def load_item_geometry(item,geometry_ptr = None):
+    """Loads the geometry of the given item and returns it.  If geometry_ptr
+    is provided, then it is assumed to be a Geometry3D object and the object
+    geometry is loaded into it."""
+    if geometry_ptr == None:
+        geometry_ptr = Geometry3D()
+    if item.info.geometryFile == None:
+        return None
+    elif item.info.geometryFile == 'box':
+        fn = model_dir + "cube.tri"
+        if not geometry_ptr.loadFile(fn):
+            print "Error loading cube file",fn
+            exit(1)
+        bmin,bmax = item.info.bmin,item.info.bmax
+        center = vectorops.mul(vectorops.add(bmin,bmax),0.5)
+        scale = [bmax[0]-bmin[0],0,0,0,bmax[1]-bmin[1],0,0,0,bmax[2]-bmin[2]]
+        translate = vectorops.sub(bmin,center)
+
+        geometry_ptr.transform(scale,translate)
+        geometry_ptr.setCurrentTransform(item.xform[0],item.xform[1])
+        return geometry_ptr
+    else:
+        if not geometry_ptr.loadFile(item.info.geometryFile):
+            print "Error loading geometry file",item.info.geometryFile
+            exit(1)
+        return geometry_ptr
+
+
+def draw_xformed(xform,localDrawFunc):
+    """Draws something given a se3 transformation and a drawing function
+    that draws the object in its local frame.
+
+    E.g., draw_xformed(xform,lambda:gldraw.box([ax,ay,az],[bx,by,bz])) draws
+    a box oriented and translated by xform."""
+    mat = zip(*se3.homogeneous(xform))
+    mat = sum([list(coli) for coli in mat],[])
+
+    glPushMatrix()
+    glMultMatrixf(mat)
+    localDrawFunc()
+    glPopMatrix()
+def draw_oriented_box(xform,bmin,bmax):
+    """Helper: draws an oriented box"""
+    draw_xformed(xform,lambda:gldraw.box(bmin,bmax))
+def draw_wire_box(bmin,bmax):
+    """Helper: draws a wireframe box"""
+    glBegin(GL_LINE_LOOP)
+    glVertex3f(bmin[0],bmin[1],bmin[2])
+    glVertex3f(bmin[0],bmin[1],bmax[2])
+    glVertex3f(bmin[0],bmax[1],bmax[2])
+    glVertex3f(bmin[0],bmax[1],bmin[2])
+    glEnd()
+    glBegin(GL_LINE_LOOP)
+    glVertex3f(bmax[0],bmin[1],bmin[2])
+    glVertex3f(bmax[0],bmin[1],bmax[2])
+    glVertex3f(bmax[0],bmax[1],bmax[2])
+    glVertex3f(bmax[0],bmax[1],bmin[2])
+    glEnd()
+    glBegin(GL_LINES)
+    glVertex3f(bmin[0],bmin[1],bmin[2])
+    glVertex3f(bmax[0],bmin[1],bmin[2])
+    glVertex3f(bmin[0],bmin[1],bmax[2])
+    glVertex3f(bmax[0],bmin[1],bmax[2])
+    glVertex3f(bmin[0],bmax[1],bmax[2])
+    glVertex3f(bmax[0],bmax[1],bmax[2])
+    glVertex3f(bmin[0],bmax[1],bmin[2])
+    glVertex3f(bmax[0],bmax[1],bmin[2])
+    glEnd()
+def draw_oriented_wire_box(xform,bmin,bmax):
+    """Helper: draws an oriented wireframe box"""
+    draw_xformed(xform,lambda:draw_wire_box(bmin,bmax))
+
+# this function is called on a thread
+def run_controller(controller,command_queue):
+    while True:
+        c = command_queue.get()
+        if c != None:
+            print "\n================================"
+            print "Running command",c
+            if c >= 'a' and c <= 'l':
+                controller.viewBinAction('bin_'+c.upper())
+            elif c == 'r':
+                controller.moveToRestConfig()
+            elif c == 'x':
+                controller.graspAction()
+            elif c == 'u':
+                controller.ungraspAction()
+            elif c == 'p':
+                controller.placeInOrderBinAction()
+            elif c == 'o':
+                # controller.fulfillOrderAction(orderList)
+                controller.moveToRestConfig()
+
+                global binOrderParser
+                global binList
+                global objList
+                global singleItemList
+                (binList, objList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
+
+                print "================================"
+                print "Bin Order:", binList
+                print "Object Order:", objList
+                print "Single Item?:", singleItemList
+                print "================================\n"
+
+
+                #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
+                global binIndex 
+                binIndex = 0
+                for i in range(len(binList)):
+                    controller.viewBinAction(binList[i])
+                    controller.scoopAction()
+                    controller.move_spatula_to_center()
+                    controller.move_gripper_to_center()                                     
+                    controller.graspAction()
+                    controller.placeInOrderBinAction()
+                    controller.viewBinAction(binList[i])
+                    controller.unscoopAction()
+                    #controller.moveToRestConfig()
+                    binIndex += 1
+            elif c == 't':
+                controller.spatula('partial')
+            elif c == 'n':
+                controller.move_spatula_to_center()
+            elif c == 'm':
+                controller.move_gripper_to_center()
+            elif c == '`':
+                controller.calibratePerception()
+            elif c=='q':
+                break
+        else:
+            print "Waiting for command..."
+            time.sleep(0.1)
+
+    print "Done"
+
+
 def load_apc_world():
     """Produces a world with only the Baxter, shelf, and ground plane in it."""
     world = robotsim.WorldModel()
@@ -2172,6 +2190,7 @@ def load_apc_world():
     global ground_truth_shelf_xform
     ground_truth_shelf_xform = se3.mul(Trel,reorient)
     return world
+
 
 def spawn_objects_from_ground_truth(world):
     """For all ground_truth_items, spawns RigidObjects in the world
@@ -2242,7 +2261,7 @@ if __name__ == "__main__":
 
     # shelf_xform_from_perception goes here
     # simply reveals the shelf xform
-    run_perception_on_shelf(knowledge)
+    run_perception_on_shelf(knowledge, world, simworld)
 
     # load shelf objects (wire frames)
     init_ground_truth()
