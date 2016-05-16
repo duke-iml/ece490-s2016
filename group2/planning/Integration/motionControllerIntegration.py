@@ -13,6 +13,7 @@
 
 #
 import sys
+sys.path.insert(0, "../../../common/Sensors")
 sys.path.insert(0, "../Testing")
 sys.path.insert(0, "..")
 
@@ -41,6 +42,9 @@ binOrderParser = binOrder.binOrder()
 
 # Perception
 import perception 
+
+import scale
+
 perceiver = perception.Perceiver()
 
 
@@ -54,6 +58,11 @@ MOTOR = 1 or ALL_ARDUINOS
 VACUUM = 1 or ALL_ARDUINOS
 
 SPEED = 3
+
+REAL_SCALE = False
+
+if REAL_SCALE:
+    myScale = scale.Scale()
 
 # NOTE: Arduino stuff
 # import Pressure_Comms

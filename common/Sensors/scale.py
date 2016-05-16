@@ -3,7 +3,7 @@ import usb.core
 import usb.util
 import math
 
-class Scale_Measurement:
+class Scale:
 	def __init__(self):
 		self.VENDOR_ID = 0x0922
 		self.PRODUCT_ID = 0x8003
