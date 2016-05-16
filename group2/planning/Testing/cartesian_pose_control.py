@@ -34,16 +34,32 @@ class MyEEPoseProgram(GLRealtimeProgram):
         self.increment = 0.01
         self.incrementang = 0.02
 
+        LEFT_CONFIG = [-1.145883647241211, -0.6657476611816406, 0.794602047216797, 1.0722525695068361, -0.5284563808227539, -1.5719468105895997, 2.829811055218506]
+        RIGHT_CONFIG = [0.8624806970031739, -0.7213544646789551, -0.700262228869629, 0.4651796733947754, 0.585213669909668, 1.9167089922729494, -0.20555342534179688]
+
+
         print "Moving to neutral configuration"
         q = motion.robot.left_limb.commandedPosition()
-        q[1] = -1.0;
-        q[3] = 2.0;
-        q[5] = 1.0;
+        if(not LEFT_CONFIG is None ):
+            print len(LEFT_CONFIG)
+            if len(LEFT_CONFIG) < 8:
+                for i in range(len(LEFT_CONFIG)):
+                    q[i] = LEFT_CONFIG[i]
+        else:
+            q[1] = -1.0;
+            q[3] = 2.0;
+            q[5] = 1.0;
         motion.robot.left_mq.appendLinearRamp(q)
         q = motion.robot.right_limb.commandedPosition()
-        q[1] = -1.0;
-        q[3] = 2.0;
-        q[5] = 1.0;
+        if(not RIGHT_CONFIG is None) :
+            print len(RIGHT_CONFIG)
+            if len(RIGHT_CONFIG) < 8:
+                for i in range(len(RIGHT_CONFIG)):
+                    q[i] = RIGHT_CONFIG[i]
+        else:
+            q[1] = -1.0;
+            q[3] = 2.0;
+            q[5] = 1.0;
         motion.robot.right_mq.setRamp(q)
         motion.robot.left_ee.setOffset([0,0,0.1])
         motion.robot.right_ee.setOffset([0,0,0.1])
@@ -207,6 +223,12 @@ class MyEEPoseProgram(GLRealtimeProgram):
         elif c=='.' or c=='>':
             self.baseCommand[2] -= self.incrementang
             self.updateBaseCommand()
+        elif c=='p':
+            if( self.driveArm == 'r' ):
+                print motion.robot.right_limb.sensedPosition()
+            elif (self.driveArm == 'l'):
+                print motion.robot.left_limb.sensedPosition()
+
 
         self.refresh()
 
@@ -250,6 +272,7 @@ class MyEEPoseProgram(GLRealtimeProgram):
         print "Press #/3 to increase/decrease z orientation"
         print "Press arrow keys to control base velocity"
         print "Press </> to increase/decrease base rotation speed"
+        print "Press p to print the current arm's configuration"
         print "Press q to exit."
         print
 
@@ -265,6 +288,7 @@ if __name__ == "__main__":
         print "Error starting up Motion Module"
         exit(1)
     time.sleep(0.01)
+    print "Started Motion Module"
     world = WorldModel()
     res = world.readFile(config.klampt_model)
     if not res:
