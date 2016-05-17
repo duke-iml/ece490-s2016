@@ -1959,6 +1959,8 @@ def run_perception_on_shelf(knowledge, world, simworld):
         global ground_truth_shelf_xform
         global observed_shelf_xform
 
+        #move to calibrate location
+
         #print ground_truth_shelf_xform
         #observed_shelf_xform = perceiver.get_shelf_transformation()
         test_rotation = [0,1,0,1,0,0,0,0,-1]

@@ -22,6 +22,7 @@ class MyGLViewer(GLNavigationProgram):
             gldraw.xform_widget(se3.mul(left_gripper_link.getTransform(),LEFT_GRIPPER_CENTER_XFORM),0.05,0.005)
             gldraw.xform_widget(se3.mul(right_gripper_link.getTransform(),RIGHT_GRIPPER_CENTER_XFORM),0.05,0.005)
 
-        self.master.drawStuff()
+        self.world = self.master.drawStuff()
+
 
 
