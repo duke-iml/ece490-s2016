@@ -1738,7 +1738,7 @@ def load_apc_world():
     world = robotsim.WorldModel()
 
     print "Loading simplified Baxter model..."
-    world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col3.rob"))
     print "Loading Kiva pod model..."
     world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
     print "Loading plane model..."
