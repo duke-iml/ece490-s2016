@@ -41,7 +41,7 @@ import binOrder
 binOrderParser = binOrder.binOrder()
 
 # Perception
-import perception 
+from perception import perception
 
 import scale
 
@@ -50,12 +50,12 @@ perceiver = perception.Perceiver()
 
 # configuration variables
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
-MOTOR = 1 or ALL_ARDUINOS
-VACUUM = 1 or ALL_ARDUINOS
+MOTOR = 0 or ALL_ARDUINOS
+VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
@@ -432,20 +432,12 @@ class PickingController:
         # print "--> done\n"
         return True
 
-    def calibratePerception(self):
-        self.moveToRestConfig()
-        self.waitForMove()
-        self.move_gripper_to_center()
-        self.waitForMove()
-        #self.move_gripper_to_center()
-        #self.waitForMove()
-        #self.move_gripper_to_center()
-        #self.waitForMove()                
-        # TODO: call perception calibration here
-        time.sleep(5)        
-        # perceiver.show_image()
-        perceiver.detect_background()
+    def calibratePerception(self, bin_letter='A'):
+        self.moveToBinViewingConfig(bin_letter)
         print "Camera calibration DONE\n"
+
+    def saveCanonicalPointCloud(self, bin_letter='A'):
+        perceiver.save_canonical_bin_point_cloud(bin_letter)
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
@@ -455,6 +447,16 @@ class PickingController:
         self.controller.setMilestone(baxter_rest_config)
         self.waitForMove()
         print "Done"
+
+    def moveToBinViewingConfig(self, bin_letter):
+        print "Moving to bin_%s config..."%(bin_letter),
+        baxter_startup_config = self.robot.getConfig()
+        # path = [baxter_startup_config, bin_viewing_configs[bin_letter]]
+        #self.sendPath(path)
+        self.controller.setMilestone(bin_viewing_configs[bin_letter])
+        self.waitForMove()
+        print "Done"
+
 
     def viewBinAction(self,b):
         self.waitForMove()
@@ -2146,6 +2148,8 @@ def run_controller(controller,command_queue):
                 controller.move_gripper_to_center()
             elif c == '`':
                 controller.calibratePerception()
+            elif c=='!':
+                controller.saveCanonicalPointCloud('A')
             elif c=='q':
                 break
         else:
@@ -2283,9 +2287,15 @@ if __name__ == "__main__":
         spawn_objects_from_ground_truth(world)
 
     # load the resting configuration from klampt_models/baxter_rest.config
-    global baxter_rest_config
+    global baxter_rest_config, bin_viewing_configs
     f = open(model_dir+'baxter_new_spatula_rest3.config','r')
     baxter_rest_config = loader.readVector(f.readline())
+    f.close()
+
+    bin_viewing_configs = {}
+
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['A'] = loader.readVector(f.readline())
     f.close()
 
     # Add initial joint values to additional joints

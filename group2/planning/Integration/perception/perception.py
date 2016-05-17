@@ -26,7 +26,7 @@ class Perceiver:
 		'''
 		_, cloud, _, _ = self.read_once()
 		flattened_cloud = cloud.reshape(-1,3)
-		np.save('cached_bin_cloud/bin'+bin_letter, flattened_cloud)
+		np.save('/home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin'+bin_letter, flattened_cloud)
 		print 'Successfully saved model for bin_'+bin_letter
 
 
@@ -123,7 +123,11 @@ class Perceiver:
 		and t is an array of 3 numbers for transformation. 
 		'''
 		color, cloud, depth_uv, color_uv = self.camera.read()
-		cached_bin_cloud = np.load('cached_bin_cloud/bin_'+bin_letter+'.npy')
+		try:
+			cached_bin_cloud = np.load('/home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin_'+bin_letter+'.npy')
+		except:
+			print 'Cannot find bin model for bin_%s at /home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin_%s.npy '%(bin_letter, bin_letter)
+			return None
 		scene_tree = KDTree(cloud.reshape(-1,3))
 		R, t, _ = icp.match(cached_bin_cloud, scene_tree)
 		return list(R.flatten(order='F')), t

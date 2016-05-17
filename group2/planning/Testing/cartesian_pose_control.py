@@ -35,7 +35,7 @@ class MyEEPoseProgram(GLRealtimeProgram):
         self.incrementang = 0.02
 
         LEFT_CONFIG = [-1.145883647241211, -0.6657476611816406, 0.794602047216797, 1.0722525695068361, -0.5284563808227539, -1.5719468105895997, 2.829811055218506]
-        RIGHT_CONFIG = [0.8624806970031739, -0.7213544646789551, -0.700262228869629, 0.4651796733947754, 0.585213669909668, 1.9167089922729494, -0.20555342534179688]
+        RIGHT_CONFIG = None#[0.8624806970031739, -0.7213544646789551, -0.700262228869629, 0.4651796733947754, 0.585213669909668, 1.9167089922729494, -0.20555342534179688]
 
 
         print "Moving to neutral configuration"
@@ -224,11 +224,11 @@ class MyEEPoseProgram(GLRealtimeProgram):
             self.baseCommand[2] -= self.incrementang
             self.updateBaseCommand()
         elif c=='p':
-            if( self.driveArm == 'r' ):
-                print motion.robot.right_limb.sensedPosition()
-            elif (self.driveArm == 'l'):
-                print motion.robot.left_limb.sensedPosition()
-
+            #if( self.driveArm == 'r' ):
+            #    print motion.robot.right_limb.sensedPosition()
+            #elif (self.driveArm == 'l'):
+            #    print motion.robot.left_limb.sensedPosition()
+            print motion.robot.getKlamptSensedPosition()
 
         self.refresh()
 
