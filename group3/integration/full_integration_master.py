@@ -65,14 +65,16 @@ class FullIntegrationMaster:
             self.turnOffVacuum()
 
         # Load JSON
-        with open(PICK_JSON_PATH) as pick_json_file:
-            raw_json_data = json.load(pick_json_file)
-        for k in self.bin_state:
-            self.bin_state[k]['contents'] = raw_json_data['bin_contents']['bin_'+k]
-        for my_dict in raw_json_data['work_order']:
-            bin_letter = my_dict['bin'][4]
-            self.bin_state[bin_letter]['target'] = my_dict['item']
-        self.current_bin = planning.selectBin(self.bin_state)
+        
+        if DRY_RUN:
+            with open(PICK_JSON_PATH) as pick_json_file:
+                raw_json_data = json.load(pick_json_file)
+            for k in self.bin_state:
+                self.bin_state[k]['contents'] = raw_json_data['bin_contents']['bin_'+k]
+            for my_dict in raw_json_data['work_order']:
+                bin_letter = my_dict['bin'][4]
+                self.bin_state[bin_letter]['target'] = my_dict['item']
+            self.current_bin = planning.selectBin(self.bin_state)
 
     def start(self):
         motion.setup(mode='physical',klampt_model=os.path.join(KLAMPT_MODELS_DIR,"baxter_col.rob"),libpath=LIBPATH)
@@ -111,6 +113,8 @@ class FullIntegrationMaster:
             point = self.vacuumPc.getPointCloud().getPoint(i)
             glVertex3f(point[0], point[1], point[2])
         glEnd()
+
+        return self.world
 
     def load_real_robot_state(self):
         """Makes the robot model match the real robot"""
@@ -166,6 +170,45 @@ class FullIntegrationMaster:
 
             print "printing camera calibration"
             print self.calibratedCameraXform
+
+    def calibrateShelf(self):
+
+
+        calibratedShelfXform = self.world.rigidObject(0).getTransform()
+        print calibratedShelfXform
+        calibrateR = calibratedShelfXform[0];
+        calibrateT = calibratedShelfXform[1];
+
+        try:
+            input_var = raw_input("Enter joint and angle to change to separated by a comma: ").split(',');
+            #translational transformation
+            if(input_var[0] == "x" ):
+                calibrateT[0] = calibrateT[0] + float(input_var[1])
+            elif(input_var[0] == "y" ):
+                calibrateT[1] = calibrateT[1] + float(input_var[1])
+            elif(input_var[0] == "z" ):
+                calibrateT[2] = calibrateT[2] + float(input_var[1])
+            #rotational transformations
+            elif(input_var[0] == "xr" ):
+                calibrateR = so3.mul(calibrateR, so3.rotation([1, 0, 0], float(input_var[1])))
+            elif(input_var[0] == "yr" ):
+                calibrateR = so3.mul(calibrateR, so3.rotation([0, 1, 0], float(input_var[1])))
+            elif(input_var[0] == "zr" ):
+                calibrateR = so3.mul(calibrateR, so3.rotation([0, 0, 1], float(input_var[1])))
+
+            time.sleep(0.1);
+            self.world.rigidObject(0).setTransform(calibrateR, calibrateT)
+
+ 
+            print self.world.rigidObject(0).getTransform()
+
+
+        except: 
+            print "input error\n"
+
+            print "printing shelf calibration"
+            print self.world.rigidObject(0).getTransform()
+
 
     # IK and motion planning
     # ======================
@@ -341,6 +384,10 @@ class FullIntegrationMaster:
                 elif self.state == 'CALIBRATE_CAMERA':
                     self.calibrateCamera()
                     self.state = 'SCANNING_BIN'
+
+                elif self.state == 'CALIBRATE_SHELF':
+                    self.calibrateShelf()
+                    #make blocking
 
                 elif self.state == 'WAITING_FOR_SEGMENTATION':
                     if os.path.isfile(CHENYU_DONE_PATH):
@@ -585,11 +632,15 @@ def setupWorld():
     print "Loading plane model..."
     world.loadElement(os.path.join(KLAMPT_MODELS_DIR,"plane.env"))
 
+
+
     Rbase,tbase = world.robot(0).link(0).getParentTransform()
     world.robot(0).link(0).setParentTransform(Rbase,(0,0,0.95))
     world.robot(0).setConfig(world.robot(0).getConfig())
+
     
-    Trel = (so3.rotation((0,0,1),-math.pi/2), SHELF_MODEL_XFORM)
+    #Trel = (so3.rotation((0,0,1),-math.pi/2), SHELF_MODEL_XFORM)
+    Trel = SHELF_MODEL_XFORM_CALIBRATED
     T = world.rigidObject(0).getTransform()
     world.rigidObject(0).setTransform(*se3.mul(Trel,T))
 
