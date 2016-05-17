@@ -45,21 +45,17 @@ class MyEEPoseProgram(GLRealtimeProgram):
             if len(LEFT_CONFIG) < 8:
                 for i in range(len(LEFT_CONFIG)):
                     q[i] = LEFT_CONFIG[i]
-        else:
-            q[1] = -1.0;
-            q[3] = 2.0;
-            q[5] = 1.0;
+
+
         motion.robot.left_mq.appendLinearRamp(q)
+        
         q = motion.robot.right_limb.commandedPosition()
         if(not RIGHT_CONFIG is None) :
             print len(RIGHT_CONFIG)
             if len(RIGHT_CONFIG) < 8:
                 for i in range(len(RIGHT_CONFIG)):
                     q[i] = RIGHT_CONFIG[i]
-        else:
-            q[1] = -1.0;
-            q[3] = 2.0;
-            q[5] = 1.0;
+        
         motion.robot.right_mq.setRamp(q)
         motion.robot.left_ee.setOffset([0,0,0.1])
         motion.robot.right_ee.setOffset([0,0,0.1])
