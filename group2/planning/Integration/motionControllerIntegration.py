@@ -41,11 +41,11 @@ import binOrder
 binOrderParser = binOrder.binOrder()
 
 # Perception
-import perception 
+# import perception 
 
-import scale
+# import scale
 
-perceiver = perception.Perceiver()
+# perceiver = perception.Perceiver()
 
 
 # configuration variables
@@ -61,20 +61,20 @@ SPEED = 3
 
 REAL_SCALE = False
 
-if REAL_SCALE:
-    myScale = scale.Scale()
+# if REAL_SCALE:
+#     myScale = scale.Scale()
 
-# NOTE: Arduino stuff
-# import Pressure_Comms
-if PHYSICAL_SIMULATION:
-    if MOTOR:
-        import Motor_Comms_2
-        spatulaController = Motor_Comms_2.MoveSpatula()
-        spatulaCommand = [0,0,0,0]
+# # NOTE: Arduino stuff
+# # import Pressure_Comms
+# if PHYSICAL_SIMULATION:
+#     if MOTOR:
+#         import Motor_Comms_2
+#         spatulaController = Motor_Comms_2.MoveSpatula()
+#         spatulaCommand = [0,0,0,0]
 
-    if VACUUM:
-        import Vacuum_Comms
-        vacuumController = Vacuum_Comms.CommVacuum()
+#     if VACUUM:
+#         import Vacuum_Comms
+#         vacuumController = Vacuum_Comms.CommVacuum()
 
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
@@ -1779,50 +1779,50 @@ class MyGLViewer(GLRealtimeProgram):
                 gldraw.box([c[0]-r,c[1]-r,c[2]-r],[c[0]+r,c[1]+r,c[2]+r])
 
         #show object state
-        for i in ground_truth_items:
-            if i.xform == None:
-                continue
+        # for i in ground_truth_items:
+        #     if i.xform == None:
+        #         continue
 
-            if i.bin_name == 'order_bin':
-            # draw in wireframe
-                glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,1,1])
-                draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
-                continue
+        #     if i.bin_name == 'order_bin':
+        #     # draw in wireframe
+        #         glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,1,1,1])
+        #         draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
+        #         continue
 
-            #if perceived, draw in solid color
-            if knowledge.bin_contents[i.bin_name]!=None and i in knowledge.bin_contents[i.bin_name]:
-                glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0.5,0,1])
-                draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
-            else:
-                #otherwise, draw in wireframe
-                glDisable(GL_LIGHTING)
-                glColor3f(1,0.5,0)
-                draw_oriented_wire_box(i.xform,i.info.bmin,i.info.bmax)
-                glEnable(GL_LIGHTING)
+        #     #if perceived, draw in solid color
+        #     if knowledge.bin_contents[i.bin_name]!=None and i in knowledge.bin_contents[i.bin_name]:
+        #         glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0.5,0,1])
+        #         draw_oriented_box(i.xform,i.info.bmin,i.info.bmax)
+        #     else:
+        #         #otherwise, draw in wireframe
+        #         glDisable(GL_LIGHTING)
+        #         glColor3f(1,0.5,0)
+        #         draw_oriented_wire_box(i.xform,i.info.bmin,i.info.bmax)
+        #         glEnable(GL_LIGHTING)
 
-        # Draws the object held on gripper
-        obj,grasp = self.picking_controller.held_object,self.picking_controller.active_grasp
+        # # Draws the object held on gripper
+        # obj,grasp = self.picking_controller.held_object,self.picking_controller.active_grasp
 
-        if obj != None:
-            # spatula scooping
-            if self.picking_controller.stateLeft == 'holding':
-                R_obj = obj.randRt[0]
-                t_obj = obj.randRt[1]
-                gripper_xform = self.simworld.robot(0).link(left_gripper_link_name).getTransform()
-                objxform = se3.mul( gripper_xform,  se3.mul(  left_gripper_center_xform,  [R_obj, t_obj] )  )
-                # objxform = se3.mul( gripper_xform,  se3.mul(  left_gripper_center_xform,  se3.inv(grasp.grasp_xform) )  )
+        # if obj != None:
+        #     # spatula scooping
+        #     if self.picking_controller.stateLeft == 'holding':
+        #         R_obj = obj.randRt[0]
+        #         t_obj = obj.randRt[1]
+        #         gripper_xform = self.simworld.robot(0).link(left_gripper_link_name).getTransform()
+        #         objxform = se3.mul( gripper_xform,  se3.mul(  left_gripper_center_xform,  [R_obj, t_obj] )  )
+        #         # objxform = se3.mul( gripper_xform,  se3.mul(  left_gripper_center_xform,  se3.inv(grasp.grasp_xform) )  )
 
-            # gripper
-            elif self.picking_controller.stateRight == 'holding':
-                gripper_xform = self.simworld.robot(0).link(right_gripper_link_name).getTransform()
-                # objxform = se3.mul(gripper_xform,se3.mul(left_gripper_center_xform,se3.inv(grasp.grasp_xform)))
-                # objxform = se3.mul(gripper_xform,se3.mul(left_gripper_center_xform,se3.inv(se3.identity())))
-                objxform = se3.mul(gripper_xform,left_gripper_center_xform)
+        #     # gripper
+        #     elif self.picking_controller.stateRight == 'holding':
+        #         gripper_xform = self.simworld.robot(0).link(right_gripper_link_name).getTransform()
+        #         # objxform = se3.mul(gripper_xform,se3.mul(left_gripper_center_xform,se3.inv(grasp.grasp_xform)))
+        #         # objxform = se3.mul(gripper_xform,se3.mul(left_gripper_center_xform,se3.inv(se3.identity())))
+        #         objxform = se3.mul(gripper_xform,left_gripper_center_xform)
 
-            glDisable(GL_LIGHTING)
-            glColor3f(1,1,1)
-            draw_oriented_wire_box(objxform,obj.info.bmin,obj.info.bmax)
-            glEnable(GL_LIGHTING)
+        #     glDisable(GL_LIGHTING)
+        #     glColor3f(1,1,1)
+        #     draw_oriented_wire_box(objxform,obj.info.bmin,obj.info.bmax)
+        #     glEnable(GL_LIGHTING)
 
         #show gripper and camera frames
         if self.draw_gripper_and_camera:
@@ -2273,7 +2273,7 @@ if __name__ == "__main__":
     run_perception_on_shelf(knowledge, world, simworld)
 
     # load shelf objects (wire frames)
-    init_ground_truth()
+    # init_ground_truth()
 
     if not NO_SIMULATION_COLLISIONS:
         spawn_objects_from_ground_truth(simworld)
