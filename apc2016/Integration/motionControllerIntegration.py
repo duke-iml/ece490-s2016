@@ -75,6 +75,8 @@ VACUUM = 0 or ALL_ARDUINOS
 SPEED = 3
 
 REAL_SCALE = False
+CALIBRATE = True
+
 
 if REAL_SCALE:
      myScale = scale.Scale()
@@ -407,6 +409,9 @@ class PickingController:
         self.current_bin = None
         self.held_object = None
 
+        self.perceptionTransform = None
+        self.totalTransform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
+
         #these may be helpful
         self.left_camera_link = self.robot.link(left_camera_link_name)
         self.right_camera_link = self.robot.link(right_camera_link_name)
@@ -428,6 +433,9 @@ class PickingController:
         # frames to draw
         self.frames = []
 
+    def getWorld(self):
+        return self.world
+
     def waitForMove(self,timeout = None, pollRate = 0.01):
         """Waits for the move to complete, or timeout seconds is elapsed,
         before terminating."""
@@ -448,8 +456,14 @@ class PickingController:
         # print "--> done\n"
         return True
 
-    def calibratePerception(self, bin_letter='A'):
-        self.moveToBinViewingConfig(bin_letter)
+    def calibratePerception(self, knowledge):
+        #assumes you are already at the location where you want to do the transformation
+        try:
+            self.perceptionTransform = perceiver.get_shelf_transformation()
+            print self.perceptionTransform
+            self.world.terrain(0).geometry().transform(self.perceptionTransform[0], self.perceptionTransform[1])
+        except:
+            print "perception calibration not working"
         print "Camera calibration DONE\n"
 
     def saveCanonicalPointCloud(self, bin_letter='A'):
@@ -472,6 +486,8 @@ class PickingController:
         self.controller.setMilestone(bin_viewing_configs[bin_letter])
         self.waitForMove()
         print "Done"
+
+        #replace with move_camera_to_bin later
 
 
     def viewBinAction(self,b):
@@ -1688,6 +1704,46 @@ class PickingController:
                 q[i] = qmax[i]
         return q
 
+    def calibrateShelf(self):
+        #blocking
+        while(True):
+            try:
+                input_var = raw_input("Enter joint and angle to change to separated by a comma: ").split(',');
+                #translational transformation
+                calibrateR = [1,0,0,0,1,0,0,0,1]
+                calibrateT = [0,0,0]
+                if(input_var[0] == "x" ):
+                    calibrateT[0] = calibrateT[0] + float(input_var[1])
+                elif(input_var[0] == "y" ):
+                    calibrateT[1] = calibrateT[1] + float(input_var[1])
+                elif(input_var[0] == "z" ):
+                    calibrateT[2] = calibrateT[2] + float(input_var[1])
+                #rotational transformations
+                elif(input_var[0] == "xr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([1, 0, 0], float(input_var[1])))
+                elif(input_var[0] == "yr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([0, 1, 0], float(input_var[1])))
+                elif(input_var[0] == "zr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([0, 0, 1], float(input_var[1])))
+
+                time.sleep(0.1);
+                calibrate = (calibrateR, calibrateT)
+                self.world.terrain(0).geometry().transform( calibrate[0], calibrate[1] )
+                self.totalTransform = se3.mul(self.totalTransform, calibrate)
+
+                print self.totalTransform
+            except KeyboardInterrupt:
+                print self.totalTransform
+                break
+
+            except: 
+                print "input error\n"
+                print error.strerror
+                
+
+
+
+
 class MyGLViewer(GLRealtimeProgram):
     def __init__(self,simworld,planworld):
         GLRealtimeProgram.__init__(self,"My GL program")
@@ -1748,6 +1804,9 @@ class MyGLViewer(GLRealtimeProgram):
             q = robot.getKlamptSensedPosition()
             self.simworld.robot(0).setConfig(q)
             self.simworld.drawGL()
+
+        if CALIBRATE:
+            self.simworld = self.picking_controller.getWorld()
 
 
         # draw the shelf and floor
@@ -2113,6 +2172,7 @@ def run_controller(controller,command_queue):
             print "Running command",c
             if c >= 'a' and c <= 'l':
                 controller.viewBinAction('bin_'+c.upper())
+                #controller.moveToBinViewingConfig(c.upper())
             elif c == 'r':
                 controller.moveToRestConfig()
             elif c == 'x':
@@ -2162,6 +2222,10 @@ def run_controller(controller,command_queue):
                 controller.calibratePerception()
             elif c=='!':
                 controller.saveCanonicalPointCloud('A')
+            elif c=='1':
+                controller.moveToBinViewingConfig('A')
+            elif c=='s':
+                controller.calibrateShelf()            
             elif c=='q':
                 break
         else:
@@ -2218,7 +2282,7 @@ def load_apc_world():
     print ground_truth_shelf_xform
     # world.terrain(0).geometry().transform(xform_with_scale[0], xform_with_scale[1])
     #world.terrain(0)
-    newTransform = se3.mul( (vectorops.div(ground_truth_shelf_xform[0], 1000), vectorops.sub(ground_truth_shelf_xform[1],[0.2,-0.3,0])), ([1,0,0,0,0,1,0,-1,0], [0,0,0]))
+    newTransform = se3.mul( (vectorops.div(ground_truth_shelf_xform[0], 1000), vectorops.sub(ground_truth_shelf_xform[1],[-2,-3,0])), ([1,0,0,0,0,1,0,-1,0], [0,0,0]))
 
     world.terrain(0).geometry().transform( newTransform[0], newTransform[1])
 
@@ -2315,6 +2379,9 @@ if __name__ == "__main__":
     f.close()
 
     bin_viewing_configs = {}
+
+    # to be changed
+    # these should be constants stored somewhere
 
     f = open(model_dir+'bin_viewing_configs/A.config','r')
     bin_viewing_configs['A'] = loader.readVector(f.readline())
