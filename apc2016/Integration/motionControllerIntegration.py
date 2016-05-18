@@ -1806,6 +1806,7 @@ class MyGLViewer(GLRealtimeProgram):
             self.simworld.drawGL()
 
         if CALIBRATE:
+            #self.picking_controller.getWorld().drawGL()
             self.simworld = self.picking_controller.getWorld()
 
 
@@ -2284,7 +2285,10 @@ def load_apc_world():
     #world.terrain(0)
     newTransform = se3.mul( (vectorops.div(ground_truth_shelf_xform[0], 1000), vectorops.sub(ground_truth_shelf_xform[1],[-2,-3,0])), ([1,0,0,0,0,1,0,-1,0], [0,0,0]))
 
+    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.5599999999999987, -0.02])
+
     world.terrain(0).geometry().transform( newTransform[0], newTransform[1])
+    world.terrain(0).geometry().transform(calibration[0], calibration[1])
 
     #initialize the shelf xform for the visualizer and object
     #ground_truth_shelf_xform = se3.mul(Trel,reorient)
