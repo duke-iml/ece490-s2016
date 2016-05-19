@@ -55,8 +55,7 @@ binOrderParser = binOrder.binOrder()
 from perception import perception
 
 
-
-# perceiver = perception.Perceiver()
+perceiver = perception.Perceiver()
 
 
 #================================================================
@@ -299,7 +298,7 @@ class FakeLowLevelController:
 
 class PhysicalLowLevelController(LowLevelController):
     """A low-level controller for the real robot."""
-    def __init__(self,robotModel,klampt_model="baxter.rob"):
+    def __init__(self,robotModel,klampt_model="baxter_col.rob"):
         print "Setting up motion_physical library with model",klampt_model
         #motion.setup(klampt_model = "../klampt_models/"+klampt_model)
         #motion.setup(mode="physical",libpath="", klampt_model = klampt_model)
@@ -399,6 +398,8 @@ class PickingController:
         self.world = world
         self.robot = world.robot(0)
 
+        print "initialized picking controller number of robots = ", self.world.numRobots()
+
         self.controller = robotController
         self.planner = LimbPlanner(self.world, knowledge)
 
@@ -461,6 +462,7 @@ class PickingController:
         try:
             self.perceptionTransform = perceiver.get_shelf_transformation()
             print self.perceptionTransform
+            knowledge.shelf_xform = self.perceptionTransform
             self.world.terrain(0).geometry().transform(self.perceptionTransform[0], self.perceptionTransform[1])
         except:
             print "perception calibration not working"
@@ -1798,16 +1800,18 @@ class MyGLViewer(GLRealtimeProgram):
         #draw the world
         if not PHYSICAL_SIMULATION:
             self.sim.updateWorld()
-            self.simworld.drawGL()
+            #self.simworld.drawGL()
         else:
             robot = motion.robot
             q = robot.getKlamptSensedPosition()
             self.simworld.robot(0).setConfig(q)
-            self.simworld.drawGL()
+            #self.simworld.drawGL()
 
         if CALIBRATE:
-            #self.picking_controller.getWorld().drawGL()
-            self.simworld = self.picking_controller.getWorld()
+            self.picking_controller.getWorld().drawGL()
+            #self.simworld = self.picking_controller.getWorld()
+        
+        self.simworld.drawGL()
 
 
         # draw the shelf and floor
@@ -2021,35 +2025,22 @@ class MyGLViewer(GLRealtimeProgram):
         if c=='z':
             self.simulate = not self.simulate
             print "Simulating:",self.simulate
+        elif c=='f':
+            perceptionTransform = (
+                [0.995326247427, -0.0376732663745, 0.0889176568662, 0.0342569362043, 0.998626601267, 0.039639951475, -0.0902889218061, -0.0364085976266, 0.995249847303], 
+                [-0.0116911767312, 0.0305929570223, -0.063954771262])
+            self.simworld.terrain(0).geometry().transform(*perceptionTransform)
+        elif c=='g':
+            perceptionTransformInv = (
+                [0.995326282292, 0.0342569479912, -0.0902889107075, -0.0376732618377, 0.99862665021, -0.0364086403882, 0.0889176787936, 0.0396399144316, 0.995249913122], 
+                [0.0184757817601, -0.0276152764976, 0.0637092449009])
+            self.simworld.terrain(0).geometry().transform(*perceptionTransformInv)
         else:
             self.command_queue.put(c)
             if c=='q':
                 self.picking_thread.join()
                 exit(0)
         glutPostRedisplay()
-
-
-def run_perception_on_shelf(knowledge):
-    """This is a fake perception module that simply reveals the shelf
-    xform."""
-    # NOTE: knowledge.shelf_xform = change to input from perception team
-    # try:
-
-    #move to calibrate location
-
-    print ground_truth_shelf_xform
-    #observed_shelf_xform = perceiver.get_shelf_transformation()
-    # test_rotation = [0,1,0,1,0,0,0,0,-1]
-    # test_translation = [-5,0,0]
-    # observed_shelf_xform = (test_rotation, test_translation)
-    
-    # knowledge.shelf_xform = se3.mul(ground_truth_shelf_xform, observed_shelf_xform )
-    knowledge.shelf_xform = ground_truth_shelf_xform
-    print knowledge.shelf_xform
-    return knowledge.shelf_xform
-    # except:
-        # knowledge.shelf_xform = ground_truth_shelf_xform
-        # return knowledge.shelf_xform
 
 
 def run_perception_on_bin(knowledge,bin_name):
@@ -2244,9 +2235,11 @@ def load_apc_world():
     # world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
     # world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col2.rob"))
     #world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col3.rob"))
-    world.loadElement(os.path.join(model_dir,"baxter.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
     print "Loading shelf model..."
     world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
+    world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
+
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
 
@@ -2257,24 +2250,14 @@ def load_apc_world():
 
     #translate pod to be in front of the robot, and rotate the pod by 90 degrees
     t_obj_shelf = [0.45,0,0]
-    # t_shelf = [-1.5,-0.1,0.1]
-    # t_shelf = [-1,-0.2,0.1]
-    # t_shelf = [-0.9,-0.3,0.1]
-    # t_shelf = [-0.95,-0.35,0.1-0.075]
     t_shelf = [0,0,0]
 
-    dy = 0.02
-    dx = math.sqrt(3)*dy
-    dz = 0.02
-    dAngle = 3
 
 
     reorient = ([1,0,0,0,0,1,0,-1,0],vectorops.add(t_shelf,t_obj_shelf))
     reorient_with_scale = ([0.001,0,0,0,0,0.001,0,-0.001,0],t_shelf)
-    #Trel = (so3.rotation((0,0,1),-math.pi/3),[2,0.75,-0.1])
-    # Trel = (so3.mul(so3.rotation((0,0,1),-math.pi/3), so3.rotation((1,0,0),math.pi/360*dAngle)),[2 + dx,0.75 + dy,-0.1 + dz])
     Trel = (so3.rotation((0,0,1),-math.pi/2),[2,0.75,-0.1])
-    # Trel = (so3.rotation((0,0,1),-math.pi/4),[2,0.75,-0.1])
+
 
 
     xform_with_scale = se3.mul(Trel,reorient_with_scale)
@@ -2286,9 +2269,20 @@ def load_apc_world():
     newTransform = se3.mul( (vectorops.div(ground_truth_shelf_xform[0], 1000), vectorops.sub(ground_truth_shelf_xform[1],[-2,-3,0])), ([1,0,0,0,0,1,0,-1,0], [0,0,0]))
 
     calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.5599999999999987, -0.02])
+    perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
+
+
+    # ([ 0.99631874, -0.01459558,  0.08447454, 0.01519797,  0.9998634,  -0.00649233, -0.08436826,  0.00775227,  0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
+
 
     world.terrain(0).geometry().transform( newTransform[0], newTransform[1])
     world.terrain(0).geometry().transform(calibration[0], calibration[1])
+    # world.terrain(0).geometry().transform(*perceptionTransform)
+
+
+
+    # world.terrain(1).geometry().transform( newTransform[0], newTransform[1])
+    # world.terrain(1).geometry().transform(calibration[0], calibration[1])
 
     #initialize the shelf xform for the visualizer and object
     #ground_truth_shelf_xform = se3.mul(Trel,reorient)
@@ -2364,9 +2358,12 @@ if __name__ == "__main__":
 
     # shelf_xform_from_perception goes here
     # simply reveals the shelf xform
-    ground_truth_shelf_xform = run_perception_on_shelf(knowledge)
+
+    knowledge.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
 
     world = load_apc_world()
+
+
     simworld = load_apc_world()
     # load shelf objects (wire frames)
     # init_ground_truth()
@@ -2424,9 +2421,9 @@ if __name__ == "__main__":
         q = motion.robot.getKlamptSensedPosition()
         simworld.robot(0).setConfig(q)
         world.robot(0).setConfig(q)
-        res = world.readFile(config.klampt_model)
-        if not res:
-            raise RuntimeError("Unable to load Klamp't model ")
+        # res = world.readFile(config.klampt_model)
+        # if not res:
+        #     raise RuntimeError("Unable to load Klamp't model ")
     else:
         simworld.robot(0).setConfig(baxter_startup_config)
         world.robot(0).setConfig(baxter_startup_config)
@@ -2441,6 +2438,9 @@ if __name__ == "__main__":
     loaded_trajectory['move_to_order_bin'] = loadFromFile(TRAJECTORIES_PATH+"move_to_order_bin")
 
     #run the visualizer
+
+    print "Printing number of robots in initialized world ", world.numRobots()
+
     visualizer = MyGLViewer(simworld,world)
     myCameraSettings(visualizer)
     visualizer.run()

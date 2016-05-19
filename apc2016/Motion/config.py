@@ -9,6 +9,7 @@ mode = 'physical'
 
 #relative path, assumes everything is run from the common directory
 klampt_model = "../klampt_models/baxter.rob"
+klampt_model = "../klampt_models/baxter_col.rob"
 #klampt_model = "../klampt_models/baxter_with_new_spatula_col3.rob"
 # klampt_model = "../klampt_models/baxter_with_parallel_gripper_col.rob"
 #klampt_model = "klampt_models/hstar_amp1_col.rob"

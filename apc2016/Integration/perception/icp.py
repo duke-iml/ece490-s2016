@@ -18,7 +18,6 @@ def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_t
 
 	mark = time()
 	for n in range(iterations):
-		print "iter"
 		# get correspondences using distance
 		if n == 0:
 			# run the first query with infinite distance range in case the object is distant
@@ -27,7 +26,7 @@ def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_t
 			# apply the distance threshold for subsequent iterations
 			# reduce threshold as iterations progress
 			# this affectively "anneals" the object to the scene candidate
-			threshold = (threshold_max*(5/float(n)) + 0.0005) * 1000
+			threshold = (threshold_max*(5/float(n)) + 0.0005)# * 1000
 		mark2 = time()
 		# threshold = float('inf')
 		print 'querying using threshold:', threshold
@@ -70,10 +69,14 @@ def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_t
 			total_t = total_t.dot(R.T) - obj_mean.dot(R.T) + correspondences_mean
 			total_R = R.dot(total_R)
 			last_error = sse_normal
+			# print "Incremental R:", R
+			# print "Total t:", total_t
 		else:
 			total_t = total_t.dot(R) - obj_mean.dot(R) + correspondences_mean
 			total_R = R.T.dot(total_R)
 			last_error = sse_transpose
+			# print "Incremental R:", R
+			# print "Total t:", total_t
 
 		# transform the object from the original for the next round
 		obj = object_cloud.dot(total_R.T) + total_t

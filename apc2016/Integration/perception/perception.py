@@ -5,15 +5,33 @@ from realsense_utils.client import RemoteCamera
 from realsense_utils.common_utils import render_3d_scatter
 from realsense_utils import colorize_point_cloud
 # def colorize_point_cloud(cloud, color, depth_uv, rgb_table=None)
-import struct, icp, sys
+import struct, icp, sys, threading
 from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
 
 sys.setrecursionlimit(10000)
 
+class CameraData:
+	def __init__(self, color, cloud, depth_uv, color_uv):
+		self.color = color
+		self.cloud = cloud
+		self.depth_uv = depth_uv
+		self.color_uv = color_uv
+
 class Perceiver:
 	def __init__(self):
 		self.camera = RemoteCamera('10.236.66.147', 30000)
+		self.cd = None
+		self.looping_thread = threading.Thread(target=self.read_loop_in_background)
+		self.looping_thread.daemon = True
+		self.looping_thread.start()
+		self.prefix = '/home/group3/ece490-s2016/apc2016/Integration/perception/'
+
+	def read_loop_in_background(self):
+		while True:
+			color, cloud, depth_uv, color_uv = self.camera.read()
+			cd = CameraData(color, cloud, depth_uv, color_uv)
+			self.cd = cd
 
 	def save_canonical_bin_point_cloud(self, bin_letter):
 		'''
@@ -26,9 +44,46 @@ class Perceiver:
 		'''
 		_, cloud, _, _ = self.read_once()
 		flattened_cloud = cloud.reshape(-1,3)
-		np.save('/home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin'+bin_letter, flattened_cloud)
+		np.save(self.prefix+'cached_bin_cloud/bin'+bin_letter, flattened_cloud)
 		print 'Successfully saved model for bin_'+bin_letter
 
+	def save_tote_cloud(self):
+		_, cloud, _, _ = self.read_once()
+		flattened_cloud = cloud.reshape(-1,3)
+		flattened_cloud = flattened_cloud / 1000
+		np.save(self.prefix+'cached_bin_cloud/tote', flattened_cloud)
+		print 'Successfully saved model for tote'
+
+	def subtract_tote(self, threshold=0.01, fit=False):
+		'''
+		subtract tote model from current point cloud of tote (with object in it)
+		if fit is True, transform the model to align with the scene first. it will take some time
+		return the point cloud of the remaining scene
+		'''
+		_, scene_cloud, _, _ = self.read_once()
+		try:
+			model_cloud = np.load(self.prefix+'cached_bin_cloud/tote.npy')
+		except:
+			print "Tote model cloud not found"
+			return None
+		'''
+		need to find points in the scene that are within threshold distance of any points in the model
+		'''
+		if model_cloud.max()>50:
+			model_cloud = model_cloud[::100, :] / 1000
+		else:
+			model_cloud = model_cloud[::100, :]
+		scene_cloud = scene_cloud[::100, :] / 1000
+		scene_tree = KDTree(scene_cloud)
+		if fit:
+			R, t, _ = icp.match(model_cloud, scene_tree)
+			model_cloud = model_cloud.dot(R.T) + t
+		idxs = scene_tree.query_ball_point(model_cloud, threshold)
+		idxs = [i for i in group for group in idxs] # flattened index
+		discard_idxs = set(idxs)
+		all_idxs = set(range(scene_cloud.shape[0]))
+		keep_idxs = all_idxs - discard_idxs
+		return scene_cloud[list(keep_idxs), :]
 
 	def get_current_point_cloud(self, colorful=True):
 		'''
@@ -124,10 +179,13 @@ class Perceiver:
 		'''
 		color, cloud, depth_uv, color_uv = self.camera.read()
 		try:
-			cached_bin_cloud = np.load('/home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin_'+bin_letter+'.npy')
+			cached_bin_cloud = np.load(self.prefix+'cached_bin_cloud/bin_'+bin_letter+'.npy')
 		except:
-			print 'Cannot find bin model for bin_%s at /home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin_%s.npy '%(bin_letter, bin_letter)
-			return
+			print 'Cannot find bin model for bin_%s at %scached_bin_cloud/bin_%s.npy '%(bin_letter, self.prefix, bin_letter)
+			return None
+		cloud = cloud / 1000
+		if cached_bin_cloud.max() > 50:
+			cached_bin_cloud = cached_bin_cloud / 1000
 		scene_tree = KDTree(cloud.reshape(-1,3))
 		R, t, _ = icp.match(cached_bin_cloud, scene_tree)
 		return list(R.flatten(order='F')), t
@@ -141,11 +199,11 @@ class Perceiver:
 
 	def read_once(self):
 		'''
-		(private) read after flushing the queue
+		(private) (OLD) read after flushing the queue
+		(CURRENT) read from CameraData object
 		'''
-		for _ in xrange(100):
-			self.camera.read()
-		return self.camera.read()
+		cd = self.cd
+		return cd.color, cd.cloud, cd.depth_uv, cd.color_uv
 
 
 def f_addr_to_i(f):
@@ -165,14 +223,13 @@ def pcl_float_to_rgb(f):
 	b = i >> 0 & 0x0000ff
 	return r,g,b
 
-if __name__ == '__main__':
-
+def test_icp():
 	pts_model = np.load('cached_bin_cloud/binA.npy')
 	pts_scene = np.load('cached_bin_cloud/binA_perturbed.npy')
 	pts_model = pts_model[np.where(pts_model[:,2]!=0)]
 	pts_scene = pts_scene[np.where(pts_scene[:,2]!=0)]
-	pts_model = pts_model[::20, :]
-	pts_scene = pts_scene[::20, :]
+	pts_model = pts_model[::100, :]/1000
+	pts_scene = pts_scene[::100, :]/1000
 	# ax = render_3d_scatter(pts_scene.tolist())
 	# ax.set_xlim([-500,500])
 	# ax.set_ylim([-500,500])
@@ -181,15 +238,22 @@ if __name__ == '__main__':
 	# plt.show()
 	print 'pts_model shape after downsampling:', pts_model.shape
 	print 'pts_scene shape after downsampling:', pts_scene.shape
-	# print 'Making KD Tree'
-	# scene_tree = KDTree(pts_scene)
-	# print 'Done making KD Tree'
-	# R, t, _ = icp.match(pts_model, scene_tree)
-	# print R, t
+	print 'Making KD Tree'
+	scene_tree = KDTree(pts_scene)
+	print 'Done making KD Tree'
+	R, t, _ = icp.match(pts_model, scene_tree, iterations=20)
+	print "R:", R
+	print "t:", t
 
-	R = np.array([[ 0.99192696, -0.00888253, -0.12649961], [ 0.02110102,  0.99519809,  0.09557982], [ 0.12504318, -0.09747747,  0.98735122]]) 
+	print "column-major R:", ', '.join(map(str, R.T.flatten()))
+	print "t:", ', '.join(map(str, t.flatten()))
 
-	t = np.array([[ 26.7398304,  -14.59224354,  42.7170067]])
+	print "=================Inverse================="
+	T = np.vstack((np.hstack((R, t.reshape(3,1))), np.array([0,0,0,1]).reshape(1,4)))
+	T = np.linalg.inv(T)
+	print "column-major R_inv:", ', '.join(map(str, T[0:3,0:3].T.flatten()))
+	print "t_inv:", ', '.join(map(str, T[0:3, 3].flatten()))
+	quit()
 
 	pts_model_xformed = pts_model.dot(R.T) + t
 
@@ -197,9 +261,9 @@ if __name__ == '__main__':
 	pts_scene = np.hstack((pts_scene, np.ones((pts_scene.shape[0],1))*rgb_to_pcl_float(255,255,0)))
 
 	ax = render_3d_scatter(np.vstack((pts_model_xformed, pts_scene)).tolist())
-	ax.set_xlim([-500,500])
-	ax.set_ylim([-500,500])
-	ax.set_zlim([0,1200])
+	ax.set_xlim([-0.5,0.5])
+	ax.set_ylim([-0.5,0.5])
+	ax.set_zlim([0,1.2])
 	ax.view_init(elev=0, azim=90)
 	plt.title('Shelf Overlay')
 
@@ -222,13 +286,28 @@ if __name__ == '__main__':
 	# ax.view_init(elev=0, azim=90)
 	# plt.title('Scene')
 	plt.show()
-	# perceiver = Perceiver()
 
+def test_tote_subtraction():
+	raise NotImplemented
 
-	# raw_input('Press to save bin_A model')
-	# perceiver.save_canonical_bin_point_cloud('A')
-	# raw_input('Press to save new bin_A model')
-	# perceiver.save_canonical_bin_point_cloud('B')
-	# quit()
-	# while True:
-	# 	pass
+def save_tote():
+	perceiver = Perceiver()
+	raw_input('Press to save bin_A model')
+	perceiver.save_canonical_bin_point_cloud('A')
+	raw_input('Press to save new bin_A model')
+	perceiver.save_canonical_bin_point_cloud('A_perturbed')
+	quit()
+	while True:
+		pass
+
+def save_bin():
+	perceiver = Perceiver()
+	raw_input('Press to save bin_A model')
+	perceiver.save_canonical_bin_point_cloud('A')
+	raw_input('Press to save new bin_A model')
+	perceiver.save_canonical_bin_point_cloud('A_perturbed')
+	quit()
+	
+
+if __name__ == '__main__':
+	test_icp()
