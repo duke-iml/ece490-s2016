@@ -102,6 +102,7 @@ perceiver = perception.Perceiver(REAL_CAMERA)
 # The path of the klampt_models directory
 model_dir = "../klampt_models/"
 TRAJECTORIES_PATH = "../Trajectories/"
+PATHING_PATH = "../Trajectories"
 
 # The transformation of the order bin
 order_bin_xform = (so3.identity(),[.65,-0.55,0])
@@ -470,18 +471,18 @@ class PickingController:
                 return False
             iters += 1
         # print "--> done\n"
-        return True
 
-    def calibratePerception(self, knowledge):
+    def calibratePerception(self, bin_letter='A'):
         #assumes you are already at the location where you want to do the transformation
-        try:
+        # try:
             # sends the camera transform so that perceiver can send back the shelf transform in world frame
-            self.perceptionTransform = perceiver.get_shelf_transformation(self.cameraTransform)
-            print self.perceptionTransform
-            knowledge.shelf_xform = self.perceptionTransform
-            self.world.terrain(0).geometry().transform(self.perceptionTransform[0], self.perceptionTransform[1])
-        except:
-            print "perception calibration not working"
+        totalCameraXform = se3.mul(self.robot.link('left_wrist').getTransform(), self.cameraTransform)
+        self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *totalCameraXform)
+        print self.perceptionTransform
+        knowledge.shelf_xform = self.perceptionTransform
+        self.world.terrain(0).geometry().transform(self.perceptionTransform[0], self.perceptionTransform[1])
+        # except:
+        #     print "perception calibration not working"
         print "Camera calibration DONE\n"
 
     def saveCanonicalPointCloud(self, bin_letter='A'):
@@ -1538,6 +1539,8 @@ class PickingController:
         print "Planning failed"
         return False
 
+    
+
     def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False):
         # interpolate path linearly between two endpoints
         # if INCREMENTAL:
@@ -1759,7 +1762,7 @@ class PickingController:
                 print error.strerror
                 
     def calibrateCamera(self):
-                #blocking
+        #blocking
         while(True):
 
             try:
@@ -1796,9 +1799,6 @@ class PickingController:
                 print self.cameraTransform
 
                 cloud = perceiver.get_current_point_cloud(tolist=False)
-                if cloud.max()>50:
-                    print "converting to meter..."
-                    cloud /= 1000
                 R, t = totalCameraXform
                 R = np.array([ [R[0], R[3], R[6]], [R[1], R[4], R[7]], [R[2], R[5], R[8]] ])
                 xformed_cloud = cloud.dot(R.T) + np.array(t).flatten()
@@ -2516,7 +2516,7 @@ if __name__ == "__main__":
 
     #run the visualizer
 
-    print "Printing number of robots in initialized world ", world.numRobots()
+
 
     visualizer = MyGLViewer(simworld,world)
     myCameraSettings(visualizer)

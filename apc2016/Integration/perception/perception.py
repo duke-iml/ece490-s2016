@@ -8,6 +8,7 @@ from realsense_utils import colorize_point_cloud
 import struct, icp, sys, threading
 from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
+from klampt import se3
 
 sys.setrecursionlimit(10000)
 
@@ -44,16 +45,13 @@ class Perceiver:
 
 		It will return None, but the model will be saved upon return
 		'''
-		_, cloud, _, _ = self.read_once()
-		flattened_cloud = cloud.reshape(-1,3)
-		np.save(self.prefix+'cached_bin_cloud/bin'+bin_letter, flattened_cloud)
+		_, cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
+		np.save(self.prefix+'cached_bin_cloud/bin_'+bin_letter, cloud)
 		print 'Successfully saved model for bin_'+bin_letter
 
 	def save_tote_cloud(self):
-		_, cloud, _, _ = self.read_once()
-		flattened_cloud = cloud.reshape(-1,3)
-		flattened_cloud = flattened_cloud / 1000
-		np.save(self.prefix+'cached_bin_cloud/tote', flattened_cloud)
+		_, cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
+		np.save(self.prefix+'cached_bin_cloud/tote', cloud)
 		print 'Successfully saved model for tote'
 
 	def subtract_tote(self, scene_cloud=None, threshold=0.02, fit=False):
@@ -63,22 +61,16 @@ class Perceiver:
 		return the point cloud of the remaining scene
 		'''
 		if scene_cloud is None:
-			_, scene_cloud, _, _ = self.read_once()
+			_, scene_cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
 		try:
 			model_cloud = np.load(self.prefix+'cached_bin_cloud/tote.npy')
 		except:
 			print "Tote model cloud not found"
 			return None
-		scene_cloud = remove_invalid_points(scene_cloud)
-		model_cloud = remove_invalid_points(model_cloud)
 		'''
 		need to find points in the scene that are within threshold distance of any points in the model
 		'''
-		if model_cloud.max()>50:
-			model_cloud = model_cloud[::100, :] / 1000
-		else:
-			model_cloud = model_cloud[::100, :]
-		scene_cloud = scene_cloud[::20, :] / 1000
+		scene_cloud = scene_cloud[::20, :]
 		print "Making scene cloud with %i points"%scene_cloud.shape[0]
 		scene_tree = KDTree(scene_cloud)
 		print "Done"
@@ -112,7 +104,7 @@ class Perceiver:
 		
 		if there is an error in retrieving data, None is returned
 		'''
-		color, cloud, depth_uv, color_uv = self.read_once()
+		color, cloud, depth_uv, color_uv = self.read_once(unit='meter', Nx3_cloud=False)
 		if cloud is None:
 			return None
 		if colorful:
@@ -127,7 +119,7 @@ class Perceiver:
 			cloud = cloud.tolist()
 		return cloud
 
-	def get_shelf_transformation(self, bin_letter):
+	def get_shelf_transformation(self, bin_letter, camera_R, camera_t):
 		'''
 		physical pre-condition: place the camera to the hard-coded position of viewing bin_A
 
@@ -136,7 +128,7 @@ class Perceiver:
 		return the shelf transformation as (R, t), where R is a column-major order flattened array of rotation matrix, 
 		and t is an array of 3 numbers for transformation. 
 		'''
-		raise self.icp_get_bin_transform(bin_letter)
+		return self.icp_get_bin_transform(bin_letter, camera_R, camera_t)
 
 	def get_position_of_item_in_bin(self, item_name, return_normal=False):
 		'''
@@ -183,7 +175,7 @@ class Perceiver:
 		'''
 		raise NotImplemented
 
-	def icp_get_bin_transform(self, bin_letter):
+	def icp_get_bin_transform(self, bin_letter, camera_R, camera_t):
 		'''
 		(private) get the current bin transform relative to canonical position for the specified bin
 		bin_letter is one of ['A', 'B', ..., 'L'] and is used to load the pre-computed shelf cloud
@@ -191,33 +183,60 @@ class Perceiver:
 		return (R, t), where R is a column-major order flattened array of rotation matrix, 
 		and t is an array of 3 numbers for transformation. 
 		'''
-		color, cloud, depth_uv, color_uv = self.read_once()
+		camera_R = np.array([ [camera_R[0], camera_R[3], camera_R[6]] , [camera_R[1], camera_R[4], camera_R[7]] , [camera_R[2], camera_R[5], camera_R[8]] ])
+		camera_t = np.array(camera_t).flatten()
+		_, scene_cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
 		try:
-			cached_bin_cloud = np.load(self.prefix+'cached_bin_cloud/bin_'+bin_letter+'.npy')
+			model_cloud = np.load(self.prefix+'cached_bin_cloud/bin_'+bin_letter+'.npy')
 		except:
-			print 'Cannot find bin model for bin_%s at /home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin_%s.npy '%(bin_letter, bin_letter)
+			print 'Cannot find bin model for bin_%s at %scached_bin_cloud/bin_%s.npy '%(bin_letter, self.prefix, bin_letter)
 			return None
-		cloud = cloud / 1000
-		if cached_bin_cloud.max() > 50:
-			cached_bin_cloud = cached_bin_cloud / 1000
-		scene_tree = KDTree(cloud.reshape(-1,3))
-		R, t, _ = icp.match(cached_bin_cloud, scene_tree)
-		return list(R.flatten(order='F')), t
-
-
+		model_cloud = model_cloud[::100,:]
+		scene_cloud = scene_cloud[::100,:]
+		model_cloud_xformed = model_cloud.dot(camera_R.T) + camera_t
+		scene_cloud_xformed = scene_cloud.dot(camera_R.T) + camera_t
+		np.save(self.prefix+'cached_bin_cloud/model_cloud_xformed.npy', model_cloud_xformed)
+		np.save(self.prefix+'cached_bin_cloud/scene_cloud_xformed.npy', scene_cloud_xformed)
+		scene_tree = KDTree(scene_cloud_xformed)
+		relative_R, relative_t, _ = icp.match(model_cloud_xformed, scene_tree)
+		relative_R = list(relative_R.flatten(order='F'))
+		relative_t = list(relative_t.flat)
+		camera_R = list(camera_R.flatten(order='F'))
+		camera_t = list(camera_t.flat)
+		# total_R, total_t = se3.mul((relative_R, relative_t), (camera_R, camera_t))
+		# return total_R, total_t
+		return relative_R, relative_t
+		
 	def subtract(self, bin_letter):
 		'''
 		(private) 
 		'''
 		raise NotImplemented
 
-	def read_once(self):
+	def read_once(self, unit='meter', Nx3_cloud=False, clean=None):
 		'''
 		(private) (OLD) read after flushing the queue
 		(CURRENT) read from CameraData object
 		'''
 		cd = self.cd
-		return cd.color, cd.cloud, cd.depth_uv, cd.color_uv
+		color = cd.color
+		cloud = cd.cloud
+		depth_uv = cd.depth_uv
+		color_uv = cd.color_uv
+		if unit in ['meter', 'm']:
+			cloud /= 1000
+		elif unit in ['centimeter', 'centi-meter', 'cm']:
+			cloud = cloud
+		else:
+			raise Exception('Unrecognized unit '+str(unit))
+		if Nx3_cloud:
+			cloud = cloud.reshape(-1, 3)
+		if Nx3_cloud:
+			assert clean is not None, 'clean must be a boolean when Nx3_cloud is True'
+			if clean:
+				keep_idxs = keep_idxs = np.where(cloud[:,2].flatten()!=0)
+				cloud = cloud[keep_idxs[0],:]
+		return color, cloud, depth_uv, color_uv
 
 def remove_invalid_points(cloud):
 	'''

@@ -143,7 +143,7 @@ class MyEEPoseProgram(GLRealtimeProgram):
                 if not motion.robot.left_ee.moveTo(R,self.drivePos,maxPositionError=positionBand,maxJointDeviation=jointErr):
                     self.driveRot,self.drivePos = motion.robot.left_ee.commandedTransform()
             elif self.driveArm=='r':
-                R = motion.robot.right_ee.commandedTransform()[0]
+                R = motion.robot.right_ee.commandedTransform()[0]   
                 if not motion.robot.right_ee.moveTo(R,self.drivePos,maxPositionError=positionBand,maxJointDeviation=jointErr):
                     self.driveRot,self.drivePos = motion.robot.right_ee.commandedTransform()
             else:
@@ -223,12 +223,15 @@ class MyEEPoseProgram(GLRealtimeProgram):
             self.baseCommand[2] -= self.incrementang
             self.updateBaseCommand()
         elif c=='p':
-            #if( self.driveArm == 'r' ):
-            #    print motion.robot.right_limb.sensedPosition()
-            #elif (self.driveArm == 'l'):
-            #    print motion.robot.left_limb.sensedPosition()
+            print "Baxter Total Config:"
             print motion.robot.getKlamptSensedPosition()
-
+            print "=============================="
+            print "Arm Configuration ", self.driveArm
+            if( self.driveArm == 'r' ):
+                print motion.robot.right_limb.sensedPosition()
+            elif (self.driveArm == 'l'):
+                print motion.robot.left_limb.sensedPosition()
+            
         self.refresh()
 
     def extendTrace(self,trace,T):
