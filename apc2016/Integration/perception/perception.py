@@ -19,13 +19,15 @@ class CameraData:
 		self.color_uv = color_uv
 
 class Perceiver:
-	def __init__(self):
-		self.camera = RemoteCamera('10.236.66.147', 30000)
-		self.cd = None
-		self.looping_thread = threading.Thread(target=self.read_loop_in_background)
-		self.looping_thread.daemon = True
-		self.looping_thread.start()
+	def __init__(self, camera_connect=True):
+		# self.prefix = ''
 		self.prefix = '/home/group3/ece490-s2016/apc2016/Integration/perception/'
+		if camera_connect:
+			self.camera = RemoteCamera('10.236.66.147', 30000)
+			self.cd = None
+			self.looping_thread = threading.Thread(target=self.read_loop_in_background)
+			self.looping_thread.daemon = True
+			self.looping_thread.start()
 
 	def read_loop_in_background(self):
 		while True:
@@ -54,18 +56,21 @@ class Perceiver:
 		np.save(self.prefix+'cached_bin_cloud/tote', flattened_cloud)
 		print 'Successfully saved model for tote'
 
-	def subtract_tote(self, threshold=0.01, fit=False):
+	def subtract_tote(self, scene_cloud=None, threshold=0.02, fit=False):
 		'''
 		subtract tote model from current point cloud of tote (with object in it)
 		if fit is True, transform the model to align with the scene first. it will take some time
 		return the point cloud of the remaining scene
 		'''
-		_, scene_cloud, _, _ = self.read_once()
+		if scene_cloud is None:
+			_, scene_cloud, _, _ = self.read_once()
 		try:
 			model_cloud = np.load(self.prefix+'cached_bin_cloud/tote.npy')
 		except:
 			print "Tote model cloud not found"
 			return None
+		scene_cloud = remove_invalid_points(scene_cloud)
+		model_cloud = remove_invalid_points(model_cloud)
 		'''
 		need to find points in the scene that are within threshold distance of any points in the model
 		'''
@@ -73,19 +78,23 @@ class Perceiver:
 			model_cloud = model_cloud[::100, :] / 1000
 		else:
 			model_cloud = model_cloud[::100, :]
-		scene_cloud = scene_cloud[::100, :] / 1000
+		scene_cloud = scene_cloud[::20, :] / 1000
+		print "Making scene cloud with %i points"%scene_cloud.shape[0]
 		scene_tree = KDTree(scene_cloud)
+		print "Done"
 		if fit:
 			R, t, _ = icp.match(model_cloud, scene_tree)
 			model_cloud = model_cloud.dot(R.T) + t
+		print "Querying neighbors of %i points"%model_cloud.shape[0]
 		idxs = scene_tree.query_ball_point(model_cloud, threshold)
-		idxs = [i for i in group for group in idxs] # flattened index
+		print "Done"
+		idxs = [i for group in idxs for i in group] # flattened index
 		discard_idxs = set(idxs)
 		all_idxs = set(range(scene_cloud.shape[0]))
 		keep_idxs = all_idxs - discard_idxs
 		return scene_cloud[list(keep_idxs), :]
 
-	def get_current_point_cloud(self, colorful=True):
+	def get_current_point_cloud(self, colorful=False, tolist=True):
 		'''
 		physical pre-condition: place the camera to the desired viewing angle. 
 
@@ -103,15 +112,20 @@ class Perceiver:
 		
 		if there is an error in retrieving data, None is returned
 		'''
-		color, cloud, depth_uv, color_uv = self.camera.read()
+		color, cloud, depth_uv, color_uv = self.read_once()
 		if cloud is None:
 			return None
 		if colorful:
 			if color is None or depth_uv is None:
 				return None
-			return colorize_point_cloud(cloud, color, depth_uv)
-		else:
-			return cloud
+			cloud = colorize_point_cloud(cloud, color, depth_uv)
+		ch = cloud.shape[-1]
+		cloud = cloud.reshape(-1, ch)
+		keep_idxs = np.where(cloud[:,2].flatten()!=0)
+		cloud = cloud[keep_idxs[0], :]
+		if tolist:
+			cloud = cloud.tolist()
+		return cloud
 
 	def get_shelf_transformation(self, bin_letter):
 		'''
@@ -177,11 +191,11 @@ class Perceiver:
 		return (R, t), where R is a column-major order flattened array of rotation matrix, 
 		and t is an array of 3 numbers for transformation. 
 		'''
-		color, cloud, depth_uv, color_uv = self.camera.read()
+		color, cloud, depth_uv, color_uv = self.read_once()
 		try:
 			cached_bin_cloud = np.load(self.prefix+'cached_bin_cloud/bin_'+bin_letter+'.npy')
 		except:
-			print 'Cannot find bin model for bin_%s at %scached_bin_cloud/bin_%s.npy '%(bin_letter, self.prefix, bin_letter)
+			print 'Cannot find bin model for bin_%s at /home/group3/ece490-s2016/group2/planning/Integration/perception/cached_bin_cloud/bin_%s.npy '%(bin_letter, bin_letter)
 			return None
 		cloud = cloud / 1000
 		if cached_bin_cloud.max() > 50:
@@ -205,6 +219,15 @@ class Perceiver:
 		cd = self.cd
 		return cd.color, cd.cloud, cd.depth_uv, cd.color_uv
 
+def remove_invalid_points(cloud):
+	'''
+	cloud is an numpy array of size N x 3
+	remove all rows with 3rd entry being 0
+	'''
+	cloud = np.array(cloud)
+	N = cloud.shape[0]
+	keep_idxs = np.where(cloud[:,2].flatten()!=0)
+	return cloud[keep_idxs[0],:]
 
 def f_addr_to_i(f):
 	return struct.unpack('I', struct.pack('f', f))[0]
@@ -242,18 +265,7 @@ def test_icp():
 	scene_tree = KDTree(pts_scene)
 	print 'Done making KD Tree'
 	R, t, _ = icp.match(pts_model, scene_tree, iterations=20)
-	print "R:", R
-	print "t:", t
-
-	print "column-major R:", ', '.join(map(str, R.T.flatten()))
-	print "t:", ', '.join(map(str, t.flatten()))
-
-	print "=================Inverse================="
-	T = np.vstack((np.hstack((R, t.reshape(3,1))), np.array([0,0,0,1]).reshape(1,4)))
-	T = np.linalg.inv(T)
-	print "column-major R_inv:", ', '.join(map(str, T[0:3,0:3].T.flatten()))
-	print "t_inv:", ', '.join(map(str, T[0:3, 3].flatten()))
-	quit()
+	print R, t
 
 	pts_model_xformed = pts_model.dot(R.T) + t
 
@@ -288,17 +300,27 @@ def test_icp():
 	plt.show()
 
 def test_tote_subtraction():
-	raise NotImplemented
+	perceiver = Perceiver(False)
+	scene_cloud = np.load('cached_bin_cloud/tote_with_objects.npy')
+	model_cloud = np.load('cached_bin_cloud/tote.npy')
+	clean_cloud = perceiver.subtract_tote(scene_cloud, fit=True)
+	scene_cloud = remove_invalid_points(scene_cloud)[::100,:]
+	if scene_cloud.max() > 50:
+		scene_cloud /= 1000
+	model_cloud = remove_invalid_points(model_cloud)[::100,:]
+	if model_cloud.max() > 50:
+		model_cloud /= 1000
+	render_3d_scatter(model_cloud.tolist())
+	render_3d_scatter(scene_cloud.tolist())
+	render_3d_scatter(clean_cloud.tolist())
+	plt.show()
 
 def save_tote():
 	perceiver = Perceiver()
-	raw_input('Press to save bin_A model')
-	perceiver.save_canonical_bin_point_cloud('A')
-	raw_input('Press to save new bin_A model')
-	perceiver.save_canonical_bin_point_cloud('A_perturbed')
-	quit()
-	while True:
-		pass
+	raw_input('Press to save empty tote model')
+	perceiver.save_canonical_bin_point_cloud('_tote')
+	raw_input('Press to save tote with object scene')
+	perceiver.save_canonical_bin_point_cloud('_tote_with_objects')
 
 def save_bin():
 	perceiver = Perceiver()
@@ -306,8 +328,8 @@ def save_bin():
 	perceiver.save_canonical_bin_point_cloud('A')
 	raw_input('Press to save new bin_A model')
 	perceiver.save_canonical_bin_point_cloud('A_perturbed')
-	quit()
 	
 
 if __name__ == '__main__':
-	test_icp()
+	test_tote_subtraction()
+

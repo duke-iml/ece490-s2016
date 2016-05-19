@@ -69,14 +69,14 @@ def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_t
 			total_t = total_t.dot(R.T) - obj_mean.dot(R.T) + correspondences_mean
 			total_R = R.dot(total_R)
 			last_error = sse_normal
-			# print "Incremental R:", R
-			# print "Total t:", total_t
+			print "Incremental R:", R
+			print "Total t:", total_t
 		else:
 			total_t = total_t.dot(R) - obj_mean.dot(R) + correspondences_mean
 			total_R = R.T.dot(total_R)
 			last_error = sse_transpose
-			# print "Incremental R:", R
-			# print "Total t:", total_t
+			print "Incremental R:", R
+			print "Total t:", total_t
 
 		# transform the object from the original for the next round
 		obj = object_cloud.dot(total_R.T) + total_t

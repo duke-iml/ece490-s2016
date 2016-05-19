@@ -29,6 +29,7 @@ from Queue import Queue
 from operator import itemgetter
 import cPickle as pickle
 import subprocess
+import numpy as np
 
 
 #-----------------------------------------------------------
@@ -55,14 +56,13 @@ binOrderParser = binOrder.binOrder()
 from perception import perception
 
 
-perceiver = perception.Perceiver()
-
-
 #================================================================
 # End of Imports
 
 
 # configuration variables
+
+
 NO_SIMULATION_COLLISIONS = 1
 FAKE_SIMULATION = 0
 PHYSICAL_SIMULATION = 1
@@ -74,11 +74,18 @@ VACUUM = 0 or ALL_ARDUINOS
 SPEED = 3
 
 REAL_SCALE = False
+REAL_CAMERA = True
+
 CALIBRATE = True
+
+CAMERA_TRANSFORM = ([1,0,0,0,1,0,0,0,1], [0,0,0])
 
 
 if REAL_SCALE:
      myScale = scale.Scale()
+
+
+perceiver = perception.Perceiver(REAL_CAMERA)
 
 # # NOTE: Arduino stuff
 # # import Pressure_Comms
@@ -412,12 +419,17 @@ class PickingController:
 
         self.perceptionTransform = None
         self.totalTransform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
+        self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
+
+
 
         #these may be helpful
         self.left_camera_link = self.robot.link(left_camera_link_name)
         self.right_camera_link = self.robot.link(right_camera_link_name)
         self.left_gripper_link = self.robot.link(left_gripper_link_name)
         self.right_gripper_link = self.robot.link(right_gripper_link_name)
+
+        self.points = None
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -436,6 +448,9 @@ class PickingController:
 
     def getWorld(self):
         return self.world
+
+    def getPerceivedPoints(self):
+        return self.points
 
     def waitForMove(self,timeout = None, pollRate = 0.01):
         """Waits for the move to complete, or timeout seconds is elapsed,
@@ -460,7 +475,8 @@ class PickingController:
     def calibratePerception(self, knowledge):
         #assumes you are already at the location where you want to do the transformation
         try:
-            self.perceptionTransform = perceiver.get_shelf_transformation()
+            # sends the camera transform so that perceiver can send back the shelf transform in world frame
+            self.perceptionTransform = perceiver.get_shelf_transformation(self.cameraTransform)
             print self.perceptionTransform
             knowledge.shelf_xform = self.perceptionTransform
             self.world.terrain(0).geometry().transform(self.perceptionTransform[0], self.perceptionTransform[1])
@@ -1714,6 +1730,7 @@ class PickingController:
                 #translational transformation
                 calibrateR = [1,0,0,0,1,0,0,0,1]
                 calibrateT = [0,0,0]
+
                 if(input_var[0] == "x" ):
                     calibrateT[0] = calibrateT[0] + float(input_var[1])
                 elif(input_var[0] == "y" ):
@@ -1728,20 +1745,70 @@ class PickingController:
                 elif(input_var[0] == "zr" ):
                     calibrateR = so3.mul(calibrateR, so3.rotation([0, 0, 1], float(input_var[1])))
 
+                elif(input_var[0] == "q"):
+                    break
+
                 time.sleep(0.1);
                 calibrate = (calibrateR, calibrateT)
                 self.world.terrain(0).geometry().transform( calibrate[0], calibrate[1] )
                 self.totalTransform = se3.mul(self.totalTransform, calibrate)
 
                 print self.totalTransform
-            except KeyboardInterrupt:
-                print self.totalTransform
-                break
-
             except: 
                 print "input error\n"
                 print error.strerror
                 
+    def calibrateCamera(self):
+                #blocking
+        while(True):
+
+            try:
+                input_var = raw_input("Enter joint and angle to change to separated by a comma: ").split(',');
+                #translational transformation
+                calibrateR = self.cameraTransform[0]
+                calibrateT = self.cameraTransform[1]
+
+                if(input_var[0] == "x" ):
+                    calibrateT[0] = calibrateT[0] + float(input_var[1])
+                elif(input_var[0] == "y" ):
+                    calibrateT[1] = calibrateT[1] + float(input_var[1])
+                elif(input_var[0] == "z" ):
+                    calibrateT[2] = calibrateT[2] + float(input_var[1])
+                #rotational transformations
+                elif(input_var[0] == "xr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([1, 0, 0], float(input_var[1])))
+                elif(input_var[0] == "yr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([0, 1, 0], float(input_var[1])))
+                elif(input_var[0] == "zr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([0, 0, 1], float(input_var[1])))
+
+                elif(input_var[0] == "q"):
+                    break
+
+                time.sleep(0.1);
+                calibrate = (calibrateR, calibrateT)
+                self.cameraTransform = ( calibrate[0], calibrate[1] )
+                
+
+
+                totalCameraXform = se3.mul(self.robot.link('left_wrist').getTransform(), self.cameraTransform)
+
+                print self.cameraTransform
+
+                cloud = perceiver.get_current_point_cloud(tolist=False)
+                if cloud.max()>50:
+                    print "converting to meter..."
+                    cloud /= 1000
+                R, t = totalCameraXform
+                R = np.array([ [R[0], R[3], R[6]], [R[1], R[4], R[7]], [R[2], R[5], R[8]] ])
+                xformed_cloud = cloud.dot(R.T) + np.array(t).flatten()
+                self.points = xformed_cloud.tolist()
+
+            except: 
+                print "input error\n"
+                #print error.strerror
+
+
 
 
 
@@ -1808,10 +1875,18 @@ class MyGLViewer(GLRealtimeProgram):
             #self.simworld.drawGL()
 
         if CALIBRATE:
-            self.picking_controller.getWorld().drawGL()
-            #self.simworld = self.picking_controller.getWorld()
+            self.planworld = self.picking_controller.getWorld()
+            if self.picking_controller.getPerceivedPoints() is not None:
+                glColor3f(1.0,0.0,0.0)
+                glBegin(GL_POINTS)
+                for point in self.picking_controller.points[::5]:
+                    glVertex3f(point[0], point[1], point[2])
+                glEnd() 
+            #self.picking_controller.getWorld().robot(0)
+            #self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), self.calibratedCameraXform)
         
         self.simworld.drawGL()
+
 
 
         # draw the shelf and floor
@@ -2217,7 +2292,9 @@ def run_controller(controller,command_queue):
             elif c=='1':
                 controller.moveToBinViewingConfig('A')
             elif c=='s':
-                controller.calibrateShelf()            
+                controller.calibrateShelf()
+            elif c=='w':
+                controller.calibrateCamera()            
             elif c=='q':
                 break
         else:
