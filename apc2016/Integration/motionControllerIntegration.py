@@ -406,17 +406,22 @@ class PhysicalLowLevelController(LowLevelController):
 
     def appendMilestoneRight(self, destination, dt=0.1):
         if len(destination) == 7:
-            if not motion.robot.right_mq.appendLinear(0.1, destination): raise RuntimeError()
+            while len(destination) < len(self.right_arm_indices):
+                destination = destination + [0]
+            if not motion.robot.right_mq.appendLinear(1, destination): raise RuntimeError()
         else:
-            if not motion.robot.right_mq.appendLinear(0.1, [destination[v] for v in self.right_arm_indices]): raise RuntimeError()
+            if not motion.robot.right_mq.appendLinear(1, [destination[v] for v in self.right_arm_indices]): raise RuntimeError()
 
 
 
     def appendMilestoneLeft(self, destination, dt=0.1):
         if len(destination) == 7:
-            if not motion.robot.left_mq.appendLinear(0.1, destination): raise RuntimeError()
+            while len(destination) < len(self.left_arm_indices):
+                destination = destination + [0]
+
+            if not motion.robot.left_mq.appendLinear(1, destination): raise RuntimeError()
         else:
-            if not motion.robot.left_mq.appendLinear(0.1, [destination[v] for v in self.left_arm_indices]): raise RuntimeError()
+            if not motion.robot.left_mq.appendLinear(1, [destination[v] for v in self.left_arm_indices]): raise RuntimeError()
         
 
 
@@ -529,7 +534,7 @@ class PickingController:
         #replace with move_camera_to_bin later
 
 
-    def viewBinAction(self,b):
+    def viewBinAction(self,b, limb):
         self.waitForMove()
 
         if self.stateLeft != 'ready':
@@ -538,7 +543,7 @@ class PickingController:
         else:
             # If a valid bin name
             if b in apc.bin_names:
-                if self.move_camera_to_bin(b):
+                if self.move_camera_to_bin(b, limb=limb):
                     self.waitForMove()
                     self.current_bin = b
                     run_perception_on_bin(knowledge, b)
@@ -1335,12 +1340,12 @@ class PickingController:
             print "loading "+bin_name+" Physically Planned Trajectory"
             if(limb is not None):
                 #path = LOADED_PHYSICAL_TRAJECTORY['CAMERA_TO_' + bin_name+'_' + limb.toUpper())]
-                path = eval('CAMERA_TO_'+ bin_name+'_'+limb.toUpper())
+                path = eval('CAMERA_TO_'+ bin_name.upper()+'_'+limb.upper())
             if PHYSICAL_SIMULATION:
                 for milestone in path:
-                    if limb == 'left'
+                    if limb == 'left':
                         self.controller.appendMilestoneLeft(milestone, .5)
-                    if limb == 'right'
+                    if limb == 'right':
                         self.controller.appendMilestoneRight(milestone, .5)
 
         # If we are backing off from bin to view camera
@@ -2270,7 +2275,7 @@ def run_controller(controller,command_queue):
             print "\n================================"
             print "Running command",c
             if c >= 'a' and c <= 'l':
-                controller.viewBinAction('bin_'+c.upper())
+                controller.viewBinAction('bin_'+c.upper(), limb='left')
                 #controller.moveToBinViewingConfig(c.upper())
             elif c == 'r':
                 controller.moveToRestConfig()
@@ -2556,6 +2561,7 @@ if __name__ == "__main__":
             LOADED_PHYSICAL_TRAJECTORY["CAMERA_TO_"+bin_name+'_RIGHT'] = eval('CAMERA_TO_' + bin_name+'_RIGHT')
             LOADED_PHYSICAL_TRAJECTORY["CAMERA_TO_"+bin_name+'_RIGHT'] = eval('CAMERA_TO_' + bin_name+'_LEFT')
         except:
+            print "failed to load"
 
     #run the visualizer
 

@@ -2289,6 +2289,50 @@ def run_controller(controller,command_queue):
                 controller.saveCanonicalPointCloud('A')
             elif c=='1':
                 controller.moveToBinViewingConfig('A')
+            elif c=='@':
+                controller.saveCanonicalPointCloud('B')
+            elif c=='2':
+                controller.moveToBinViewingConfig('B')
+            elif c=='#':
+                controller.saveCanonicalPointCloud('C')
+            elif c=='3':
+                controller.moveToBinViewingConfig('C')
+            elif c=='$':
+                controller.saveCanonicalPointCloud('D')
+            elif c=='4':
+                controller.moveToBinViewingConfig('D')
+            elif c=='%':
+                controller.saveCanonicalPointCloud('E')
+            elif c=='5':
+                controller.moveToBinViewingConfig('E')
+            elif c=='^':
+                controller.saveCanonicalPointCloud('F')
+            elif c=='6':
+                controller.moveToBinViewingConfig('F')
+            elif c=='&':
+                controller.saveCanonicalPointCloud('G')
+            elif c=='7':
+                controller.moveToBinViewingConfig('G')
+            elif c=='*':
+                controller.saveCanonicalPointCloud('H')
+            elif c=='8':
+                controller.moveToBinViewingConfig('H')
+            elif c=='(':
+                controller.saveCanonicalPointCloud('I')
+            elif c=='9':
+                controller.moveToBinViewingConfig('I')
+            elif c==')':
+                controller.saveCanonicalPointCloud('J')
+            elif c=='0':
+                controller.moveToBinViewingConfig('J')
+            elif c=='_':
+                controller.saveCanonicalPointCloud('K')
+            elif c=='-':
+                controller.moveToBinViewingConfig('K')
+            elif c=='+':
+                controller.saveCanonicalPointCloud('L')
+            elif c=='=':
+                controller.moveToBinViewingConfig('L')
             elif c=='s':
                 controller.calibrateShelf()
             elif c=='w':
@@ -2421,6 +2465,39 @@ if __name__ == "__main__":
 
     f = open(model_dir+'bin_viewing_configs/A.config','r')
     bin_viewing_configs['A'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['B'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['C'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['D'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['E'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['F'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['G'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['H'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['I'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['J'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['K'] = loader.readVector(f.readline())
+    f.close()
+    f = open(model_dir+'bin_viewing_configs/A.config','r')
+    bin_viewing_configs['L'] = loader.readVector(f.readline())
     f.close()
 
     # Add initial joint values to additional joints
