@@ -31,6 +31,8 @@ import cPickle as pickle
 import subprocess
 import numpy as np
 
+from Trajectories.camera_to_bin import *
+
 
 #-----------------------------------------------------------
 #Imports require internal folders
@@ -79,6 +81,8 @@ REAL_CAMERA = True
 CALIBRATE = True
 
 CAMERA_TRANSFORM = ([1,0,0,0,1,0,0,0,1], [0,0,0])
+LOAD_TRAJECTORY_DEFAULT = False
+LOAD_PHYSICAL_TRAJECTORY = True
 
 
 if REAL_SCALE:
@@ -399,6 +403,22 @@ class PhysicalLowLevelController(LowLevelController):
             # turn vacuum on
             vacuumController.change_vacuum_state(command[0])
         return
+
+    def appendMilestoneRight(self, destination, dt=0.1):
+        if len(destination) == 7:
+            if not motion.robot.right_mq.appendLinear(0.1, destination): raise RuntimeError()
+        else:
+            if not motion.robot.right_mq.appendLinear(0.1, [destination[v] for v in self.right_arm_indices]): raise RuntimeError()
+
+
+
+    def appendMilestoneLeft(self, destination, dt=0.1):
+        if len(destination) == 7:
+            if not motion.robot.left_mq.appendLinear(0.1, destination): raise RuntimeError()
+        else:
+            if not motion.robot.left_mq.appendLinear(0.1, [destination[v] for v in self.left_arm_indices]): raise RuntimeError()
+        
+
 
 class PickingController:
     def __init__(self,simworld,world,robotController):
@@ -1293,7 +1313,7 @@ class PickingController:
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
         return [s[1] for s in sortedSolutions]
 
-    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ik_constrain=True,ignoreColShelfSpatula=True, LOAD_TRAJECTORY=True):
+    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ik_constrain=True,ignoreColShelfSpatula=True, LOAD_TRAJECTORY=LOAD_TRAJECTORY_DEFAULT, limb=None):
         if LOAD_TRAJECTORY:
             print "Loading "+bin_name+" Trajectory..."
             path = loaded_trajectory[bin_name]
@@ -1310,6 +1330,18 @@ class PickingController:
                 #else:
                 #    self.sendPathClosedLoop(path, clearRightArm=True)
             return True
+
+        if LOAD_PHYSICAL_TRAJECTORY:
+            print "loading "+bin_name+" Physically Planned Trajectory"
+            if(limb is not None):
+                #path = LOADED_PHYSICAL_TRAJECTORY['CAMERA_TO_' + bin_name+'_' + limb.toUpper())]
+                path = eval('CAMERA_TO_'+ bin_name+'_'+limb.toUpper())
+            if PHYSICAL_SIMULATION:
+                for milestone in path:
+                    if limb == 'left'
+                        self.controller.appendMilestoneLeft(milestone, .5)
+                    if limb == 'right'
+                        self.controller.appendMilestoneRight(milestone, .5)
 
         # If we are backing off from bin to view camera
         else:
@@ -2506,13 +2538,24 @@ if __name__ == "__main__":
         world.robot(0).setConfig(baxter_startup_config)
 
     print "Loading precomputed trajectories... (this may take a while)"
+
+    bin_list = ['A','B','C','D','E','F','G','H','I','J','K','L']
+
     global loaded_trajectory
     loaded_trajectory = {}
-    for bin_name in ['bin_'+c for c in ['A','B','C','D','E','F','G','H','I','J','K','L']]:
+    for bin_name in ['bin_'+c for c in bin_list]:
         loaded_trajectory[bin_name] = loadFromFile(TRAJECTORIES_PATH+bin_name)
         loaded_trajectory[bin_name+"_spatula_to_center"] = loadFromFile(TRAJECTORIES_PATH+bin_name+"_spatula_to_center")
     loaded_trajectory['gripper_to_center'] = loadFromFile(TRAJECTORIES_PATH+"gripper_to_center")
     loaded_trajectory['move_to_order_bin'] = loadFromFile(TRAJECTORIES_PATH+"move_to_order_bin")
+
+
+    global LOADED_PHYSICAL_TRAJECTORY
+    for bin_name in ['BIN_'+c for c in bin_list]:
+        try:
+            LOADED_PHYSICAL_TRAJECTORY["CAMERA_TO_"+bin_name+'_RIGHT'] = eval('CAMERA_TO_' + bin_name+'_RIGHT')
+            LOADED_PHYSICAL_TRAJECTORY["CAMERA_TO_"+bin_name+'_RIGHT'] = eval('CAMERA_TO_' + bin_name+'_LEFT')
+        except:
 
     #run the visualizer
 
