@@ -709,7 +709,7 @@ if __name__=="__main__":
     print "Testing Ebolabot Motion Module..."
     #assumes Klampt is in the home directory
 
-    klampt_model = "../klampt_models/baxter_with_new_spatula_col3.rob"
+    klampt_model = "../klampt_models/baxter_with_two_vacuums.rob"
     mode = None
     if len(sys.argv)>1:
         mode = sys.argv[1]
