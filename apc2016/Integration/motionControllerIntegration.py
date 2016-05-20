@@ -107,6 +107,7 @@ perceiver = perception.Perceiver(REAL_CAMERA)
 model_dir = "../klampt_models/"
 TRAJECTORIES_PATH = "../Trajectories/"
 PATHING_PATH = "../Trajectories"
+KLAMPT_MODEL="baxter_with_two_vacuums.rob"
 
 # The transformation of the order bin
 order_bin_xform = (so3.identity(),[.65,-0.55,0])
@@ -118,10 +119,7 @@ global objList
 global singleItemList
 
 global orderList
-orderList = ['tall_item', 'med_item',  'tall_item',
-             'med_item',  'tall_item', 'med_item',
-             'tall_item', 'med_item',  'tall_item',
-             'med_item',  'tall_item', 'med_item']
+(binList, orderList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
 
 class KnowledgeBase:
     def __init__(self):
@@ -310,7 +308,7 @@ class FakeLowLevelController:
 
 class PhysicalLowLevelController(LowLevelController):
     """A low-level controller for the real robot."""
-    def __init__(self,robotModel,klampt_model="baxter_col.rob"):
+    def __init__(self,robotModel,klampt_model=KLAMPT_MODEL):
         print "Setting up motion_physical library with model",klampt_model
         #motion.setup(klampt_model = "../klampt_models/"+klampt_model)
         #motion.setup(mode="physical",libpath="", klampt_model = klampt_model)
@@ -511,6 +509,7 @@ class PickingController:
         print "Camera calibration DONE\n"
 
     def saveCanonicalPointCloud(self, bin_letter='A'):
+        print bin_letter
         perceiver.save_canonical_bin_point_cloud(bin_letter)
 
     def moveToRestConfig(self):
@@ -2133,7 +2132,7 @@ class MyGLViewer(GLRealtimeProgram):
         return
 
     def keyboardfunc(self,c,x,y):
-        c = c.lower()
+        #c = c.lower()
         if c=='z':
             self.simulate = not self.simulate
             print "Simulating:",self.simulate
@@ -2269,14 +2268,24 @@ def draw_oriented_wire_box(xform,bmin,bmax):
 
 # this function is called on a thread
 def run_controller(controller,command_queue):
+    DEFAULT_LIMB = 'left'
     while True:
         c = command_queue.get()
         if c != None:
             print "\n================================"
             print "Running command",c
             if c >= 'a' and c <= 'l':
-                controller.viewBinAction('bin_'+c.upper(), limb='left')
+                controller.viewBinAction('bin_'+c.upper(), limb=DEFAULT_LIMB)
                 #controller.moveToBinViewingConfig(c.upper())
+            elif c>='A' and c <= 'L':
+                controller.preparePickBinAction('bin_'+c, limb=DEFAULT_LIMB)
+            elif c=='v':
+                if DEFAULT_LIMB=='left':
+                    DEFAULT_LIMB='right'
+                else:
+                    DEFAULT_LIMB='left'
+            elif c=='/':
+                print_help()
             elif c == 'r':
                 controller.moveToRestConfig()
             elif c == 'x':
@@ -2326,8 +2335,15 @@ def run_controller(controller,command_queue):
                 controller.calibratePerception()
             elif c=='!':
                 controller.saveCanonicalPointCloud('A')
-            elif c=='1':
-                controller.moveToBinViewingConfig('A')
+            elif c>='1' and c <= '9':
+                controller.saveCanonicalPointCloud(chr(ord('A')-1+eval(c)))
+                #save canonical point cloud for A-I
+            elif c=='0':
+                controller.saveCanonicalPointCloud('J')
+            elif c=='-':
+                controller.saveCanonicalPointCloud('K')
+            elif c=='=':
+                controller.saveCanonicalPointCloud('L')
             elif c=='s':
                 controller.calibrateShelf()
             elif c=='w':
@@ -2340,6 +2356,25 @@ def run_controller(controller,command_queue):
 
     print "Done"
 
+def print_help():
+    print 'Press a-l to move to that bin\'s viewing configuration'
+    print 'Press A-L to move from a bin\'s viewing configuration to its configuration in which it is about to pick an object'
+    print 'Press 2 to change the default arm used in moving to a bin'
+    print 'Press / for help again'
+    print 'Press r to move the robot to the rest configuration'
+    print 'Press x to attempt a grasp action'
+    print 'Press u to attempt an ungrasp action'
+    print 'Press p to attempt to place an object into an ordered bin...'
+    print 'Press o to run the whole simulation'
+    print 'Press t to set the spatula controller to partial...'
+    print 'Press n to move the spatula to the center of a bin'
+    print 'Press m to move a gripper to the center of the bin'
+    print 'Press ` to receive the shelf\'s transform from its canonical position and to apply that to the simulated world'
+    print 'Press 1-9,0,-,= to save the canonical point cloud of bins A-I,J,K,L'
+    print 'Press s to start the process of calibrating the shelf - this method is blocking, so you need to press q in its terminal to return here'
+    print 'Press w to start the process of calibrating the camera\'s transform - this method is blocking, so you need to press q in its terminal to return here'
+    print 'Press q to quit this simulation'
+
 
 def load_apc_world():
     """Produces a world with only the Baxter, shelf, and ground plane in it."""
@@ -2349,9 +2384,8 @@ def load_apc_world():
     # world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col.rob"))
     # world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col2.rob"))
     #world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col3.rob"))
-    world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
+    world.loadElement(os.path.join(model_dir,KLAMPT_MODEL))
     print "Loading shelf model..."
-    world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
     world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
 
     print "Loading plane model..."
@@ -2403,43 +2437,6 @@ def load_apc_world():
     return world
 
 
-def spawn_objects_from_ground_truth(world):
-    """For all ground_truth_items, spawns RigidObjects in the world
-    according to their sizes / mass properties"""
-
-    print "Initializing world objects"
-
-    for i in range(len(ground_truth_items)):
-        item = ground_truth_items[i]
-        # obj = world.makeRigidObject(item.info.name)
-        obj = world.makeRigidObject(item.bin_name)
-        bmin,bmax = item.info.bmin,item.info.bmax
-        center = vectorops.div(vectorops.add(bmin,bmax),2.0)
-
-        m = obj.getMass()
-        m.setMass(item.info.mass)
-        m.setCom([0,0,0])
-        m.setInertia(vectorops.mul([bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2]],item.info.mass/12.0))
-        obj.setMass(m)
-
-        c = obj.getContactParameters()
-
-        c.kFriction = 0.1
-        c.kRestitution = 0.1;
-        c.kStiffness = 100
-        c.kDamping = 100
-        obj.setContactParameters(c)
-
-        simgeometry = obj.geometry()
-        load_item_geometry(item,simgeometry)
-
-        # Spawn objects a little bit higher than bin floor
-        t = item.xform[1]
-        t = [t[0], t[1], t[2]+0.0]
-        obj.setTransform(item.xform[0],t)
-
-    return
-
 def myCameraSettings(visualizer):
     visualizer.camera.tgt = [-1, -.5, -0.75]
     visualizer.camera.rot = [0,0.5,0.9]
@@ -2482,10 +2479,6 @@ if __name__ == "__main__":
     # load shelf objects (wire frames)
     # init_ground_truth()
 
-    if not NO_SIMULATION_COLLISIONS:
-        spawn_objects_from_ground_truth(simworld)
-        # NOTE: is this necessary?
-        spawn_objects_from_ground_truth(world)
 
     # load the resting configuration from klampt_models/baxter_rest.config
     global baxter_rest_config, bin_viewing_configs
