@@ -7,7 +7,7 @@ from time import time
 
 np = numpy
 
-def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_threshold=None):
+def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_threshold=None, return_fit_metric=False):
 	total_t = numpy.zeros((1,3))
 	total_R = numpy.identity(3)
 	last_error = float('inf')
@@ -82,10 +82,12 @@ def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_t
 		obj = object_cloud.dot(total_R.T) + total_t
 		# logger.debug('{} {:.3f} {} {} {}'.format(n, time() - mark, threshold, len(correspondences), 1e9*last_error / len(correspondences)**2))
 
+	if not return_fit_metric:
+		return total_R, total_t
+	
 	# compute the goodness of fit
-	# object_tree = scipy.spatial.KDTree(obj)
-	# fit_metric = compute_fit_metric(object_tree, scene_tree)
-	fit_metric = 0
+	object_tree = scipy.spatial.KDTree(obj)
+	fit_metric = compute_fit_metric(object_tree, scene_tree)
 
 	#matplot_points(scene_tree.data, obj)
 	return total_R, total_t, fit_metric

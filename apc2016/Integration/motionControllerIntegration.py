@@ -79,6 +79,7 @@ REAL_SCALE = False
 REAL_CAMERA = True
 
 CALIBRATE = True
+SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
 
 CAMERA_TRANSFORM = ([1,0,0,0,1,0,0,0,1], [0,0,0])
 LOAD_TRAJECTORY_DEFAULT = False
@@ -402,24 +403,23 @@ class PhysicalLowLevelController(LowLevelController):
             vacuumController.change_vacuum_state(command[0])
         return
 
-    def appendMilestoneRight(self, destination, dt=0.1):
+    def appendMilestoneRight(self, destination, dt=2):
         if len(destination) == 7:
             while len(destination) < len(self.right_arm_indices):
                 destination = destination + [0]
-            if not motion.robot.right_mq.appendLinear(1, destination): raise RuntimeError()
+            if not motion.robot.right_mq.appendLinear(dt, destination): raise RuntimeError()
         else:
-            if not motion.robot.right_mq.appendLinear(1, [destination[v] for v in self.right_arm_indices]): raise RuntimeError()
+            if not motion.robot.right_mq.appendLinear(dt, [destination[v] for v in self.right_arm_indices]): raise RuntimeError()
 
 
 
-    def appendMilestoneLeft(self, destination, dt=0.1):
+    def appendMilestoneLeft(self, destination, dt=2):
         if len(destination) == 7:
             while len(destination) < len(self.left_arm_indices):
                 destination = destination + [0]
-
-            if not motion.robot.left_mq.appendLinear(1, destination): raise RuntimeError()
+            if not motion.robot.left_mq.appendLinear(dt, destination): raise RuntimeError()
         else:
-            if not motion.robot.left_mq.appendLinear(1, [destination[v] for v in self.left_arm_indices]): raise RuntimeError()
+            if not motion.robot.left_mq.appendLinear(dt, [destination[v] for v in self.left_arm_indices]): raise RuntimeError()
         
 
 
@@ -445,7 +445,6 @@ class PickingController:
         self.totalTransform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
 
-
         self.left_bin = None
         self.right_bin = None
 
@@ -456,6 +455,7 @@ class PickingController:
         self.right_gripper_link = self.robot.link(right_gripper_link_name)
 
         self.points = None
+        self.bin_contents_cloud = None
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -504,6 +504,7 @@ class PickingController:
         totalCameraXform = se3.mul(self.robot.link('left_wrist').getTransform(), self.cameraTransform)
         self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *totalCameraXform)
         print self.perceptionTransform
+        self.perceptionTransformInv = se3.inv(self.perceptionTransform)
         knowledge.shelf_xform = self.perceptionTransform
         self.world.terrain(0).geometry().transform(self.perceptionTransform[0], self.perceptionTransform[1])
         # except:
@@ -511,8 +512,12 @@ class PickingController:
         print "Camera calibration DONE\n"
 
     def saveCanonicalPointCloud(self, bin_letter='A'):
-        print bin_letter
+        print 'Saving canonical point cloud for bin', bin_letter
         perceiver.save_canonical_bin_point_cloud(bin_letter)
+
+    def renderBinContent(self, bin_letter='A'):
+        print 'Render bin content for bin', bin_letter
+        self.bin_contents_cloud = perceiver.get_current_bin_content_cloud('A')
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
@@ -520,18 +525,23 @@ class PickingController:
         baxter_startup_config = self.robot.getConfig()
 
         if LOAD_PHYSICAL_TRAJECTORY:
-            lPath = eval('CAMERA_TO_'+ self.left_bin+'_LEFT')[::-1]
-            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
-            for milestone in lPath:
-                self.left_bin = None
-                #BIN_A etc
-                self.controller.appendMilestoneLeft(milestone, .5)
-                self.waitForMove()
-            #for milestone in rPath:
-            #    self.right_bin = bin_name.upper()
-            #    self.controller.appendMilestoneRight(milestone, .5)
-            #    self.waitForMove()
+
+            if(self.left_bin is not None):
+                lPath = eval('CAMERA_TO_'+ self.left_bin+'_LEFT')[::-1]
+                #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
+                for milestone in lPath:
+                    self.left_bin = None
+                    #BIN_A etc
+                    self.controller.appendMilestoneLeft(milestone, .5)
+                    self.waitForMove()
+            if(self.right_bin is not None):
+                pass
+                #for milestone in rPath:
+                #    self.right_bin = bin_name.upper()
+                #    self.controller.appendMilestoneRight(milestone, .5)
+                #    self.waitForMove()
             self.controller.appendMilestoneLeft(eval('Q_DEFAULT_LEFT'))
+            #self.controller.appendMilestoneRight(eval('Q_DEFAULT_RIGHT'))
             self.waitForMove()
 
         else:
@@ -587,7 +597,7 @@ class PickingController:
         self.stateLeft = "holding"
         xPos = 0.33*0.5
         yPos = 0.435*0.5
-        run_perception_on_bin(knowledge, 'bin_A')
+        #run_perception_on_bin(knowledge, 'bin_A')
         self.held_object = knowledge.bin_contents['bin_A'].pop()        
         self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
                                    vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
@@ -1362,17 +1372,31 @@ class PickingController:
                 #path = LOADED_PHYSICAL_TRAJECTORY['CAMERA_TO_' + bin_name+'_' + limb.toUpper())]
                 path = eval('CAMERA_TO_'+ bin_name.upper()+'_'+limb.upper())
                 scan = eval('Q_SCAN_' + bin_name.upper()+'_'+limb.upper())
+                if limb == 'left':
+                    self.left_bin = bin_name.upper()
+                if limb == 'right':
+                    self.right_bin = bin_name.upper()
+
+
             if PHYSICAL_SIMULATION:
+
                 for milestone in path:
                     if limb == 'left':
-                        self.left_bin = bin_name.upper()
-                        #BIN_A etc
-                        self.controller.appendMilestoneLeft(milestone, .5)
-                        self.waitForMove()
+                        self.controller.appendMilestoneLeft(milestone, 1)
+                        checker = [self.controller.getSensedConfig()[v] for v in self.left_arm_indices]
+                        eps = 0.01
+
+                        while (np.linalg.norm(np.array(checker)-milestone)) >= eps:
+                            checker = [self.controller.getSensedConfig()[v] for v in self.left_arm_indices]
+                            print (np.linalg.norm(np.array(checker)-milestone))
+
+                        time.sleep(1)
+                        self.waitForMove() 
                     if limb == 'right':
-                        self.right_bin = bin_name.upper()
-                        self.controller.appendMilestoneRight(milestone, .5)
-                        self.waitForMove()
+                        self.controller.appendMilestoneRight(milestone, 1)
+                        time.sleep(1)
+                        #self.waitForMove()
+                        
                 self.controller.appendMilestoneLeft(scan)
 
         # If we are backing off from bin to view camera
@@ -1857,8 +1881,8 @@ class PickingController:
                 self.cameraTransform = ( calibrate[0], calibrate[1] )
                 
 
-
-                totalCameraXform = se3.mul(self.robot.link('left_wrist').getTransform(), self.cameraTransform)
+                print self.simworld.robot(0).link('left_wrist').getTransform()
+                totalCameraXform = se3.mul(self.simworld.robot(0).link('left_wrist').getTransform(), self.cameraTransform)
 
                 print self.cameraTransform
 
@@ -1916,6 +1940,24 @@ class MyGLViewer(GLRealtimeProgram):
             self.sim.simulate(self.dt)
             glutPostRedisplay()
 
+    def glShowPointCloud(self, pc, downsample_rate=5):
+        pc = np.array(pc)
+        d = pc.shape[1]
+        assert d==3 or d==4, 'Unrecognized point cloud shape: '+str(pc.shape)
+        pc = pc[::downsample_rate, :]
+        pc = pc.tolist()
+        glColor3f(1.0, 0.0, 0.0)
+        glBegin(GL_POINTS)
+        for p in pc:
+            if d==4:
+                r, g, b = pcl_float_to_rgb(p[3])
+                r /= 255.0
+                g /= 255.0
+                b /= 255.0
+                glColor3f(r, g, b)
+            glVertex3f(p[0], p[1], p[2])
+        glEnd()
+
     def display(self):
         #you may run auxiliary openGL calls, if you wish to visually debug
         # ft = self.sim.getJointForces(self.simworld.robot(0).link(55))
@@ -1940,18 +1982,21 @@ class MyGLViewer(GLRealtimeProgram):
 
         if CALIBRATE:
             self.planworld = self.picking_controller.getWorld()
-            if self.picking_controller.getPerceivedPoints() is not None:
-                glColor3f(1.0,0.0,0.0)
-                glBegin(GL_POINTS)
-                for point in self.picking_controller.points[::5]:
-                    glVertex3f(point[0], point[1], point[2])
-                glEnd() 
-            #self.picking_controller.getWorld().robot(0)
-            #self.Tcamera = se3.mul(self.robotModel.link('right_lower_forearm').getTransform(), self.calibratedCameraXform)
-        
-        self.simworld.drawGL()
+            points = self.picking_controller.getPerceivedPoints()
+            if points is not None:
+                self.glShowPointCloud(points)
+            # if self.picking_controller.getPerceivedPoints() is not None:
+            #     glColor3f(1.0,0.0,0.0)
+            #     glBegin(GL_POINTS)
+            #     for point in self.picking_controller.points[::5]:
+            #         glVertex3f(point[0], point[1], point[2])
+            #     glEnd()
+            self.simworld.drawGL()
 
-
+        if SHOW_BIN_CONTENT:
+            points = self.picking_controller.bin_contents_cloud
+            if points is not None:
+                glShowPointCloud(points)
 
         # draw the shelf and floor
         # if self.simworld.numTerrains()==0:
@@ -2164,16 +2209,6 @@ class MyGLViewer(GLRealtimeProgram):
         if c=='z':
             self.simulate = not self.simulate
             print "Simulating:",self.simulate
-        elif c=='f':
-            perceptionTransform = (
-                [0.995326247427, -0.0376732663745, 0.0889176568662, 0.0342569362043, 0.998626601267, 0.039639951475, -0.0902889218061, -0.0364085976266, 0.995249847303], 
-                [-0.0116911767312, 0.0305929570223, -0.063954771262])
-            self.simworld.terrain(0).geometry().transform(*perceptionTransform)
-        elif c=='g':
-            perceptionTransformInv = (
-                [0.995326282292, 0.0342569479912, -0.0902889107075, -0.0376732618377, 0.99862665021, -0.0364086403882, 0.0889176787936, 0.0396399144316, 0.995249913122], 
-                [0.0184757817601, -0.0276152764976, 0.0637092449009])
-            self.simworld.terrain(0).geometry().transform(*perceptionTransformInv)
         else:
             self.command_queue.put(c)
             if c=='q':
@@ -2295,25 +2330,73 @@ def draw_oriented_wire_box(xform,bmin,bmax):
     draw_xformed(xform,lambda:draw_wire_box(bmin,bmax))
 
 # this function is called on a thread
+
+# USED LETTERS: 
+# z, f, g, 
+
+
 def run_controller(controller,command_queue):
     DEFAULT_LIMB = 'left'
     while True:
         c = command_queue.get()
         if c != None:
+            c = c.lower()
             print "\n================================"
-            print "Running command",c
-            if c >= 'a' and c <= 'l':
-                controller.viewBinAction('bin_'+c.upper(), limb=DEFAULT_LIMB)
-                #controller.moveToBinViewingConfig(c.upper())
-            elif c>='A' and c <= 'L':
-                controller.preparePickBinAction('bin_'+c, limb=DEFAULT_LIMB)
+            print "Running command", c
+            # if c >= 'a' and c <= 'l':
+            #     controller.viewBinAction('bin_'+c.upper(), limb=DEFAULT_LIMB)
+            #     #controller.moveToBinViewingConfig(c.upper())
+            # elif c>='A' and c <= 'L':
+            #     controller.preparePickBinAction('bin_'+c, limb=DEFAULT_LIMB)
+            # elif c>='1' and c <= '9':
+            #     controller.saveCanonicalPointCloud(chr(ord('A')-1+eval(c)))
+            #     #save canonical point cloud for A-I
+            # elif c=='!':
+            #     controller.saveCanonicalPointCloud('A')
+            # elif c=='0':
+            #     controller.saveCanonicalPointCloud('J')
+            # elif c=='-':
+            #     controller.saveCanonicalPointCloud('K')
+            # elif c=='=':
+            #     controller.saveCanonicalPointCloud('L')
+            if c=='h':
+                print 'H: Help (Show this text)'
+                print 'E: View Bin'
+                print 'Y:Prepare Pick for Bin'
+                print 'I: Save Canonical Point Cloud for Bin'
+                print 'A: Render Bin Content'
+                print 'V: Change Default Limb'
+                print 'R: Move to Rest Configuration'
+                print 'X: Grasph Action'
+                print 'U: Ungrasp Action'
+                print 'P: Place in Tote'
+                print 'M: Move Gripper to Center'
+                print '`: Run ICP to Find Transformation of Perturbed Shelf'
+                print 'S: Calibrate Canonical (Unperturbed) Shelf Transformation'
+                print 'W: Calibrate Camera Transformation Relative to Wrist'
+                print 'F: Transform Shelf from Canonical to Perturbed Pose'
+                print 'G: Transform Shelf from Perturbed to Canonical Pose'
+                print 'O: Fully Autonomous Run'
+                print 'Q: Quit'
+            elif c=='e':
+                bin_letter = raw_input('View Bin - Enter Bin Letter in Terminal: ')
+                controller.viewBinAction('bin_'+bin_letter.upper(), limb=DEFAULT_LIMB)
+            elif c=='y':
+                bin_letter = raw_input('Prepare Pick for Bin - Enter Bin Letter in Terminal: ')
+                controller.preparePickBinAction('bin_'+bin_letter.upper(), limb=DEFAULT_LIMB)
+            elif c=='i':
+                bin_letter = raw_input('Save Canonical Point Cloud for Bin - Enter Bin Letter In Terminal: ')
+                controller.saveCanonicalPointCloud(bin_letter.upper())
+            elif c=='a':
+                bin_letter = raw_input('Render Bin Content - Enter Bin Letter in Terminal: ')
+                controller.renderBinContent(bin_letter.upper())
             elif c=='v':
                 if DEFAULT_LIMB=='left':
                     DEFAULT_LIMB='right'
                 else:
                     DEFAULT_LIMB='left'
-            elif c=='/':
-                print_help()
+            # elif c=='/':
+            #     print_help() # Help is summarized at the top of the if-block and will be printed by pressing H.
             elif c == 'r':
                 controller.moveToRestConfig()
             elif c == 'x':
@@ -2322,6 +2405,22 @@ def run_controller(controller,command_queue):
                 controller.ungraspAction()
             elif c == 'p':
                 controller.placeInOrderBinAction()
+            # elif c == 't':
+            #     controller.spatula('partial') # Will be removed. We are not using spatula
+            # elif c == 'n':
+            #     controller.move_spatula_to_center() # Will be removed. We are not using spatula
+            elif c == 'm':
+                controller.move_gripper_to_center()
+            elif c == '`':
+                controller.calibratePerception()
+            elif c=='s':
+                controller.calibrateShelf()
+            elif c=='w':
+                controller.calibrateCamera()
+            elif c=='f':
+                self.simworld.terrain(0).geometry().transform(*self.perceptionTransform)
+            elif c=='g':
+                self.simworld.terrain(0).geometry().transform(*self.perceptionTransformInv)
             elif c == 'o':
                 # controller.fulfillOrderAction(orderList)
                 controller.moveToRestConfig()
@@ -2346,36 +2445,13 @@ def run_controller(controller,command_queue):
                     controller.viewBinAction(binList[i])
                     controller.scoopAction()
                     controller.move_spatula_to_center()
-                    controller.move_gripper_to_center()                                     
+                    controller.move_gripper_to_center()
                     controller.graspAction()
                     controller.placeInOrderBinAction()
                     controller.viewBinAction(binList[i])
                     controller.unscoopAction()
                     #controller.moveToRestConfig()
                     binIndex += 1
-            elif c == 't':
-                controller.spatula('partial')
-            elif c == 'n':
-                controller.move_spatula_to_center()
-            elif c == 'm':
-                controller.move_gripper_to_center()
-            elif c == '`':
-                controller.calibratePerception()
-            elif c=='!':
-                controller.saveCanonicalPointCloud('A')
-            elif c>='1' and c <= '9':
-                controller.saveCanonicalPointCloud(chr(ord('A')-1+eval(c)))
-                #save canonical point cloud for A-I
-            elif c=='0':
-                controller.saveCanonicalPointCloud('J')
-            elif c=='-':
-                controller.saveCanonicalPointCloud('K')
-            elif c=='=':
-                controller.saveCanonicalPointCloud('L')
-            elif c=='s':
-                controller.calibrateShelf()
-            elif c=='w':
-                controller.calibrateCamera()            
             elif c=='q':
                 break
         else:
@@ -2484,6 +2560,12 @@ def loadFromFile(fileName):
     with open(fileName, 'rb') as f:
         return pickle.load(f)
 
+def pcl_float_to_rgb(f):
+    i = f_addr_to_i(f)
+    r = i >> 16 & 0x0000ff
+    g = i >> 8 & 0x0000ff
+    b = i >> 0 & 0x0000ff
+    return r,g,b
 
 if __name__ == "__main__":
     """The main loop that loads the planning / simulation models and
