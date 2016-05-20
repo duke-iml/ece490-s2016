@@ -446,6 +446,8 @@ class PickingController:
         self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
 
 
+        self.left_bin = None
+        self.right_bin = None
 
         #these may be helpful
         self.left_camera_link = self.robot.link(left_camera_link_name)
@@ -514,11 +516,30 @@ class PickingController:
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
+
         baxter_startup_config = self.robot.getConfig()
-        path = [baxter_startup_config, baxter_rest_config]
-        #self.sendPath(path)
-        self.controller.setMilestone(baxter_rest_config)
-        self.waitForMove()
+
+        if LOAD_PHYSICAL_TRAJECTORY:
+            lPath = eval('CAMERA_TO_'+ self.left_bin+'_LEFT')[::-1]
+            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
+            for milestone in lPath:
+                self.left_bin = None
+                #BIN_A etc
+                self.controller.appendMilestoneLeft(milestone, .5)
+                self.waitForMove()
+            #for milestone in rPath:
+            #    self.right_bin = bin_name.upper()
+            #    self.controller.appendMilestoneRight(milestone, .5)
+            #    self.waitForMove()
+            self.controller.appendMilestoneLeft(eval('Q_DEFAULT_LEFT'))
+            self.waitForMove()
+
+        else:
+            path = [baxter_startup_config, baxter_rest_config]
+            #self.sendPath(path)
+
+            self.controller.setMilestone(baxter_rest_config)
+            self.waitForMove()
         print "Done"
 
     def moveToBinViewingConfig(self, bin_letter):
@@ -545,7 +566,7 @@ class PickingController:
                 if self.move_camera_to_bin(b, limb=limb):
                     self.waitForMove()
                     self.current_bin = b
-                    run_perception_on_bin(knowledge, b)
+                    #run_perception_on_bin(knowledge, b)
                     print "Sensed bin", b, "with camera on left arm"
                     return True
                 else:
@@ -1340,12 +1361,19 @@ class PickingController:
             if(limb is not None):
                 #path = LOADED_PHYSICAL_TRAJECTORY['CAMERA_TO_' + bin_name+'_' + limb.toUpper())]
                 path = eval('CAMERA_TO_'+ bin_name.upper()+'_'+limb.upper())
+                scan = eval('Q_SCAN_' + bin_name.upper()+'_'+limb.upper())
             if PHYSICAL_SIMULATION:
                 for milestone in path:
                     if limb == 'left':
+                        self.left_bin = bin_name.upper()
+                        #BIN_A etc
                         self.controller.appendMilestoneLeft(milestone, .5)
+                        self.waitForMove()
                     if limb == 'right':
+                        self.right_bin = bin_name.upper()
                         self.controller.appendMilestoneRight(milestone, .5)
+                        self.waitForMove()
+                self.controller.appendMilestoneLeft(scan)
 
         # If we are backing off from bin to view camera
         else:
