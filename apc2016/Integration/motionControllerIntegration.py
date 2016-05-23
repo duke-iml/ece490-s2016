@@ -32,7 +32,8 @@ import subprocess
 import numpy as np
 
 from Trajectories.camera_to_bin import *
-
+from Trajectories.view_to_grasp import *
+from Trajectories.grasp_to_stow import *
 
 #-----------------------------------------------------------
 #Imports require internal folders
@@ -1392,10 +1393,8 @@ class PickingController:
                         checker = [self.controller.getSensedConfig()[v] for v in self.left_arm_indices]
                         eps = 0.01
 
-                        while (np.linalg.norm(np.array(checker)-milestone)) >= eps:
-                            checker = [self.controller.getSensedConfig()[v] for v in self.left_arm_indices]
-                            print (np.linalg.norm(np.array(checker)-milestone))
-
+                        forceWait(milestone, self.left_arm_indices, eps)
+                        
                         time.sleep(1)
                         self.waitForMove() 
                     if limb == 'right':
@@ -1403,9 +1402,7 @@ class PickingController:
                         checker = [self.controller.getSensedConfig()[v] for v in self.right_arm_indices]
                         eps = 0.01
 
-                        while (np.linalg.norm(np.array(checker)-milestone)) >= eps:
-                            checker = [self.controller.getSensedConfig()[v] for v in self.right_arm_indices]
-                            print (np.linalg.norm(np.array(checker)-milestone))
+                        forceWait(milestone, self.right_arm_indices, eps)
 
                         time.sleep(1)
                         self.waitForMove()
@@ -1914,6 +1911,14 @@ class PickingController:
         get current transformation (R, t) of camera in world frame. 
         '''
         return se3.mul(self.simworld.robot(0).link(limb + '_wrist').getTransform(), self.cameraTransform)
+
+    def forceWait(self, milestone1, indices, eps):
+
+        milestone2 = self.controller.getSensedConfig()[v] for v in indices]
+        while (np.linalg.norm(np.array(checker)-milestone)) >= eps:
+            milestone2 = [self.controller.getSensedConfig()[v] for v in indices]
+            print (np.linalg.norm(np.array(milestone2)-milestone))
+            
 
 
 class MyGLViewer(GLRealtimeProgram):
@@ -2638,13 +2643,22 @@ if __name__ == "__main__":
 
 
     global LOADED_PHYSICAL_TRAJECTORY
-    for bin_name in ['BIN_'+c for c in bin_list]:
+    '''for bin_name in ['BIN_'+c for c in bin_list]:
         try:
             LOADED_PHYSICAL_TRAJECTORY["CAMERA_TO_"+bin_name+'_RIGHT'] = eval('CAMERA_TO_' + bin_name+'_RIGHT')
-            LOADED_PHYSICAL_TRAJECTORY["CAMERA_TO_"+bin_name+'_RIGHT'] = eval('CAMERA_TO_' + bin_name+'_LEFT')
+            LOADED_PHYSICAL_TRAJECTORY["CAMERA_TO_"+bin_name+'_LEFT'] = eval('CAMERA_TO_' + bin_name+'_LEFT')
         except:
             print "failed to load"
 
+    for bin_letter in bin_list:
+        try:
+            LOADED_PHYSICAL_TRAJECTORY['VIEW_TO_GRASP_'+bin_letter+'_RIGHT'] = eval('VIEW_TO_GRASP_'+bin_letter+'_RIGHT')
+            LOADED_PHYSICAL_TRAJECTORY['VIEW_TO_GRASP_'+bin_letter+'_LEFT'] = eval('VIEW_TO_GRASP_'+bin_letter+'_LEFT']
+            LOADED_PHYSICAL_TRAJECTORY['GRASP_TO_STOW_'+bin_letter+'_RIGHT'] = eval('GRASP_TO_STOW_'+bin_letter+'_RIGHT']
+            LOADED_PHYSICAL_TRAJECTORY['GRASP_TO_STOW_'+bin_letter+'_LEFT'] = eval('GRASP_TO_STOW_'+bin_letter+'_LEFT']
+        except:
+            print "failed to load"
+    '''
     #run the visualizer
 
 
