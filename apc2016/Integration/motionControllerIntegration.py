@@ -532,7 +532,7 @@ class PickingController:
                 for milestone in lPath:
                     self.left_bin = None
                     #BIN_A etc
-                    self.controller.appendMilestoneLeft(milestone, .5)
+                    self.controller.appendMilestoneLeft(milestone, 1)
                     self.waitForMove()
             if(self.right_bin is not None):
                 pass
@@ -2343,22 +2343,6 @@ def run_controller(controller,command_queue):
             c = c.lower()
             print "\n================================"
             print "Running command", c
-            # if c >= 'a' and c <= 'l':
-            #     controller.viewBinAction('bin_'+c.upper(), limb=DEFAULT_LIMB)
-            #     #controller.moveToBinViewingConfig(c.upper())
-            # elif c>='A' and c <= 'L':
-            #     controller.preparePickBinAction('bin_'+c, limb=DEFAULT_LIMB)
-            # elif c>='1' and c <= '9':
-            #     controller.saveCanonicalPointCloud(chr(ord('A')-1+eval(c)))
-            #     #save canonical point cloud for A-I
-            # elif c=='!':
-            #     controller.saveCanonicalPointCloud('A')
-            # elif c=='0':
-            #     controller.saveCanonicalPointCloud('J')
-            # elif c=='-':
-            #     controller.saveCanonicalPointCloud('K')
-            # elif c=='=':
-            #     controller.saveCanonicalPointCloud('L')
             if c=='h':
                 print 'H: Help (Show this text)'
                 print 'E: View Bin'
@@ -2395,8 +2379,6 @@ def run_controller(controller,command_queue):
                     DEFAULT_LIMB='right'
                 else:
                     DEFAULT_LIMB='left'
-            # elif c=='/':
-            #     print_help() # Help is summarized at the top of the if-block and will be printed by pressing H.
             elif c == 'r':
                 controller.moveToRestConfig()
             elif c == 'x':
@@ -2459,25 +2441,6 @@ def run_controller(controller,command_queue):
             time.sleep(0.1)
 
     print "Done"
-
-def print_help():
-    print 'Press a-l to move to that bin\'s viewing configuration'
-    print 'Press A-L to move from a bin\'s viewing configuration to its configuration in which it is about to pick an object'
-    print 'Press 2 to change the default arm used in moving to a bin'
-    print 'Press / for help again'
-    print 'Press r to move the robot to the rest configuration'
-    print 'Press x to attempt a grasp action'
-    print 'Press u to attempt an ungrasp action'
-    print 'Press p to attempt to place an object into an ordered bin...'
-    print 'Press o to run the whole simulation'
-    print 'Press t to set the spatula controller to partial...'
-    print 'Press n to move the spatula to the center of a bin'
-    print 'Press m to move a gripper to the center of the bin'
-    print 'Press ` to receive the shelf\'s transform from its canonical position and to apply that to the simulated world'
-    print 'Press 1-9,0,-,= to save the canonical point cloud of bins A-I,J,K,L'
-    print 'Press s to start the process of calibrating the shelf - this method is blocking, so you need to press q in its terminal to return here'
-    print 'Press w to start the process of calibrating the camera\'s transform - this method is blocking, so you need to press q in its terminal to return here'
-    print 'Press q to quit this simulation'
 
 
 def load_apc_world():
