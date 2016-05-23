@@ -50,10 +50,6 @@ from Group2Helper import binOrder
 
 
 
-# JSON parser
-binOrderParser = binOrder.binOrder()
-
-
 # Perception
 from perception import perception
 
@@ -77,6 +73,7 @@ SPEED = 3
 
 REAL_SCALE = False
 REAL_CAMERA = True
+REAL_JSON = False
 
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
@@ -88,6 +85,18 @@ LOAD_PHYSICAL_TRAJECTORY = True
 
 if REAL_SCALE:
      myScale = scale.Scale()
+
+if REAL_JSON:
+    # JSON parser
+    binOrderParser = binOrder.binOrder()
+
+    # Order list. Can be parsed from JSON input
+    global binList
+    global objList
+    global singleItemList
+
+    global orderList
+    (binList, orderList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
 
 
 perceiver = perception.Perceiver(REAL_CAMERA)
@@ -114,13 +123,6 @@ KLAMPT_MODEL="baxter_with_two_vacuums.rob"
 order_bin_xform = (so3.identity(),[.65,-0.55,0])
 order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
-# Order list. Can be parsed from JSON input
-global binList
-global objList
-global singleItemList
-
-global orderList
-(binList, orderList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
 
 class KnowledgeBase:
     def __init__(self):
@@ -445,6 +447,7 @@ class PickingController:
         self.totalTransform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
 
+
         self.left_bin = None
         self.right_bin = None
 
@@ -497,12 +500,12 @@ class PickingController:
             iters += 1
         # print "--> done\n"
 
-    def calibratePerception(self, bin_letter='A'):
+    def calibratePerception(self, bin_letter='A', limb='left'):
         #assumes you are already at the location where you want to do the transformation
         # try:
             # sends the camera transform so that perceiver can send back the shelf transform in world frame
         totalCameraXform = se3.mul(self.robot.link('left_wrist').getTransform(), self.cameraTransform)
-        self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *self.getCameraToWorldXform())
+        self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *self.getCameraToWorldXform(limb))
         print self.perceptionTransform
         self.perceptionTransformInv = se3.inv(self.perceptionTransform)
         knowledge.shelf_xform = self.perceptionTransform
@@ -511,14 +514,14 @@ class PickingController:
         #     print "perception calibration not working"
         print "Camera calibration DONE\n"
 
-    def saveCanonicalPointCloud(self, bin_letter='A'):
+    def saveCanonicalPointCloud(self, bin_letter='A', limb='left'):
         print 'Saving canonical point cloud for bin', bin_letter
         cameraTransform
-        perceiver.save_canonical_bin_point_cloud(bin_letter, *self.getCameraToWorldXform())
+        perceiver.save_canonical_bin_point_cloud(bin_letter, *self.getCameraToWorldXform(limb))
 
-    def renderBinContent(self, bin_letter='A'):
+    def renderBinContent(self, bin_letter='A', limb='left'):
         print 'Render bin content for bin', bin_letter
-        self.bin_contents_cloud = perceiver.get_current_bin_content_cloud('A', *self.getCameraToWorldXform())
+        self.bin_contents_cloud = perceiver.get_current_bin_content_cloud('A', *self.getCameraToWorldXform(limb))
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
@@ -537,13 +540,14 @@ class PickingController:
 
                     self.waitForMove()
             if(self.right_bin is not None):
-                pass
-                #for milestone in rPath:
-                #    self.right_bin = bin_name.upper()
-                #    self.controller.appendMilestoneRight(milestone, .5)
-                #    self.waitForMove()
+                rPath = eval('CAMERA_TO+_' + self.right_bin+'_RIGHT')[::-1]
+                for milestone in rPath:
+                    self.right_bin = None
+                    self.controller.appendMilestoneRight(milestone, .5)
+                    self.waitForMove()
+
             self.controller.appendMilestoneLeft(eval('Q_DEFAULT_LEFT'))
-            #self.controller.appendMilestoneRight(eval('Q_DEFAULT_RIGHT'))
+            self.controller.appendMilestoneRight(eval('Q_DEFAULT_RIGHT'))
             self.waitForMove()
 
         else:
@@ -1396,10 +1400,20 @@ class PickingController:
                         self.waitForMove() 
                     if limb == 'right':
                         self.controller.appendMilestoneRight(milestone, 1)
+                        checker = [self.controller.getSensedConfig()[v] for v in self.right_arm_indices]
+                        eps = 0.01
+
+                        while (np.linalg.norm(np.array(checker)-milestone)) >= eps:
+                            checker = [self.controller.getSensedConfig()[v] for v in self.right_arm_indices]
+                            print (np.linalg.norm(np.array(checker)-milestone))
+
                         time.sleep(1)
-                        #self.waitForMove()
-                        
-                self.controller.appendMilestoneLeft(scan)
+                        self.waitForMove()
+                
+                if limb == 'left':  
+                    self.controller.appendMilestoneLeft(scan)
+                elif limb == 'right':
+                    self.controller.appendMilestoneRight(scan)
 
         # If we are backing off from bin to view camera
         else:
@@ -1851,7 +1865,7 @@ class PickingController:
                 print "input error\n"
                 print error.strerror
                 
-    def calibrateCamera(self):
+    def calibrateCamera(self, limb='left'):
         #blocking
         while(True):
 
@@ -1883,23 +1897,23 @@ class PickingController:
                 self.cameraTransform = ( calibrate[0], calibrate[1] )
                 
 
-                print self.simworld.robot(0).link('left_wrist').getTransform()
-                totalCameraXform = se3.mul(self.simworld.robot(0).link('left_wrist').getTransform(), self.cameraTransform)
+                print self.simworld.robot(0).link(limb + '_wrist').getTransform()
+                totalCameraXform = self.getCameraToWorldXform(limb)
 
                 print self.cameraTransform
 
-                current_cloud = perceiver.get_current_point_cloud(tolist=False, *self.getCameraToWorldXform())
+                current_cloud = perceiver.get_current_point_cloud(tolist=False, *self.getCameraToWorldXform(limb))
                 self.points = current_cloud.tolist()
 
             except: 
                 print "input error\n"
                 #print error.strerror
 
-    def getCameraToWorldXform(self):
+    def getCameraToWorldXform(self, limb='left'):
         '''
         get current transformation (R, t) of camera in world frame. 
         '''
-        return se3.mul(self.simworld.robot(0).link('left_wrist').getTransform(), self.cameraTransform)
+        return se3.mul(self.simworld.robot(0).link(limb + '_wrist').getTransform(), self.cameraTransform)
 
 
 class MyGLViewer(GLRealtimeProgram):
@@ -2371,10 +2385,10 @@ def run_controller(controller,command_queue):
                 controller.preparePickBinAction('bin_'+bin_letter.upper(), limb=DEFAULT_LIMB)
             elif c=='i':
                 bin_letter = raw_input('Save Canonical Point Cloud for Bin - Enter Bin Letter In Terminal: ')
-                controller.saveCanonicalPointCloud(bin_letter.upper())
+                controller.saveCanonicalPointCloud(bin_letter.upper(), limb=DEFAULT_LIMB)
             elif c=='a':
                 bin_letter = raw_input('Render Bin Content - Enter Bin Letter in Terminal: ')
-                controller.renderBinContent(bin_letter.upper())
+                controller.renderBinContent(bin_letter.upper(), limb=DEFAULT_LIMB)
             elif c=='v':
                 if DEFAULT_LIMB=='left':
                     DEFAULT_LIMB='right'
@@ -2396,11 +2410,11 @@ def run_controller(controller,command_queue):
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == '`':
-                controller.calibratePerception()
+                controller.calibratePerception(limb=DEFAULT_LIMB)
             elif c=='s':
                 controller.calibrateShelf()
             elif c=='w':
-                controller.calibrateCamera()
+                controller.calibrateCamera(limb=DEFAULT_LIMB)
             elif c=='f':
                 self.simworld.terrain(0).geometry().transform(*self.perceptionTransform)
             elif c=='g':

@@ -228,7 +228,7 @@ class Perceiver:
 		return (R, t), where R is a column-major order flattened array of rotation matrix, 
 		and t is an array of 3 numbers for transformation. 
 		'''
-		cur_camera_R = np.array(cur_camera_R]).reshape(3,3).T
+		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
 		cur_camera_t = np.array(cur_camera_t).flatten()
 		_, scene_cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
 		model_cloud = self.load_model_bin_cloud(bin_letter, downsample=True)
