@@ -21,6 +21,7 @@ q1 = q0[:]
 #path = [q0,q1,q2]
 q1 = resource.get("goal.config",description="Goal config for left arm",doedit=True,default=q1,editor='visual',world=world)
 
+#robot links under suspicion?
 subset = [15,16,17,18,19,20,21,22]
 collider = robotcollide.WorldCollider(world)
 #probably want to ignore collisions beteween other arm/links and the world to make things faster...
