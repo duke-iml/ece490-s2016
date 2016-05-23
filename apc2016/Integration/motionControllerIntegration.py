@@ -533,6 +533,7 @@ class PickingController:
                     self.left_bin = None
                     #BIN_A etc
                     self.controller.appendMilestoneLeft(milestone, 1)
+                    
                     self.waitForMove()
             if(self.right_bin is not None):
                 pass
