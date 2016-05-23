@@ -1,0 +1,69 @@
+{
+    "bin_contents": {
+        "bin_A": [
+            "ticonderoga_#2_pencils_12_count", 
+            "expo_white_board_care_eraser", 
+            "fiskars_scissors_5inch_blunt_tip_red", 
+            "crayola_crayons"
+        ], 
+        "bin_B": [
+            "hanes_tube_socks"
+        ], 
+        "bin_C": [
+            "womens_knit_gloves"
+        ], 
+        "bin_D": [
+            "laugh_out_loud_jokes_for_kids_paperback_book"
+        ], 
+        "bin_E": [
+            "command_hooks", 
+            "folgers_classic_roast_coffee"
+        ], 
+        "bin_F": [
+            "creativity_street_chenille_stems_100_count"
+        ], 
+        "bin_G": [
+            "easter_turtle_figural_sippy_cup", 
+            "scotch_cloth_duct_tape", 
+            "cherokee_easy_tee_t_shirt"
+        ], 
+        "bin_H": [
+            "40w_soft_white_lightbulb"
+        ], 
+        "bin_I": [
+            "dr_browns_natural_flow_bottle_brush"
+        ], 
+        "bin_J": [], 
+        "bin_K": [
+            "dove_dry_oil_beauty_bar", 
+            "scotch_bubble_mailer"
+        ], 
+        "bin_L": [
+            "plush_puppies_squeakin_eggs", 
+            "safety_1st_ultra_clear_outlet_plugs", 
+            "jane_eyre_dvd"
+        ]
+    }, 
+    "work_order": [
+        [
+            "i_am_a_bunny_hardcover_book", 
+            "up_and_up_glucose_tablets", 
+            "dasani_water_bottle", 
+            "rawlings_recreational_use_baseball", 
+            "elmers_glue_all", 
+            "peva_shower_curtain_liner", 
+            "cloud_b_plush_bear", 
+            "boots_and_barkley_beefhide_bones", 
+            "cool_shot_mini_glue_sticks", 
+            "oral_b_cavity_defense_toothbrush", 
+            "woods_6ft_extension_cord", 
+            "platinum_pets_dog_bowl", 
+            "fitness_gear_3lb_neoprene_dumbbell", 
+            "rolodex_wire_mesh_jumbo_pencil_holder", 
+            "clorox_utility_brush", 
+            "kleenex_viva_paper_towels", 
+            "kleenex_cool_touch_tissue_box", 
+            "staples_3x5_ruled_index_cards"
+        ]
+    ]
+}

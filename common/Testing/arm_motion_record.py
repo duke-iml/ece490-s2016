@@ -4,11 +4,11 @@ from Motion import motion
 from Motion import config
 
 #save at 10Hz, by default.  Set to 0 to save by pressing enter
-rate = 10.0
+rate = 20.0
 #save here, by default
 fn = "arm_motion.traj"
 #commanded or sensed?
-switch = 'c'
+switch = 's'
 
 print "Saves arm motions to disk for later inspection and playback"
 print "Usage: arm_motion_record.py TYPE [RATE] [FN]"

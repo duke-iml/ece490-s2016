@@ -1,0 +1,38 @@
+# each line starting with # is a comment
+# each input image is of size 50x50x3
+input_size: 50x50x3
+# output is one-hot binary list
+output_size: 39
+# 38 items and background
+layer_1: 
+	type: conv
+	activation: relu
+	# dimension for kernel: height x width x input_channel x output_channel
+	kernel: 10x10x3x20
+layer_2:
+	type: maxpool
+	size: 2x2
+layer_3: 
+	type: norm
+	radius: 4
+layer_4: 
+	type: conv
+	activation: relu
+	kernel: 10x10x20x20
+layer_5: 
+	type: maxpool
+	size: 2x2
+layer_6: 
+	type: norm
+	radius: 4
+layer_7: 
+	type: flatten
+layer_8: 
+	type: fully_connect
+	size: 1024
+	activation: relu
+layer_9: 
+	type: dropout
+	keep_prob: 0.5
+layer_10: 
+	type: readout

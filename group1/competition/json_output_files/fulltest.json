@@ -1,0 +1,47 @@
+{
+    "bin_contents": {
+        "bin_A": [
+            "staples_3x5_ruled_index_cards", 
+            "dr_browns_natural_flow_bottle_brush", 
+            "up_and_up_glucose_tablets"
+        ], 
+        "bin_B": [
+            "kleenex_viva_paper_towels", 
+            "safety_1st_ultra_clear_outlet_plugs", 
+            "hanes_tube_socks"
+        ], 
+        "bin_C": [], 
+        "bin_D": [
+            "elmers_glue_all"
+        ], 
+        "bin_E": [
+            "oral_b_cavity_defense_toothbrush"
+        ], 
+        "bin_F": [
+            "command_hooks", 
+            "jane_eyre_dvd"
+        ], 
+        "bin_G": [
+            "kleenex_cool_touch_tissue_box", 
+            "scotch_bubble_mailer", 
+            "rawlings_recreational_use_baseball"
+        ], 
+        "bin_H": [
+            "crayola_crayons"
+        ], 
+        "bin_I": [
+            "cool_shot_mini_glue_sticks", 
+            "platinum_pets_dog_bowl"
+        ], 
+        "bin_J": [
+            "fitness_gear_3lb_neoprene_dumbbell", 
+            "rolodex_wire_mesh_jumbo_pencil_holder", 
+            "dove_dry_oil_beauty_bar"
+        ], 
+        "bin_K": [], 
+        "bin_L": [
+            "scotch_cloth_duct_tape"
+        ]
+    }, 
+    "work_order": []
+}
