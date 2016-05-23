@@ -1,0 +1,75 @@
+*   [33m54eccca[m[33m ([1;36mHEAD[m[33m, [1;31morigin/master[m[33m, [1;31morigin/group2[m[33m, [1;31morigin/HEAD[m[33m, [1;32mgroup2[m[33m)[m Merge branch 'group2'
+[31m|[m[32m\[m  
+[31m|[m * [33m95a4eac[m minor changes
+[31m|[m * [33m74bce0d[m code clean-up. completed implementation of simplePlanner
+[31m|[m *   [33m1d70152[m merge master's README.md
+[31m|[m [33m|[m[34m\[m  
+[31m|[m * [34m|[m [33m892e0f9[m more implementation of simplePlanner.py
+[31m|[m * [34m|[m [33m03b99c6[m more implementation of simplePlanner.py
+[31m|[m * [34m|[m [33m9d20cbf[m implemented KB, GLViewer, global methods, and restructured using global knowledge
+[31m|[m * [34m|[m [33me0410b0[m more implementation of simplePlanner
+[31m|[m * [34m|[m [33mcb12da3[m start implementing practice planner
+[31m|[m * [34m|[m [33mc03c441[m copy klampt models from apc2015 folder
+[31m|[m * [34m|[m [33m5a4ac25[m created planning practice codes from apc.py and hw2.py
+[31m|[m * [34m|[m [33m62c36bf[m fixed rigidObject xform in hw2_impl_fixed.py (line 473-478)
+[31m|[m * [34m|[m [33mc53f1cb[m fixed rigidObject xform in hw2_impl_fixed.py (line 473-478)
+[31m|[m * [34m|[m [33m499a5d2[m added more comments
+[31m|[m * [34m|[m [33mc9b0c52[m added more comments
+[31m|[m * [34m|[m [33mf1479bc[m created project-report folder and comments on project proposal
+[31m|[m * [34m|[m [33mb61b3c8[m APC 2015 code review
+[31m|[m * [34m|[m   [33m66d6b41[m Merge branch 'master' into group2
+[31m|[m [35m|[m[36m\[m [34m\[m  
+[31m|[m * [36m\[m [34m\[m   [33m8845ca6[m Merge pull request #7 from duke-iml/master
+[31m|[m [1;31m|[m[1;32m\[m [36m\[m [34m\[m  
+[31m|[m * [1;32m\[m [36m\[m [34m\[m   [33m9b37258[m Merge pull request #3 from duke-iml/master
+[31m|[m [1;33m|[m[1;34m\[m [1;32m\[m [36m\[m [34m\[m  
+* [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [33m997b4b9[m Fixed weird path complaint
+[1;34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m *   [33m59e40a2[m[33m ([1;31morigin/group1[m[33m)[m Merge branch 'master' of github.com:duke-iml/ece490-s2016 into group1
+[1;34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [1;35m|[m[1;34m\[m  
+[1;34m|[m [1;33m|[m[1;34m_[m[1;34m|[m[1;34m_[m[1;32m|[m[1;34m_[m[36m|[m[1;34m_[m[34m|[m[1;34m_[m[1;35m|[m[1;34m/[m  
+[1;34m|[m[1;34m/[m[1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [1;35m|[m   
+* [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [1;35m|[m [33m8834f3b[m No more link to Klampt in relative geometry reference
+* [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [1;35m|[m [33m47f87a4[m Fixed problem causing baxter to fail to simulate
+[1;36m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m *   [33mde7b298[m Merge branch 'group1' of https://github.com/duke-iml/ece490-s2016 into group1
+[1;36m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [31m|[m[1;36m\[m  
+[1;36m|[m [1;33m|[m[1;36m_[m[1;34m|[m[1;36m_[m[1;32m|[m[1;36m_[m[36m|[m[1;36m_[m[34m|[m[1;36m_[m[31m|[m[1;36m/[m  
+[1;36m|[m[1;36m/[m[1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [31m|[m   
+* [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [34m|[m [31m|[m   [33m7ea7d6f[m Merge branch 'master' of github.com:duke-iml/ece490-s2016
+[33m|[m[34m\[m [1;33m\[m [1;34m\[m [1;32m\[m [36m\[m [34m\[m [31m\[m  
+[33m|[m [34m|[m [1;33m|[m[34m_[m[1;34m|[m[34m_[m[1;32m|[m[34m_[m[36m|[m[34m/[m [31m/[m  
+[33m|[m [34m|[m[34m/[m[1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [31m|[m   
+[33m|[m * [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [31m|[m [33m67c9ad6[m[33m ([1;32mmaster[m[33m)[m Update README.md
+[33m|[m * [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [31m|[m [33m0d94219[m Update README.md
+[33m|[m * [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [31m|[m [33maef897b[m Update README.md
+[33m|[m * [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [31m|[m [33m4cf1d3c[m Update README.md
+[33m|[m [36m|[m [1;33m|[m[36m_[m[1;34m|[m[36m_[m[1;32m|[m[36m/[m [31m/[m  
+[33m|[m [36m|[m[36m/[m[1;33m|[m [1;34m|[m [1;32m|[m [31m|[m   
+* [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m [31m|[m [33m29a1ad5[m Added some description about how to run the RealSenseService
+* [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m [31m|[m [33m11d2124[m Windows service for realsense cameras
+[34m|[m [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m * [33m5fc04d2[m Added a sample motion state machine using the formatted dict from the joint reader utility
+[34m|[m [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m * [33m72dbc4d[m Modified function
+[34m|[m [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m * [33m7598c27[m Adding utility to quickly and cleanly print out joint angles post-posturing
+[34m|[m [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m [34m|[m * [33m2f36852[m[33m ([1;31morigin/kevinkdo-patch-1[m[33m)[m aoeuaoeu
+[34m|[m [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m [34m|[m *   [33mfa212f6[m[33m ([1;31morigin/group3[m[33m)[m Merge branch 'master' into group3
+[34m|[m [36m|[m [1;33m|[m [1;34m|[m [1;32m|[m [34m|[m [36m|[m[36m\[m  
+[34m|[m [36m|[m [1;33m|[m[36m_[m[1;34m|[m[36m_[m[1;32m|[m[36m_[m[34m|[m[36m_[m[36m|[m[36m/[m  
+[34m|[m [36m|[m[36m/[m[1;33m|[m [1;34m|[m [1;32m|[m [34m|[m [36m|[m   
+[34m|[m * [1;33m|[m [1;34m|[m [1;32m|[m [34m|[m [36m|[m   [33m65a4a56[m Merge branch 'master' of https://github.com/duke-iml/ece490-s2016
+[34m|[m [1;32m|[m[1;33m\[m [1;33m\[m [1;34m\[m [1;32m\[m [34m\[m [36m\[m  
+[34m|[m [1;32m|[m * [1;33m\[m [1;34m\[m [1;32m\[m [34m\[m [36m\[m   [33m377ef55[m Merge branch 'group1' of https://github.com/duke-iml/ece490-s2016
+[34m|[m [1;32m|[m [1;34m|[m[34m\[m [1;33m\[m [1;34m\[m [1;32m\[m [34m\[m [36m\[m  
+[34m|[m [1;32m|[m [1;34m|[m [34m|[m [1;33m|[m[34m_[m[1;34m|[m[34m_[m[1;32m|[m[34m/[m [36m/[m  
+[34m|[m [1;32m|[m [1;34m|[m [34m|[m[34m/[m[1;33m|[m [1;34m|[m [1;32m|[m [36m|[m   
+[34m|[m [1;32m|[m * [34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [33m9b942ff[m Updated library for physical robot
+[34m|[m [1;32m|[m * [34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [33m5962107[m Fixed GLWidgetProgram typo
+[34m|[m [1;32m|[m * [34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [33m367b947[m Fixed cuff problem
+[34m|[m [1;32m|[m * [34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [33m8373730[m Using client mode by default
+[34m|[m [1;32m|[m * [34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [33m0bfad16[m Added trim command to playback to trim off front of path
+[34m|[m [1;32m|[m * [34m|[m [1;33m|[m [1;34m|[m [1;32m|[m [36m|[m [33md30288f[m Fixed motion server to not print crazy messages when the port is already bound
+[34m|[m [1;32m|[m [1;32m|[m [34m|[m[1;32m_[m[1;33m|[m[1;32m_[m[1;34m|[m[1;32m/[m [36m/[m  
+[34m|[m [1;32m|[m [1;32m|[m[1;32m/[m[34m|[m [1;33m|[m [1;34m|[m [36m|[m   
+[34m|[m * [1;32m|[m [34m|[m [1;33m|[m [1;34m|[m [36m|[m [33mb08a8ed[m Updated library for physical robot
+[34m|[m * [1;32m|[m [34m|[m [1;33m|[m [1;34m|[m [36m|[m [33mfcb603c[m Fixed GLWidgetProgram typo
+[34m|[m * [1;32m|[m [34m|[m [1;33m|[m [1;34m|[m [36m|[m [33mb84feb1[m Fixed cuff problem
+[34m|[m * [1;32m|[m [34m|[m [1;33m|[m [1;34m|[m [36m|[m [33m4268134[m Using client mode by default
+[34m|[m * [1;32m|[m [34m|[m [1;33m|[m [1;34m|[m [36m|[m [33m5bbfb32[m Added trim command to playback to trim off front of path

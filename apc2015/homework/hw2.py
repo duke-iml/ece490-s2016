@@ -448,9 +448,9 @@ def main():
     #uncomment these lines and comment out the next 2 if you want to use the
     #full Baxter model
     #print "Loading full Baxter model (be patient, this will take a minute)..."
-    #world.loadElement(os.path.join(model_dir,"baxter.rob"))
+    world.loadElement(os.path.join(model_dir,"baxter.rob"))
     print "Loading simplified Baxter model..."
-    world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
+    # world.loadElement(os.path.join(model_dir,"baxter_col.rob"))
     print "Loading Kiva pod model..."
     world.loadElement(os.path.join(model_dir,"kiva_pod/model.obj"))
     print "Loading plane model..."

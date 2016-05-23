@@ -1,0 +1,125 @@
+{
+    "bin_contents": {
+        "bin_A": [
+            "cool_shot_glue_sticks"
+        ],
+        "bin_B": [
+            "elmers_washable_no_run_school_glue",
+            "clorox_utility_brush"
+        ],
+        "bin_C": [
+            "i_am_a_bunny_book",
+            "oral_b_toothbrush_green",
+            "platinum_pets_dog_bowl",
+            "rawlings_baseball"
+        ],
+        "bin_D": [
+            "scotch_duct_tape",
+            "womens_knit_gloves",
+            "elmers_washable_no_run_school_glue",
+            "command_hooks"
+        ],
+        "bin_E": [
+            "ticonderoga_12_pencils",
+            "peva_shower_curtain_liner",
+            "hanes_tube_socks",
+            "barkely_hide_bones",
+            "scotch_bubble_mailer",
+            "expo_dry_erase_board_eraser",
+            "laugh_out_loud_joke_book",
+            "folgers_classic_roast_coffee",
+            "easter_turtle_sippy_cup"
+        ],
+        "bin_F": [
+            "up_glucose_bottle",
+            "dasani_water_bottle"
+        ],
+        "bin_G": [
+            "kleenex_paper_towels",
+            "staples_index_cards",
+            "kleenex_tissue_box"
+        ],
+        "bin_H": [
+            "crayola_24_ct",
+            "fitness_gear_3lb_dumbbell"
+        ],
+        "bin_I": [
+            "creativity_chenille_stems",
+            "soft_white_lightbulb",
+            "dr_browns_bottle_brush"
+        ],
+        "bin_J": [
+            "woods_extension_cord",
+            "rolodex_jumbo_pencil_cup",
+            "cloud_b_plush_bear",
+            "safety_first_outlet_plugs",
+            "scotch_duct_tape",
+            "jane_eyre_dvd",
+            "kyjen_squeakin_eggs_plush_puppies"
+        ],
+        "bin_K": [
+            "creativity_chenille_stems",
+            "oral_b_toothbrush_red",
+            "cherokee_easy_tee_shirt",
+            "dasani_water_bottle",
+            "dove_beauty_bar"
+        ],
+        "bin_L": [
+            "staples_index_cards",
+            "scotch_bubble_mailer",
+            "fiskars_scissors_red",
+            "expo_dry_erase_board_eraser"
+        ]
+    },
+    "tote_contents": [],
+    "work_order": [
+        {
+            "bin": "bin_A",
+            "item": "cool_shot_glue_sticks"
+        },
+        {
+            "bin": "bin_B",
+            "item": "elmers_washable_no_run_school_glue"
+        },
+        {
+            "bin": "bin_C",
+            "item": "i_am_a_bunny_book"
+        },
+        {
+            "bin": "bin_D",
+            "item": "scotch_duct_tape"
+        },
+        {
+            "bin": "bin_E",
+            "item": "ticonderoga_12_pencils"
+        },
+        {
+            "bin": "bin_F",
+            "item": "up_glucose_bottle"
+        },
+        {
+            "bin": "bin_G",
+            "item": "kleenex_paper_towels"
+        },
+        {
+            "bin": "bin_H",
+            "item": "crayola_24_ct"
+        },
+        {
+            "bin": "bin_I",
+            "item": "creativity_chenille_stems"
+        },
+        {
+            "bin": "bin_J",
+            "item": "woods_extension_cord"
+        },
+        {
+            "bin": "bin_K",
+            "item": "creativity_chenille_stems"
+        },
+        {
+            "bin": "bin_L",
+            "item": "staples_index_cards"
+        }
+    ]
+}
