@@ -502,7 +502,7 @@ class PickingController:
         # try:
             # sends the camera transform so that perceiver can send back the shelf transform in world frame
         totalCameraXform = se3.mul(self.robot.link('left_wrist').getTransform(), self.cameraTransform)
-        self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *totalCameraXform)
+        self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *self.getCameraToWorldXform())
         print self.perceptionTransform
         self.perceptionTransformInv = se3.inv(self.perceptionTransform)
         knowledge.shelf_xform = self.perceptionTransform
@@ -513,11 +513,12 @@ class PickingController:
 
     def saveCanonicalPointCloud(self, bin_letter='A'):
         print 'Saving canonical point cloud for bin', bin_letter
-        perceiver.save_canonical_bin_point_cloud(bin_letter)
+        cameraTransform
+        perceiver.save_canonical_bin_point_cloud(bin_letter, *self.getCameraToWorldXform())
 
     def renderBinContent(self, bin_letter='A'):
         print 'Render bin content for bin', bin_letter
-        self.bin_contents_cloud = perceiver.get_current_bin_content_cloud('A')
+        self.bin_contents_cloud = perceiver.get_current_bin_content_cloud('A', *self.getCameraToWorldXform())
 
     def moveToRestConfig(self):
         print "Moving to rest config...",
@@ -1887,19 +1888,18 @@ class PickingController:
 
                 print self.cameraTransform
 
-                cloud = perceiver.get_current_point_cloud(tolist=False)
-                R, t = totalCameraXform
-                R = np.array([ [R[0], R[3], R[6]], [R[1], R[4], R[7]], [R[2], R[5], R[8]] ])
-                xformed_cloud = cloud.dot(R.T) + np.array(t).flatten()
-                self.points = xformed_cloud.tolist()
+                current_cloud = perceiver.get_current_point_cloud(tolist=False, *self.getCameraToWorldXform())
+                self.points = current_cloud.tolist()
 
             except: 
                 print "input error\n"
                 #print error.strerror
 
-
-
-
+    def getCameraToWorldXform(self):
+        '''
+        get current transformation (R, t) of camera in world frame. 
+        '''
+        return se3.mul(self.simworld.robot(0).link('left_wrist').getTransform(), self.cameraTransform)
 
 
 class MyGLViewer(GLRealtimeProgram):
