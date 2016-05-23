@@ -533,7 +533,7 @@ class PickingController:
                     self.left_bin = None
                     #BIN_A etc
                     self.controller.appendMilestoneLeft(milestone, 1)
-                    
+
                     self.waitForMove()
             if(self.right_bin is not None):
                 pass
@@ -2380,6 +2380,7 @@ def run_controller(controller,command_queue):
                     DEFAULT_LIMB='right'
                 else:
                     DEFAULT_LIMB='left'
+                print 'Limb is now ' + DEFAULT_LIMB
             elif c == 'r':
                 controller.moveToRestConfig()
             elif c == 'x':

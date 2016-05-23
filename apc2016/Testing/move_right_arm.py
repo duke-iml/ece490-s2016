@@ -1,8 +1,12 @@
 import rospy
 import baxter_interface
-from constants import *
+#from constants import *
 
 import sys
+
+sys.path.insert(0,"..")
+
+from Trajectories.camera_to_bin import *
 
 
 if(len(sys.argv) == 2):
