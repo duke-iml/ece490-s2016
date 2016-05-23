@@ -7,6 +7,8 @@ import sys
 sys.path.insert(0,"..")
 
 from Trajectories.camera_to_bin import *
+from Trajectories.view_to_grasp import *
+from Trajectories.grasp_to_stow import *
 
 
 if(len(sys.argv) == 2):
