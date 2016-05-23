@@ -21,9 +21,35 @@ class CameraData:
 		self.color_uv = color_uv
 
 class Perceiver:
+	'''
+	DONE def __init__(self, camera_connect=True)
+	DONE def read_loop_in_background(self)
+	DONE def subtract_model(self, model_cloud, scene_cloud=None, scene_tree=None, threshold=0.01)
+	DONE def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, colorful=True, fit=False, threshold=0.01)
+	DONE def get_current_point_cloud(self, colorful=False, tolist=True)
+	DONE def get_current_tote_content_cloud(self, threshold=0.02, fit=False)
+	DONE def subtract_tote(self, scene_cloud=None, threshold=0.02, fit=False)
+	DONE def get_shelf_transformation(self, bin_letter, cur_camera_R, cur_camera_t)
+	DONE def icp_get_bin_transform(self, bin_letter, cur_camera_R, cur_camera_t)
+	DONE def load_model_bin_cloud(self, bin_letter, downsample=False)
+	DONE def read_once(self, unit='meter', Nx3_cloud=False, clean=None)
+	DONE def get_canonical_bin_cloud_path(self, bin_letter)
+	DONE def get_bin_viewing_camera_xform_path(self, bin_letter)
+	DONE def save_canonical_bin_point_cloud(self, bin_letter, R, t)
+	DONE def save_tote_cloud(self)
+	DONE def save_R_t(self, filename, R, t)
+	DONE def load_R_t(self, filename, nparray=True)
+	UNFINISHED def get_position_of_item_in_bin(self, item_name, possible_items=None, return_normal=False)
+	UNFINISHED def get_picking_position_for_stowing(self)
+	UNFINISHED def perceive_single_object(self, possible_items=None)
+	UNFINISHED def get_bin_empty_location(self)
+	'''
+
 	def __init__(self, camera_connect=True):
 		# self.prefix = ''
 		self.prefix = '/home/group3/ece490-s2016/apc2016/Integration/perception/'
+		self.shelf_perturb_R = None
+		self.shelf_perturb_t = None
 		if camera_connect:
 			self.camera = RemoteCamera('10.236.66.147', 30000)
 			self.cd = None
@@ -37,24 +63,6 @@ class Perceiver:
 			cd = CameraData(color, cloud, depth_uv, color_uv)
 			self.cd = cd
 
-	def save_canonical_bin_point_cloud(self, bin_letter):
-		'''
-		physical pre-condition: place the camera to the position viewing specified bin
-		when the shelf is NOT perturbed. 
-
-		bin_letter is one of ['A', 'B', ..., 'L']
-
-		It will return None, but the model will be saved upon return
-		'''
-		_, cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
-		np.save(self.prefix+'cached_bin_cloud/bin_'+bin_letter, cloud)
-		print 'Successfully saved model for bin_'+bin_letter
-
-	def save_tote_cloud(self):
-		_, cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
-		np.save(self.prefix+'cached_bin_cloud/tote', cloud)
-		print 'Successfully saved model for tote'
-
 	def subtract_model(self, model_cloud, scene_cloud=None, scene_tree=None, threshold=0.01):
 		'''
 		subtract model from scene. return indices of scene points that should be kept (beyond a threshold of any points in the model)
@@ -63,6 +71,7 @@ class Perceiver:
 		model_cloud = np.array(model_cloud)
 		if scene_tree is None:
 			scene_cloud = np.array(scene_cloud)
+			assert scene_cloud.shape[1]==3, 'scene_cloud dimension must be Nx3'
 			print "Making KDTree with %d points"%scene_cloud.shape[0]
 			scene_tree = KDTree(scene_cloud)
 		print "Querying neighbors within %f of %d points"%(threshold, model_cloud.shape[0])
@@ -73,6 +82,76 @@ class Perceiver:
 		all_idxs = set(range(scene_cloud.shape[0]))
 		keep_idxs = all_idxs - discard_idxs
 		return list(keep_idxs)
+
+	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, colorful=True, fit=False, threshold=0.01):
+		'''
+		return a point cloud (either colored or not) of the current bin content. shelf is removed. 
+		if fit is True, a new round of ICP is done on the model shelf
+		cur_camera_R and cur_camera_t are the current camera transformation in world
+		'''
+		color, scene_cloud, depth_uv, _ = self.read_once(unit='meter', Nx3_cloud=False)
+		if colorful:
+			scene_cloud = colorize_point_cloud(scene_cloud, color, depth_uv).reshape(-1, 4)
+		else:
+			scene_cloud = scene_cloud.reshape(-1, 3)
+		keep_idxs = np.where(scene_cloud[:,2].flatten()!=0)[0]
+		scene_cloud = scene_cloud[keep_idxs, :]
+		scene_cloud = scene_cloud[::downsample_rate, :]
+		scene_cloud_xyz = scene_cloud[:, 0:3]
+		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
+		cur_camera_t = np.array(cur_camera_t)
+		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R)+cur_camera_t
+		scene_tree = KDTree(scene_cloud_xyz)
+		model_cloud = self.load_model_bin_cloud(bin_letter, downsample=True)
+		model_xform_R, model_xform_t = self.load_R_t(self.get_bin_viewing_camera_xform_path(bin_letter), nparray=True)
+		model_cloud = model_cloud.dot(model_xform_R) + model_xform_t # apply saved transformation
+		assert (self.shelf_perturb_R is not None) and (self.shelf_perturb_t is not None), 'Shelf perturbation has not been calibrated'
+		model_cloud = model_cloud.dot(self.shelf_perturb_R) + self.shelf_perturb_t # apply perturbation transformation found by ICP
+		if fit:
+			R, t = icp.match(model_cloud, scene_tree)
+			model_cloud = model_cloud.dot(R.T) + t
+		keep_idxs = subtract_model(model_cloud, scene_tree=scene_tree)
+		bin_content_cloud = scene_cloud[keep_idxs, :]
+		return bin_content_cloud
+
+	def get_current_point_cloud(self, cur_camera_R=None, cur_camera_t=None, colorful=False, tolist=True):
+		'''
+		physical pre-condition: place the camera to the desired viewing angle. 
+
+		return the point cloud of current camera viewing. 
+
+		if cur_camera_R and cur_camera_t are provided, the cloud is transformed by R and t before being returned.
+
+		if colorful is True, a colorized point cloud is returned, (it may take longer);
+		else, a black point cloud is returned. 
+		
+		the black point cloud is a numpy matrix of h x w x 3, where point_cloud[i,j,:] 
+		gives the 3D coordinate of that point in camera frame in meter. 
+
+		the colored point cloud is a numpy matrix of h x w x 4, where the last layer is the rgb color, 
+		packed in PCL format into a single float. RGB can be retrieved by pcl_float_to_rgb(f) function
+		defined above. 
+		
+		if there is an error in retrieving data, None is returned
+		'''
+		color, cloud, depth_uv, _ = self.read_once(unit='meter', Nx3_cloud=False)
+		if cloud is None:
+			return None
+		if colorful:
+			if color is None or depth_uv is None:
+				return None
+			cloud = colorize_point_cloud(cloud, color, depth_uv)
+		ch = cloud.shape[-1]
+		cloud = cloud.reshape(-1, ch)
+		keep_idxs = np.where(cloud[:,2].flatten()!=0)[0]
+		cloud = cloud[keep_idxs, :]
+		if (cur_camera_R is not None) and (cur_camera_t is not None):
+			cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
+			cur_camera_t = np.array(cur_camera_t)
+			cloud = cloud.dot(cur_camera_R.T) + cur_camera_t
+		if tolist:
+			cloud = cloud.tolist()
+		return cloud
 
 	def get_current_tote_content_cloud(self, threshold=0.02, fit=False):
 		'''
@@ -126,40 +205,7 @@ class Perceiver:
 		keep_idxs = subtract_model(model_cloud, scene_tree=scene_tree)
 		return scene_cloud[keep_idxs, :]
 
-	def get_current_point_cloud(self, colorful=False, tolist=True):
-		'''
-		physical pre-condition: place the camera to the desired viewing angle. 
-
-		return the point cloud of current camera viewing. 
-
-		if colorful is True, a colorized point cloud is returned, (it may take longer);
-		else, a black point cloud is returned. 
-		
-		the black point cloud is a numpy matrix of h x w x 3, where point_cloud[i,j,:] 
-		gives the 3D coordinate of that point in camera frame in meter. 
-
-		the colored point cloud is a numpy matrix of h x w x 4, where the last layer is the rgb color, 
-		packed in PCL format into a single float. RGB can be retrieved by pcl_float_to_rgb(f) function
-		defined above. 
-		
-		if there is an error in retrieving data, None is returned
-		'''
-		color, cloud, depth_uv, _ = self.read_once(unit='meter', Nx3_cloud=False)
-		if cloud is None:
-			return None
-		if colorful:
-			if color is None or depth_uv is None:
-				return None
-			cloud = colorize_point_cloud(cloud, color, depth_uv)
-		ch = cloud.shape[-1]
-		cloud = cloud.reshape(-1, ch)
-		keep_idxs = np.where(cloud[:,2].flatten()!=0)[0]
-		cloud = cloud[keep_idxs, :]
-		if tolist:
-			cloud = cloud.tolist()
-		return cloud
-
-	def get_shelf_transformation(self, bin_letter, camera_to_global_R, camera_to_global_t):
+	def get_shelf_transformation(self, bin_letter, cur_camera_R, cur_camera_t):
 		'''
 		physical pre-condition: place the camera to the hard-coded position of viewing bin_A
 
@@ -168,33 +214,128 @@ class Perceiver:
 		return the shelf transformation as (R, t), where R is a column-major order flattened array of rotation matrix, 
 		and t is an array of 3 numbers for transformation. 
 		'''
-		shelf_perturb_R, shelf_perturb_t = self.icp_get_bin_transform(bin_letter, camera_to_global_R, camera_to_global_t)
+		shelf_perturb_R, shelf_perturb_t = self.icp_get_bin_transform(bin_letter, cur_camera_R, cur_camera_t)
+		# save perturbation transformation for shelf subtraction during perception
 		self.shelf_perturb_R = shelf_perturb_R
 		self.shelf_perturb_t = shelf_perturb_t
 		return shelf_perturb_R, shelf_perturb_t
 
-	def get_current_bin_content_cloud(self, bin_letter, camera_to_global_R, camera_to_global_t, colorful=True, fit=False, threshold=0.01):
+	def icp_get_bin_transform(self, bin_letter, cur_camera_R, cur_camera_t):
 		'''
-		return a point cloud (either colored or not) of the current bin content. shelf is removed. 
-		if fit is True, a new round of ICP is done on the model shelf
+		(private) get the current bin transform relative to canonical position for the specified bin
+		bin_letter is one of ['A', 'B', ..., 'L'] and is used to load the pre-computed shelf cloud
+
+		return (R, t), where R is a column-major order flattened array of rotation matrix, 
+		and t is an array of 3 numbers for transformation. 
 		'''
-		color, scene_cloud, depth_uv, _ = self.read_once(unit='meter', Nx3_cloud=False)
-		if colorful:
-			scene_cloud = colorize_point_cloud(scene_cloud, color, depth_uv).reshape(-1, 4)
-		else:
-			scene_cloud = scene_cloud.reshape(-1, 3)
-		keep_idxs = np.where(scene_cloud[:,2].flatten()!=0)[0]
-		scene_cloud = scene_cloud[keep_idxs, :]
-		scene_cloud = scene_cloud[::downsample_rate, :]
-		scene_cloud_xyz = scene_cloud[:, 0:3]
-		scene_tree = KDTree(scene_cloud_xyz)
+		cur_camera_R = np.array(cur_camera_R]).reshape(3,3).T
+		cur_camera_t = np.array(cur_camera_t).flatten()
+		_, scene_cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
 		model_cloud = self.load_model_bin_cloud(bin_letter, downsample=True)
-		if fit:
-			R, t = icp.match(model_cloud, scene_tree)
-			model_cloud = model_cloud.dot(R.T) + t
-		keep_idxs = subtract_model(model_cloud, scene_tree=scene_tree)
-		bin_content_cloud = scene_cloud[keep_idxs, :]
-		return bin_content_cloud
+		assert model_cloud is not None, 'Cannot find model cloud'
+		scene_cloud = scene_cloud[::downsample_rate,:]
+		model_xform_R, model_xform_t = self.load_R_t(self.get_bin_viewing_camera_xform_path(bin_letter), nparray=True)
+		model_cloud_xformed = model_cloud.dot(model_xform_R.T) + model_xform_t
+		scene_cloud_xformed = scene_cloud.dot(cur_camera_R.T) + cur_camera_t
+		np.save(self.prefix+'tmp/model_cloud_xformed.npy', model_cloud_xformed)
+		np.save(self.prefix+'tmp/scene_cloud_xformed.npy', scene_cloud_xformed)
+		scene_tree = KDTree(scene_cloud_xformed)
+		relative_R, relative_t = icp.match(model_cloud_xformed, scene_tree)
+		relative_R = list(relative_R.flatten(order='F'))
+		relative_t = list(relative_t.flat)
+		return relative_R, relative_t
+
+	def load_model_bin_cloud(self, bin_letter, downsample=False):
+		try:
+			model_cloud = np.load(self.get_canonical_bin_cloud_path(bin_letter))
+		except:
+			print 'Cannot find bin model for bin_%s at %s'%(bin_letter, self.get_canonical_bin_cloud_path(bin_letter))
+			return None
+		if downsample:
+			model_cloud = model_cloud[::downsample, :]
+		return model_cloud
+
+	def read_once(self, unit='meter', Nx3_cloud=False, clean=None):
+		'''
+		(private) read from CameraData object
+		'''
+		cd = self.cd
+		color = cd.color
+		cloud = cd.cloud
+		depth_uv = cd.depth_uv
+		color_uv = cd.color_uv
+		if unit in ['meter', 'm']:
+			cloud /= 1000
+		elif unit in ['centimeter', 'centi-meter', 'cm']:
+			cloud = cloud
+		else:
+			raise Exception('Unrecognized unit '+str(unit))
+		if Nx3_cloud:
+			cloud = cloud.reshape(-1, 3)
+		if Nx3_cloud:
+			assert clean is not None, 'clean must be a boolean when Nx3_cloud is True'
+			if clean:
+				keep_idxs = keep_idxs = np.where(cloud[:,2].flatten()!=0)[0]
+				cloud = cloud[keep_idxs,:]
+		return color, cloud, depth_uv, color_uv
+
+	def get_canonical_bin_cloud_path(self, bin_letter):
+		return self.prefix+'cached_bin_cloud/bin_%s.npy'%bin_letter
+
+	def get_bin_viewing_camera_xform_path(self, bin_letter):
+		return self.prefix+'cached_bin_cloud/bin_%s_xform.txt'%bin_letter
+
+	def save_canonical_bin_point_cloud(self, bin_letter, cur_camera_R, cur_camera_t):
+		'''
+		physical pre-condition: place the camera to the position viewing specified bin
+		when the shelf is NOT perturbed. 
+
+		bin_letter is one of ['A', 'B', ..., 'L']
+
+		It will return None, but the model will be saved upon return
+		'''
+		assert isinstance(cur_camera_R, list), 'cur_camera_R must be a list but now it is '+str(cur_camera_R.__class__)
+		assert isinstance(cur_camera_t, list), 'cur_camera_t must be a list but now it is '+str(cur_camera_t.__class__)
+		bin_letter = bin_letter.upper()
+		assert 'A'<=bin_letter<='L', 'bin_letter must be between "A" and "L"'
+		_, cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
+		np.save(self.get_canonical_bin_cloud_path(bin_letter), cloud)
+		self.save_R_t(self.get_bin_viewing_camera_xform_path(bin_letter), cur_camera_R, cur_camera_t)
+		print 'Successfully saved model for bin_'+bin_letter
+
+	def save_tote_cloud(self):
+		_, cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
+		np.save(self.prefix+'cached_bin_cloud/tote.npy', cloud)
+		print 'Successfully saved model for tote'
+
+	def save_R_t(self, filename, R, t):
+		'''
+		save rotation and translation to file
+		'''
+		if isinstance(filename, basestring):
+			try:
+				filename = open(filename, 'w')
+			except IOError:
+				print 'Loading transformation file %s failed'%filename
+				return
+		filename.write(','.join(map, str(R))+'\n')
+		filename.write(','.join(map, str(t))+'\n')
+		filename.close()
+
+	def load_R_t(self, filename, nparray=True):
+		'''
+		load rotation and translation from file
+		'''
+		if isinstance(filename, basestring):
+			filename = open(filename)
+		lines = filename.readlines()
+		R = map(float, lines[0].split(','))
+		t = map(float, lines[1].split(','))
+		filename.close()
+		if nparray:
+			R = np.array(R).reshape(3,3).T
+			t = np.array(t)
+		return R, t
 
 	def get_position_of_item_in_bin(self, item_name, possible_items=None, return_normal=False):
 		'''
@@ -243,72 +384,6 @@ class Perceiver:
 		return (x,y,z) coordinate of with deepest z value. useful for determining stowing location. 
 		'''
 		raise NotImplemented
-
-	def icp_get_bin_transform(self, bin_letter, camera_to_global_R, camera_to_global_t):
-		'''
-		(private) get the current bin transform relative to canonical position for the specified bin
-		bin_letter is one of ['A', 'B', ..., 'L'] and is used to load the pre-computed shelf cloud
-
-		return (R, t), where R is a column-major order flattened array of rotation matrix, 
-		and t is an array of 3 numbers for transformation. 
-		'''
-		camera_to_global_R = np.array([ [camera_to_global_R[0], camera_to_global_R[3], camera_to_global_R[6]] , [camera_to_global_R[1], camera_to_global_R[4], camera_to_global_R[7]] , [camera_to_global_R[2], camera_to_global_R[5], camera_to_global_R[8]] ])
-		camera_to_global_t = np.array(camera_to_global_t).flatten()
-		_, scene_cloud, _, _ = self.read_once(unit='meter', Nx3_cloud=True, clean=True)
-		model_cloud = self.load_model_bin_cloud(bin_letter, downsample=True)
-		if model_cloud is None:
-			return None
-		scene_cloud = scene_cloud[::downsample_rate,:]
-		model_cloud_xformed = model_cloud.dot(camera_to_global_R.T) + camera_to_global_t
-		scene_cloud_xformed = scene_cloud.dot(camera_to_global_R.T) + camera_to_global_t
-		np.save(self.prefix+'cached_bin_cloud/model_cloud_xformed.npy', model_cloud_xformed)
-		np.save(self.prefix+'cached_bin_cloud/scene_cloud_xformed.npy', scene_cloud_xformed)
-		scene_tree = KDTree(scene_cloud_xformed)
-		relative_R, relative_t = icp.match(model_cloud_xformed, scene_tree)
-		relative_R = list(relative_R.flatten(order='F'))
-		relative_t = list(relative_t.flat)
-		return relative_R, relative_t
-		
-	def subtract(self, bin_letter):
-		'''
-		(private) 
-		'''
-		raise NotImplemented
-
-	def load_model_bin_cloud(self, bin_letter, downsample=False):
-		try:
-			model_cloud = np.load(self.prefix+'cached_bin_cloud/bin_'+bin_letter+'.npy')
-		except:
-			print 'Cannot find bin model for bin_%s at %scached_bin_cloud/bin_%s.npy '%(bin_letter, self.prefix, bin_letter)
-			return None
-		if downsample:
-			model_cloud = model_cloud[::downsample, :]
-		return model_cloud
-
-	def read_once(self, unit='meter', Nx3_cloud=False, clean=None):
-		'''
-		(private) (OLD) read after flushing the queue
-		(CURRENT) read from CameraData object
-		'''
-		cd = self.cd
-		color = cd.color
-		cloud = cd.cloud
-		depth_uv = cd.depth_uv
-		color_uv = cd.color_uv
-		if unit in ['meter', 'm']:
-			cloud /= 1000
-		elif unit in ['centimeter', 'centi-meter', 'cm']:
-			cloud = cloud
-		else:
-			raise Exception('Unrecognized unit '+str(unit))
-		if Nx3_cloud:
-			cloud = cloud.reshape(-1, 3)
-		if Nx3_cloud:
-			assert clean is not None, 'clean must be a boolean when Nx3_cloud is True'
-			if clean:
-				keep_idxs = keep_idxs = np.where(cloud[:,2].flatten()!=0)[0]
-				cloud = cloud[keep_idxs,:]
-		return color, cloud, depth_uv, color_uv
 
 def remove_invalid_points(cloud):
 	'''
