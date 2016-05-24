@@ -524,31 +524,25 @@ class PickingController:
         print 'Render bin content for bin', bin_letter
         self.bin_contents_cloud = perceiver.get_current_bin_content_cloud('A', *self.getCameraToWorldXform(limb))
 
-    def moveToRestConfig(self):
+    def moveToRestConfig(self, limb='both'):
         print "Moving to rest config...",
 
         baxter_startup_config = self.robot.getConfig()
 
         if LOAD_PHYSICAL_TRAJECTORY:
 
-            if(self.left_bin is not None):
-                lPath = eval('CAMERA_TO_'+ self.left_bin+'_LEFT')[::-1]
-                #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
-                for milestone in lPath:
-                    self.left_bin = None
-                    #BIN_A etc
-                    self.controller.appendMilestoneLeft(milestone, 1)
+            if limb =='both':
 
-                    self.waitForMove()
-            if(self.right_bin is not None):
-                rPath = eval('CAMERA_TO+_' + self.right_bin+'_RIGHT')[::-1]
-                for milestone in rPath:
-                    self.right_bin = None
-                    self.controller.appendMilestoneRight(milestone, .5)
-                    self.waitForMove()
+                self.moveToLeftRest()
+                self.moveToRightRest()
+            
+            elif limb == 'left':
+                self.moveToLeftRest()
 
-            self.controller.appendMilestoneLeft(eval('Q_DEFAULT_LEFT'))
-            self.controller.appendMilestoneRight(eval('Q_DEFAULT_RIGHT'))
+            elif limb == 'right':
+                
+                self.moveToRightRest()
+
             self.waitForMove()
 
         else:
@@ -558,6 +552,56 @@ class PickingController:
             self.controller.setMilestone(baxter_rest_config)
             self.waitForMove()
         print "Done"
+
+    def moveToLeftRest(self):
+        if(self.stateLeft == 'scan'):
+            lPath = eval('CAMERA_TO_'+ self.left_bin+'_LEFT')[::-1]
+            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
+            for milestone in lPath:
+                self.left_bin = None
+                #BIN_A etc
+                self.controller.appendMilestoneLeft(milestone, 1)
+
+                self.waitForMove()
+        elif(self.stateLeft == 'grasp' ):
+            #not set up yet
+            return False
+
+        elif self.stateLeft == 'stow':
+            #go right ahead through the code
+            pass
+
+        else:
+            #not set up yet
+            #find the nearest milestone and follow the path back
+            pass
+
+        self.controller.appendMilestoneLeft(eval('Q_DEFAULT_LEFT'))
+        self.left_bin = None
+
+    def moveToRightRest(self):
+        if(self.stateLeft == 'scan'):
+            rPath = eval('CAMERA_TO+_' + self.right_bin+'_RIGHT')[::-1]
+            for milestone in rPath:
+                self.right_bin = None
+                self.controller.appendMilestoneRight(milestone, .5)
+                self.waitForMove()
+
+        elif(self.stateLeft == 'grasp' ):
+            #not set up yet
+            return False
+
+        elif self.stateLeft == 'stow':
+            #go right ahead through the code
+            pass
+
+        else:
+            #not set up yet
+            #find the nearest milestone and follow the path back
+            pass
+
+        self.controller.appendMilestoneRight(eval('Q_DEFAULT_RIGHT'))
+        self.right_bin = None
 
     def moveToBinViewingConfig(self, bin_letter):
         print "Moving to bin_%s config..."%(bin_letter),
@@ -595,6 +639,50 @@ class PickingController:
         return True
 
 
+    def graspActionNew(self, limb):
+        self.waitForMove()
+        if self.stateLeft != 'scan':
+            print 'Not in scanning configuration, can\'t move from scan to grasp'
+            return False
+        else:
+            if eval('self.'+limb+'_bin') in apc.bin_names:
+                if self.move_from_scan_to_grasp(limb):
+                    #moved to configuration
+                    self.waitForMove()
+
+                    #choose whether to go in from the top or the side due to the object
+
+                    #attempt to go to location derived from perception
+
+                    #turn on vacuum 
+                    #see if we grasped stuff
+
+                    #pull back out
+                else:
+                    print 'couldn\'t move to grasp'
+            else:
+                print 'Invalid bin', eval('self.'+limb+'_bin')
+
+
+    def stowAction(self, limb):
+        self.waitForMove()
+        if self.stateLeft != 'grasp':
+            print 'Not in grasping configuration, can\'t move from grasp to stow'
+            return False
+        else:
+            if eval('self.'+limb+'_bin') in apc.bin_names:
+                if self.move_from_grasp_to_stow(limb):
+                    #moved to configuration
+                    self.waitForMove()
+
+                    #turn off vacuum
+                    #check scale
+                    #update output
+
+                    # go to rest
+
+                else:
+                    print 'couldn\'t move to stow'
 
 
     def graspAction(self):
@@ -1383,9 +1471,9 @@ class PickingController:
                 path = eval('CAMERA_TO_'+ bin_name.upper()+'_'+limb.upper())
                 scan = eval('Q_SCAN_' + bin_name.upper()+'_'+limb.upper())
                 if limb == 'left':
-                    self.left_bin = bin_name.upper()
+                    self.left_bin = bin_name
                 if limb == 'right':
-                    self.right_bin = bin_name.upper()
+                    self.right_bin = bin_name
 
 
             if PHYSICAL_SIMULATION:
@@ -1474,7 +1562,7 @@ class PickingController:
                         
                         time.sleep(1)
                         self.waitForMove() 
-                    if limb == 'right' and self.stateRight =='scan':
+                    elif limb == 'right' and self.stateRight =='scan':
                         self.controller.appendMilestoneRight(milestone, 2)
                         eps = 0.01
 
@@ -1482,10 +1570,13 @@ class PickingController:
 
                         time.sleep(1)
                         self.waitForMove()
+                    else:
+                        return False
                 if limb =='left':
                     self.stateLeft = 'grasp'
-                if limb =='right'
+                if limb =='right':
                     self.stateRight = 'grasp'
+
 
     def move_from_grasp_to_stow(self, limb):
         if limb is None:
@@ -1509,7 +1600,7 @@ class PickingController:
                         
                         time.sleep(1)
                         self.waitForMove() 
-                    if limb == 'right' and self.stateRight =='grasp':
+                    elif limb == 'right' and self.stateRight =='grasp':
                         self.controller.appendMilestoneRight(milestone, 2)
                         eps = 0.01
 
@@ -1517,9 +1608,11 @@ class PickingController:
 
                         time.sleep(1)
                         self.waitForMove()
+                    else:
+                        return False
                 if limb =='left':
                     self.stateLeft = 'stow'
-                if limb =='right'
+                if limb =='right':
                     self.stateRight = 'stow'
                 
     def move_to_grasp_object(self,object,step):
@@ -2445,7 +2538,7 @@ def run_controller(controller,command_queue):
                 print 'A: Render Bin Content'
                 print 'V: Change Default Limb'
                 print 'R: Move to Rest Configuration'
-                print 'X: Grasph Action'
+                print 'X: Grasp Action'
                 print 'U: Ungrasp Action'
                 print 'P: Place in Tote'
                 print 'M: Move Gripper to Center'
@@ -2477,11 +2570,13 @@ def run_controller(controller,command_queue):
             elif c == 'r':
                 controller.moveToRestConfig()
             elif c == 'x':
-                controller.graspAction()
+                #controller.graspAction()
+                controller.graspActionNew(DEFAULT_LIMB)
             elif c == 'u':
                 controller.ungraspAction()
             elif c == 'p':
-                controller.placeInOrderBinAction()
+                #controller.placeInOrderBinAction()
+                controller.stowAction(DEFAULT_LIMB)
             # elif c == 't':
             #     controller.spatula('partial') # Will be removed. We are not using spatula
             # elif c == 'n':
