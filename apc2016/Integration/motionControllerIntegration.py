@@ -73,7 +73,7 @@ VACUUM = 0 or ALL_ARDUINOS
 SPEED = 3
 
 REAL_SCALE = False
-REAL_CAMERA = True
+REAL_CAMERA = False
 REAL_JSON = False
 
 CALIBRATE = True
@@ -593,6 +593,9 @@ class PickingController:
                 print "Invalid bin",b
                 return False
         return True
+
+
+
 
     def graspAction(self):
         self.waitForMove()
@@ -1389,28 +1392,28 @@ class PickingController:
 
                 for milestone in path:
                     if limb == 'left':
-                        self.controller.appendMilestoneLeft(milestone, 1)
-                        checker = [self.controller.getSensedConfig()[v] for v in self.left_arm_indices]
+                        self.controller.appendMilestoneLeft(milestone, 2)
                         eps = 0.01
 
-                        forceWait(milestone, self.left_arm_indices, eps)
+                        #self.forceWait(milestone, self.left_arm_indices, eps)
                         
                         time.sleep(1)
                         self.waitForMove() 
                     if limb == 'right':
-                        self.controller.appendMilestoneRight(milestone, 1)
-                        checker = [self.controller.getSensedConfig()[v] for v in self.right_arm_indices]
+                        self.controller.appendMilestoneRight(milestone, 2)
                         eps = 0.01
 
-                        forceWait(milestone, self.right_arm_indices, eps)
+                        self.forceWait(milestone, self.right_arm_indices, eps)
 
                         time.sleep(1)
                         self.waitForMove()
                 
                 if limb == 'left':  
                     self.controller.appendMilestoneLeft(scan)
+                    self.stateLeft = 'scan'
                 elif limb == 'right':
                     self.controller.appendMilestoneRight(scan)
+                    self.stateRight = 'scan'
 
         # If we are backing off from bin to view camera
         else:
@@ -1448,6 +1451,77 @@ class PickingController:
         print "Failed to plan path"
         return False
 
+
+    def move_from_scan_to_grasp(self, limb):
+        if limb is None:
+            return
+
+        bin = eval('self.'+limb+'_bin')[4]
+
+        if LOAD_PHYSICAL_TRAJECTORY:
+            print "loading "+bin_name+" Physically Planned Trajectory"
+            
+            path = eval('VIEW_TO_GRASP_'+ bin.upper()+'_'+limb.upper())
+
+            if PHYSICAL_SIMULATION:
+
+                for milestone in path:
+                    if limb == 'left' and self.stateLeft =='scan':
+                        self.controller.appendMilestoneLeft(milestone, 2)
+                        eps = 0.01
+
+                        self.forceWait(milestone, self.left_arm_indices, eps)
+                        
+                        time.sleep(1)
+                        self.waitForMove() 
+                    if limb == 'right' and self.stateRight =='scan':
+                        self.controller.appendMilestoneRight(milestone, 2)
+                        eps = 0.01
+
+                        self.forceWait(milestone, self.right_arm_indices, eps)
+
+                        time.sleep(1)
+                        self.waitForMove()
+                if limb =='left':
+                    self.stateLeft = 'grasp'
+                if limb =='right'
+                    self.stateRight = 'grasp'
+
+    def move_from_grasp_to_stow(self, limb):
+        if limb is None:
+            return
+
+        bin = eval('self.'+limb+'_bin')[4]
+
+        if LOAD_PHYSICAL_TRAJECTORY:
+            print "loading "+bin_name+" Physically Planned Trajectory"
+            
+            path = eval('GRASP_TO_STOW_'+ bin.upper()+'_'+limb.upper())
+
+            if PHYSICAL_SIMULATION:
+
+                for milestone in path:
+                    if limb == 'left' and self.stateLeft == 'grasp':
+                        self.controller.appendMilestoneLeft(milestone, 2)
+                        eps = 0.01
+
+                        self.forceWait(milestone, self.left_arm_indices, eps)
+                        
+                        time.sleep(1)
+                        self.waitForMove() 
+                    if limb == 'right' and self.stateRight =='grasp':
+                        self.controller.appendMilestoneRight(milestone, 2)
+                        eps = 0.01
+
+                        self.forceWait(milestone, self.right_arm_indices, eps)
+
+                        time.sleep(1)
+                        self.waitForMove()
+                if limb =='left':
+                    self.stateLeft = 'stow'
+                if limb =='right'
+                    self.stateRight = 'stow'
+                
     def move_to_grasp_object(self,object,step):
         '''
         This method ignores the object orientation (for vacuum only)
@@ -1914,10 +1988,10 @@ class PickingController:
 
     def forceWait(self, milestone1, indices, eps):
 
-        milestone2 = self.controller.getSensedConfig()[v] for v in indices]
-        while (np.linalg.norm(np.array(checker)-milestone)) >= eps:
+        milestone2 = [self.controller.getSensedConfig()[v] for v in indices]
+        while (np.linalg.norm(np.array(milestone2)-milestone1)) >= eps:
             milestone2 = [self.controller.getSensedConfig()[v] for v in indices]
-            print (np.linalg.norm(np.array(milestone2)-milestone))
+            print (np.linalg.norm(np.array(milestone2)-milestone1))
             
 
 
