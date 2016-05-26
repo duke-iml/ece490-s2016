@@ -452,7 +452,8 @@ class PickingController:
         self.perceptionTransform = None
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
-
+        self.vacuumTransform = ([],[])
+        #transform to end effector
 
         self.left_bin = None
         self.right_bin = None
@@ -635,7 +636,13 @@ class PickingController:
 
         #replace with move_camera_to_bin later
 
+    #====================================================
+    # Process for stowing:
+    '''TODO
 
+    implement graspFromToteAction
+    create and implement moveFromToteToBinAction
+    '''
 
     def viewToteAction(self,limb):
 
@@ -706,7 +713,25 @@ class PickingController:
         return False
 
 
+    #================================================
+    # Process for picking
+    '''TODO
 
+    Recalibrate viewBinAction
+    Calibrate IK_SEEDs for graspFromBinAction
+    Create IK methods to go:
+        Into bin
+        Up/Down in Bin
+        Sideways in bin
+        Normal to given direction in bin (fixed x location)
+
+    Methods to determine which paths should be taken
+    Connect to vacuum
+    Verify that something is attached to vaccum
+    Verify that correct object is dropped in Tote
+    Update Output files
+
+    '''
 
     def viewBinAction(self,b, limb):
         self.waitForMove()
@@ -786,7 +811,7 @@ class PickingController:
                 else:
                     print 'couldn\'t move to stow'
 
-
+    #==============================================
 
 
     def graspAction(self):
@@ -868,137 +893,7 @@ class PickingController:
                 print "Grasp failed"
                 return False   
 
-    def incrementalMove2(self, direction):
-        self.robot.setConfig(self.controller.getCommandedConfig())
-
-        currConfig = self.robot.getConfig()
-
-        link = self.robot.link('spatula:frame')
-        currXform = link.getTransform()
-
-        self.world.terrain(0).geometry().setCollisionMargin(0)
-        link.geometry().setCollisionMargin(0)
-
-        if direction == "down":
-            offset = [0,0,-0.05]
-        if direction == "up":
-            offset = [0,0,0.005]
-
-
-        limbs = ['left']
-        qcmd = self.controller.getCommandedConfig()
-        # qcmd = self.controller.getSensedConfig()
-
-        print "Solving for INCREMENTAL_MOVE (", direction,")"
-
-        for i in range(50):
-            targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
-            goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
-            dist = vectorops.distance(link.getTransform()[1], targetXform[1])
-
-            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
-
-            if len(sortedSolutions)==0:
-                offset = vectorops.sub(offset, [0,0,0.0025])
-                continue
-
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
-
-            # else, if we want to path plan
-            numSol = 0
-            for solution in sortedSolutions:
-                numSol += 1
-                print numSol, "solutions planned out of", len(sortedSolutions)
-                # path = self.planner.plan(qcmd,solution[0],'left')
-
-                path = [qcmd, solution[0]]
-
-
-                if path == 1 or path == 2 or path == False:
-                    continue
-                elif path != None:
-                    # throw away solution if it deviates too much from initial config
-                    # for i in range(len(path)):
-                    #     if vectorops.distance(qcmd, path[i]) > 0.05:
-                    #         return False
-                    self.sendPath(path, INCREMENTAL = True)
-                    return True
-        print "Failed to plan path"
-        self.robot.setConfig(currConfig)
-        return False
-
-    def incrementalMove(self, direction):
-        self.robot.setConfig(self.controller.getCommandedConfig())
-
-        currConfig = self.robot.getConfig()
-
-        link = self.robot.link('spatula:frame')
-        currXform = link.getTransform()
-
-        self.world.terrain(0).geometry().setCollisionMargin(0)
-        link.geometry().setCollisionMargin(0)
-
-        if direction == "down":
-            offset = [0,0,-0.005]
-        if direction == "up":
-            offset = [0,0,0.01]
-
-        targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
-
-        goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
-        limbs = ['left']
-        qcmd = self.controller.getCommandedConfig()
-        # qcmd = self.controller.getSensedConfig()
-
-        dist = vectorops.distance(link.getTransform()[1], targetXform[1])
-
-        print "Solving for INCREMENTAL_MOVE (", direction,")"
-
-        for i in range(50):
-            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
-
-            if len(sortedSolutions)==0:
-                continue
-
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
-
-            # else, if we want to path plan
-            numSol = 0
-            for solution in sortedSolutions:
-                numSol += 1
-                # print numSol, "solutions planned out of", len(sortedSolutions)
-                # path = self.planner.plan(qcmd,solution[0],'left')
-
-                path = [qcmd, solution[0]]
-
-
-                if path == 1 or path == 2 or path == False:
-                    continue
-                elif path != None:
-                    # throw away solution if it deviates too much from initial config
-                    for i in range(len(path)):
-                        if vectorops.distance(qcmd, path[i]) > 0.05:
-                            return False
-                    self.sendPath(path, maxSmoothIters=3, INCREMENTAL = True)
-                    return True
-        # print "Failed to plan path"
-        self.robot.setConfig(currConfig)
-        return False
-
+    
     def tilt_wrist(self,direction, step=0, ignoreColShelfSpatula = True):
         self.waitForMove()
         self.world.terrain(0).geometry().setCollisionMargin(0)
@@ -1549,6 +1444,8 @@ class PickingController:
         return [s[1] for s in sortedSolutions]
 
 
+    #===================================================================================
+    # New Movement Functions
 
     def move_camera_to_bin(self,bin_name, colMargin = 0.05, ik_constrain=True,ignoreColShelfSpatula=True, LOAD_TRAJECTORY=LOAD_TRAJECTORY_DEFAULT, limb=None):
         if LOAD_TRAJECTORY:
@@ -1717,7 +1614,8 @@ class PickingController:
                 if limb =='right':
                     self.stateRight = 'stow'
 
-
+    #######################################################################################
+    #Old Movement Functions
                 
     def move_to_grasp_object(self,object,step):
         '''
@@ -1911,8 +1809,6 @@ class PickingController:
         print "Planning failed"
         return False
 
-    
-
     def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False):
         # interpolate path linearly between two endpoints
         # if INCREMENTAL:
@@ -2097,7 +1993,9 @@ class PickingController:
                 q[i] = qmax[i]
         return q
 
-   
+       
+    #============================================================
+    # Calibration Functions
 
     def calibrateShelf(self):
         #blocking
@@ -2181,6 +2079,41 @@ class PickingController:
                 print "input error\n"
                 #print error.strerror
 
+    def calibrateVacuum(self, limb='left'):
+         while(True):
+
+            try:
+                input_var = raw_input("Enter joint and angle to change to separated by a comma: ").split(',');
+                #translational transformation
+                calibrateR = self.vacuumTransform[0]
+                calibrateT = self.vacuumTransform[1]
+
+                if(input_var[0] == "x" ):
+                    calibrateT[0] = calibrateT[0] + float(input_var[1])
+                elif(input_var[0] == "y" ):
+                    calibrateT[1] = calibrateT[1] + float(input_var[1])
+                elif(input_var[0] == "z" ):
+                    calibrateT[2] = calibrateT[2] + float(input_var[1])
+                #rotational transformations
+                elif(input_var[0] == "xr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([1, 0, 0], float(input_var[1])))
+                elif(input_var[0] == "yr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([0, 1, 0], float(input_var[1])))
+                elif(input_var[0] == "zr" ):
+                    calibrateR = so3.mul(calibrateR, so3.rotation([0, 0, 1], float(input_var[1])))
+
+                elif(input_var[0] == "q"):
+                    break
+
+                time.sleep(0.1);
+                calibrate = (calibrateR, calibrateT)
+                self.vacuumTransform = ( calibrate[0], calibrate[1] )
+                
+            except: 
+                print "input error\n"
+
+    #===========================================================
+
     def getCameraToWorldXform(self, limb='left'):
         '''
         get current transformation (R, t) of camera in world frame. 
@@ -2214,6 +2147,89 @@ class PickingController:
         return (min_point, max_point)
 
 
+    #=========================================================
+    # Movement functions
+ 
+    def moveToObjectInBinFromTop(self, position, limb, step):
+        #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
+        #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
+        #Assumes we have determined we want to pick up the object from above
+
+        #We need to calculate the shelf normal
+        #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
+
+
+        if step==1:
+            #ik to top center of bin, normal to the shelf
+            #use ik seed and knowledge of shelf
+            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+            pass
+        elif step==2:
+            #step 2: enter along vacuum/wrist axis until far enough in
+            pass
+        elif step==3:
+            #step 3: move along y direction to get above object
+            pass
+
+        elif step==4:
+            pass
+            #turn vacuum on
+            #attempt to move down to half the object's height from the ground
+
+        elif step==5:
+            pass
+            #check to make sure we have sucked something and that it is not the shelf
+            #throw in various other checks here
+
+        elif step==6: 
+            pass
+            #take the reverse path back out of the bin
+
+
+        #potential issues - something is in front of the front of the shelf
+
+    def moveToObjectInBinFromSide(self, position, limb, step):
+                #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
+        #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
+        #Assumes we have determined we want to pick up the object from above
+
+        #We need to calculate the shelf normal
+        #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
+
+
+        if step==1:
+            #ik to top center of bin, normal to the shelf
+            #use ik seed and knowledge of shelf
+            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+            pass
+        elif step==2:
+            #step 2: enter along vacuum/wrist axis until far enough in
+            pass
+        elif step==3:
+            #step 3: rotate suction cup so that it moves towards the normal
+
+            #if we collide with something, move out, down and then back in (push the object away)
+            pass
+        elif step==4:
+            #move until you intersect the normal
+            pass
+        elif step==5:
+            #step5: roate suction to be normal to object
+            pass
+        elif step==6:
+            #turn vacuum on
+            #attempt to move down to half the object's height from the ground
+            pass
+        elif step==7:
+            #check to make sure we have sucked something and that it is not the shelf
+            #throw in various other checks here
+            pass
+        elif step==8: 
+            pass
+            #take the reverse path back out of the bin
+
+
+        #potential issues - something is in front of the front of the shelf
 
 
             
