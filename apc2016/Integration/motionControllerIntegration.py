@@ -612,14 +612,15 @@ class PickingController:
         if(self.stateLeft == 'scan'):
             lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
             #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
-            for milestone in lPath:
-                self.left_bin = None
-                #BIN_A etc
-                self.controller.appendMilestoneLeft(milestone, 1)
+            moveLeftArm(path =lPath)
 
-                self.waitForMove()
+      
         elif(self.stateLeft == 'grasp' ):
             #not set up yet
+            # go to store then rest
+            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()+'_LEFT')[::-1]
+            moveLeftArm(path = lPath)
+
             return False
 
         elif self.stateLeft == 'stow':
@@ -631,21 +632,23 @@ class PickingController:
             #find the nearest milestone and follow the path back
             pass
 
-        self.controller.appendMilestoneLeft(eval('Q_DEFAULT_LEFT'))
-        self.stateLeft = 'ready'
+        self.moveLeftArm(path = 'Q_DEFAULT_LEFT', finalState = 'ready')
         self.left_bin = None
 
 
     def moveToRightRest(self):
         if(self.stateRight == 'scan'):
-            rPath = eval('CAMERA_TO_' + self.right_bin.upper()+'_RIGHT')[::-1]
-            for milestone in rPath:
-                self.right_bin = None
-                self.controller.appendMilestoneRight(milestone, .5)
-                self.waitForMove()
+            rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
+            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
+            sendPath(path =rPath, )
 
+      
         elif(self.stateRight == 'grasp' ):
             #not set up yet
+            # go to store then rest
+            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()+'_RIGHT')
+            sendPath(path = rPath, )
+
             return False
 
         elif self.stateRight == 'stow':
@@ -657,11 +660,10 @@ class PickingController:
             #find the nearest milestone and follow the path back
             pass
 
-        self.controller.appendMilestoneRight(eval('Q_DEFAULT_RIGHT'))
-        self.stateRight = 'ready'
+        self.moveRightArm(path = 'Q_DEFAULT_RIGHT', finalState = 'ready')
         self.right_bin = None
 
-    def moveArm(self, limb, statusConditional=None, path_name=None,  finalState=None):
+    def moveArm(self, limb, statusConditional=None, path_name=None,  finalState=None, reverse=False):
         if limb == 'left':
             if self.moveLeftArm(statusConditional, path_name, finalState):
                 return True
@@ -672,33 +674,34 @@ class PickingController:
         return False
 
 
-    def moveLeftArm(self, statusConditional=None, path_name=None, finalState=None):
+    def moveLeftArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
         if(self.stateLeft == statusConditional or statusConditional == None):
-            path = None
-            try:
-                path = eval(path_name)
+            if path is None:
                 try:
-                    len(path[0])
+                    path = eval(path_name)
+                    try:
+                        len(path[0])
+                    except:
+                        #path is a single milestone
+                        path = [path]
                 except:
-                    #path is a single milestone
-                    path = [path]
-            except:
-                print 'Error no '+path_name+'in recorded constants'
-                return False
-            for milestone in path:
-                self.controller.appendMilestoneLeft(milestone, 1)
-                #move to the milestone in 1 second
+                    print 'Error no '+path_name+'in recorded constants'
+                    return False
+                for milestone in path:
+                    self.controller.appendMilestoneLeft(milestone, 1)
+                    #move to the milestone in 1 second
 
-                self.waitForMove() #still doesn't do anything, but it's the thought that counts
-                if FORCE_WAIT:
-                    self.forceWait(milestone, self.left_arm_indices, 0.01)
-                else:
-                    self.controller.appendMilestoneLeft(milestone, 3)
-                #wait at the milestone for 2 seconds
-                #later should replace with Hyunsoo's code setting milestones if dt is too large
+                    self.waitForMove() #still doesn't do anything, but it's the thought that counts
+                    if FORCE_WAIT:
+                        self.forceWait(milestone, self.left_arm_indices, 0.01)
+                    else:
+                        self.controller.appendMilestoneLeft(milestone, 3)
+                    #wait at the milestone for 2 seconds
+                    #later should replace with Hyunsoo's code setting milestones if dt is too large
 
-            if finalState is not None
-                self.stateLeft = finalState
+                if finalState is not None:
+                    self.stateLeft = finalState
+            else:
 
         else:
             print "Error, arm is not in state "+ statusConditional
@@ -732,7 +735,7 @@ class PickingController:
                 #wait at the milestone for 2 seconds
                 #later should replace with Hyunsoo's code setting milestones if dt is too large
 
-            if finalState is not None
+            if finalState is not None:
                 self.stateRight = finalState
 
         else:
@@ -1608,7 +1611,7 @@ class PickingController:
 
                 self.moveArm(limb=limb, path_name=camera_path)
 
-                self.moveArm(limb=limb, path_name=scan_name, singleMilestone=True)
+                self.moveArm(limb=limb, path_name=scan_name)
                 
                 if limb == 'left':  
                     self.stateLeft = 'scan'
@@ -2906,7 +2909,7 @@ def run_controller(controller,command_queue):
                 controller.moveToRestConfig()
             elif c == 'x':
                 #controller.graspAction()
-                controller.graspAFromBinAction(DEFAULT_LIMB)
+                controller.graspFromBinAction(DEFAULT_LIMB)
             elif c == 'u':
                 controller.ungraspAction()
             elif c == 'p':
