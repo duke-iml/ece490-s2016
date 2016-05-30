@@ -121,6 +121,7 @@ perceiver = perception.Perceiver(REAL_CAMERA)
 model_dir = "../klampt_models/"
 TRAJECTORIES_PATH = "../Trajectories/"
 PATHING_PATH = "../Trajectories"
+#KLAMPT_MODEL="baxter.rob"
 KLAMPT_MODEL="baxter_with_two_vacuums.rob"
 
 # The transformation of the order bin
@@ -191,8 +192,8 @@ class KnowledgeBase:
         # assume z = 0
         # it's already so close to zero it doesn't affect much
         rot_matrix = knowledge.shelf_xform[0]
-        return rot_matrix[7:9]
         # normal to the back plane of the shelf appears to point in the +z direction
+        return rot_matrix[6:9]
 
 
 
@@ -487,6 +488,9 @@ class PickingController:
         self.points = None
         self.bin_contents_cloud = None
         self.tote_cloud = None
+        self.tote_render_downsample_rate = 5
+        self.tote_render_ptsize = 1
+        self.pick_pos = None
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -560,8 +564,20 @@ class PickingController:
         print 'Render tote content. Also rendering tote?', including_tote
         if including_tote:
             self.tote_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb))
+            self.tote_render_downsample_rate = 20
+            self.tote_render_ptsize = 1
         else:
             self.tote_cloud = perceiver.get_current_tote_content_cloud(*self.getCameraToWorldXform(limb))
+            self.tote_render_downsample_rate = 1
+            self.tote_render_ptsize = 5
+
+    def getPickPositionForStow(self, limb='left'):
+        pos, cloud = perceiver.get_picking_position_for_stowing(self.getCameraToWorldXform(limb)[0], self.getCameraToWorldXform(limb)[1], return_tote_content_cloud=True)
+        print 'Picking position is:', pos
+        self.pick_pos = pos
+        self.tote_cloud = cloud
+        self.tote_render_downsample_rate = 1
+        self.tote_render_ptsize = 5
 
     def moveToRestConfig(self, limb='both'):
         print "Moving to rest config...",
@@ -743,7 +759,7 @@ class PickingController:
     create and implement moveFromToteToBinAction
     '''
 
-    def viewToteAction(self,limb):
+    def viewToteAction(self,limb, ):
 
         if LOAD_PHYSICAL_TRAJECTORY:
             if limb is not None:
@@ -754,7 +770,10 @@ class PickingController:
             else:
                 print 'Error in viewTote action can\'t move with no limb'
 
-            perceiver.
+            #take a picture and get a position to move back
+            self.getPickPositionForStow()
+            #global x,y = self.pick_pos
+            
 
     def prepGraspFromToteAction(self, limb):
 
@@ -2116,8 +2135,10 @@ class PickingController:
                     break
 
                 time.sleep(0.1);
+
                 calibrate = (calibrateR, calibrateT)
-                self.world.terrain(0).geometry().transform( calibrate[0], calibrate[1] )
+                print 'calibrate = ', calibrate
+                self.simworld.terrain(0).geometry().transform( calibrate[0], calibrate[1] )
                 self.shelf_xform = se3.mul(calibrate, self.shelf_xform)
 
                 #rotation matrices are applied left to right
@@ -2125,7 +2146,7 @@ class PickingController:
                 print self.shelf_xform
             except: 
                 print "input error\n"
-                print error.strerror
+                print sys.exc_info()
                 
     def calibrateCamera(self, limb='left'):
         #blocking
@@ -2154,22 +2175,22 @@ class PickingController:
                 elif(input_var[0] == "q"):
                     break
 
-                time.sleep(0.1);
-                calibrate = (calibrateR, calibrateT)
-                self.cameraTransform = ( calibrate[0], calibrate[1] )
-                
-
-                print self.simworld.robot(0).link(limb + '_wrist').getTransform()
-                totalCameraXform = self.getCameraToWorldXform(limb)
-
-                print self.cameraTransform
-
-                current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), tolist=False)
-                self.points = current_cloud.tolist()
-
             except: 
                 print "input error\n"
                 #print error.strerror
+
+            time.sleep(0.1);
+            calibrate = (calibrateR, calibrateT)
+            self.cameraTransform = ( calibrate[0], calibrate[1] )
+            
+
+            print self.simworld.robot(0).link(limb + '_wrist').getTransform()
+            totalCameraXform = self.getCameraToWorldXform(limb)
+
+            print self.cameraTransform
+
+            current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), tolist=False)
+            self.points = current_cloud.tolist()
 
     def calibrateVacuum(self, limb='left'):
          while(True):
@@ -2341,7 +2362,7 @@ class MyGLViewer(GLRealtimeProgram):
         self.simworld = simworld
         self.planworld = planworld
         self.sim = Simulator(simworld)
-        self.simulate = True
+        self.simulate = False
 
         # draw settings
         self.draw_bins = False
@@ -2373,13 +2394,15 @@ class MyGLViewer(GLRealtimeProgram):
             self.sim.simulate(self.dt)
             glutPostRedisplay()
 
-    def glShowPointCloud(self, pc, downsample_rate=5):
+    def glShowPointCloud(self, pc, downsample_rate=5, pt_size=None):
         pc = np.array(pc)
         d = pc.shape[1]
         assert d==3 or d==4, 'Unrecognized point cloud shape: '+str(pc.shape)
         pc = pc[::downsample_rate, :]
         pc = pc.tolist()
         glColor3f(1.0, 0.0, 0.0)
+        if pt_size is not None:
+            glPointSize(pt_size)
         glBegin(GL_POINTS)
         for p in pc:
             if d==4:
@@ -2439,13 +2462,17 @@ class MyGLViewer(GLRealtimeProgram):
         if SHOW_BIN_CONTENT:
             points = self.picking_controller.bin_contents_cloud
             if points is not None:
-                glShowPointCloud(points)
+                self.glShowPointCloud(points)
 
         if SHOW_TOTE_CONTENT:
             points = self.picking_controller.tote_cloud
             if points is not None:
-                glShowPointCloud(points)
-
+                self.glShowPointCloud(points, self.picking_controller.tote_render_downsample_rate, self.picking_controller.tote_render_ptsize)
+            pick_pos = self.picking_controller.pick_pos
+            if pick_pos is not None:
+                # gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [pick_pos[0], pick_pos[1], -0.1]), 1, 0.01, fancy=False)
+                pass
+                
         # draw the shelf and floor
         # if self.simworld.numTerrains()==0:
         #     for i in range(self.planworld.numTerrains()):
@@ -2794,9 +2821,11 @@ def run_controller(controller,command_queue):
             if c=='h':
                 print 'H: Help (Show this text)'
                 print 'E: View Bin'
-                print 'Y:Prepare Pick for Bin'
+                print 'Y: Prepare Pick for Bin'
                 print 'I: Save Canonical Point Cloud for Bin/Tote'
                 print 'A: Render Bin Content'
+                print 'T: Render Tote Content'
+                print 'L: Get Pick Position for Stow'
                 print 'V: Change Default Limb'
                 print 'R: Move to Rest Configuration'
                 print 'X: Grasp Action'
@@ -2864,7 +2893,9 @@ def run_controller(controller,command_queue):
                     flag = command_queue.get()
                 if flag in ['x', 'X']:
                     continue
-                controller.renderToteContent(limb=DEFAULT_LIMB)
+                controller.renderToteContent(flag=='1', limb=DEFAULT_LIMB)
+            elif c=='l':
+                controller.getPickPositionForStow(limb=DEFAULT_LIMB)
             elif c=='v':
                 if DEFAULT_LIMB=='left':
                     DEFAULT_LIMB='right'
@@ -2935,6 +2966,7 @@ def run_controller(controller,command_queue):
                     print 'Canceled'
                     continue
                 controller.getBounds('bin_'+bin_letter.upper())
+
         else:
             print "Waiting for command..."
             time.sleep(0.1)
@@ -2975,7 +3007,7 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
-    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.5599999999999987, -0.02])
+    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.555, -0.02])
     perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
