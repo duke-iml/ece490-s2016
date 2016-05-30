@@ -436,6 +436,7 @@ class PhysicalLowLevelController(LowLevelController):
             if not motion.robot.right_mq.appendLinear(dt, destination): raise RuntimeError()
         else:
             if not motion.robot.right_mq.appendLinear(dt, [destination[v] for v in self.right_arm_indices]): raise RuntimeError()
+        return True
 
 
 
@@ -449,6 +450,7 @@ class PhysicalLowLevelController(LowLevelController):
         else:
             #if not motion.robot.left_mq.appendLinear(dt, [destination[v] for v in self.left_arm_indices]): raise RuntimeError()
             if not motion.robot.left_mq.appendLinear(dt, [destination[v] for v in self.left_arm_indices]): raise RuntimeError()
+        return True
         
 
 
@@ -685,17 +687,21 @@ class PickingController:
             except:
                 print 'Error no '+path_name+'in recorded constants'
                 return False
-            for milestone in path:
-                self.controller.appendMilestoneLeft(milestone, 1)
-                #move to the milestone in 1 second
 
-                self.waitForMove() #still doesn't do anything, but it's the thought that counts
-                if FORCE_WAIT:
-                    self.forceWait(milestone, self.left_arm_indices, 0.01)
-                else:
-                    self.controller.appendMilestoneLeft(milestone, 3)
-                #wait at the milestone for 2 seconds
-                #later should replace with Hyunsoo's code setting milestones if dt is too large
+
+            self.sendPath(path, limb='right', readConstants=True)
+
+            # for milestone in path:
+            #     self.controller.appendMilestoneLeft(milestone, 1)
+            #     #move to the milestone in 1 second
+
+            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
+            #     if FORCE_WAIT:
+            #         self.forceWait(milestone, self.left_arm_indices, 0.01)
+            #     else:
+            #         self.controller.appendMilestoneLeft(milestone, 3)
+            #     #wait at the milestone for 2 seconds
+            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
 
             if finalState is not None
                 self.stateLeft = finalState
@@ -719,18 +725,21 @@ class PickingController:
             except:
                 print 'Error no '+path_name+'in recorded constants'
                 return False
-            for milestone in path:
-                self.controller.appendMilestoneRight(milestone, 1)
-                #move to the milestone in 1 second
+            
+            self.sendPath(path, limb='right', readConstants=True)
 
-                self.waitForMove() #still doesn't do anything, but it's the thought that counts
-                if FORCE_WAIT:
-                    self.forceWait(milestone, self.right_arm_indices, 0.01)
-                else:
-                    self.controller.appendMilestoneRight(milestone, 3)
-                #wait at the milestone for 2 seconds
-                #wait at the milestone for 2 seconds
-                #later should replace with Hyunsoo's code setting milestones if dt is too large
+            # for milestone in path:
+            #     self.controller.appendMilestoneRight(milestone, 1)
+            #     #move to the milestone in 1 second
+
+            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
+            #     if FORCE_WAIT:
+            #         self.forceWait(milestone, self.right_arm_indices, 0.01)
+            #     else:
+            #         self.controller.appendMilestoneRight(milestone, 3)
+            #     #wait at the milestone for 2 seconds
+            #     #wait at the milestone for 2 seconds
+            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
 
             if finalState is not None
                 self.stateRight = finalState
@@ -773,7 +782,7 @@ class PickingController:
             #take a picture and get a position to move back
             self.getPickPositionForStow()
             #global x,y = self.pick_pos
-            
+
 
     def prepGraspFromToteAction(self, limb):
 
@@ -838,6 +847,31 @@ class PickingController:
         self.robot.setConfig(currConfig)
         return False
 
+
+    def group3IK(self, limb):
+        """Solves IK to move the right arm to the specified
+            right_target ([x, y, z] in world space)
+        """
+        self.load_real_robot_state()
+        self.set_model_right_arm(eval('Q_IK_SEED_' + self.current_bin))
+
+        qmin,qmax = self.robotModel.getJointLimits()
+        for i in range(1000):
+            point2_local = vectorops.add(VACUUM_POINT_XFORM[1], [.5, 0, 0])
+            point2_world = vectorops.add(right_target, [0, 0, -.5])
+            goal1 = ik.objective(self.robotModel.link('right_wrist'),local=VACUUM_POINT_XFORM[1],world=right_target)
+            goal2 = ik.objective(self.robotModel.link('right_wrist'),local=point2_local,world=point2_world)
+            if ik.solve([goal1, goal2],tol=0.0001) and (self.elbow_up() or ignore_elbow_up_constraint):
+                return True
+        print FAIL_COLOR + "right_arm_ik failed for " + str(right_target) + END_COLOR
+        if not (self.elbow_up() or ignore_elbow_up_constraint):
+            print FAIL_COLOR + str([self.robotModel.getConfig()[v] for v in self.right_arm_indices]) + END_COLOR
+            print FAIL_COLOR + "IK found but elbow wasn't up" + END_COLOR
+        return False
+        pass
+
+    def group2IK(self, limb):
+        pass 
 
     #================================================
     # Process for picking
@@ -1920,8 +1954,11 @@ class PickingController:
         print "Planning failed"
         return False
 
-    def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False):
+    def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False, limb = None, readConstants=False):
         # interpolate path linearly between two endpoints
+       
+
+
         # if INCREMENTAL:
         #     assert(len(path)==2)
         #     i = 0
@@ -1937,10 +1974,20 @@ class PickingController:
         #             endIndex +=1
         #         else:
         #             i += 1
+
         n = self.robot.numLinks()
         for i in range(len(path)):
-            if len(path[i])<n:
-                path[i] += [0.0]*(n-len(path[i]))
+
+            # if we specify a limb, and the path only has seven numbers (DOF for each arm, we shouldn't append 0's)
+            if readConstants and limb is not None:
+                # if we're reading a path from the milestones
+                pass
+            else:
+                if len(path[i])<n:
+                    path[i] += [0.0]*(n-len(path[i]))
+
+
+
 
         for smoothIter in range(maxSmoothIters):
             # path = path
@@ -1951,14 +1998,18 @@ class PickingController:
             smoothePath[-1] = path[-1]
             path = smoothePath
 
+        '''
         q = path[0]
         qmin,qmax = self.robot.getJointLimits()
 
         # removing AppendRamp clamping error
         for i in [23,30,31,43,50,51,54]: q[i] = 0
+        for i in self.right
 
         q = self.clampJointLimits(q,qmin,qmax)
+        '''
 
+        #q keeps getting overwritten
         self.controller.setMilestone(path[0])
 
         for q in path[1:]:
@@ -2001,12 +2052,14 @@ class PickingController:
             counter = 0
             while i < endIndex-1:
                 # print i, endIndex
-                q = path[i]
+                q = path[i]              
                 qNext = path[i+1]
                 dt = vectorops.distance(q,qNext)
 
                 # smooth trajectory by interpolating between two consecutive configurations
                 # if the distance between the two is big
+
+                # Note: might want to make dt bigger for arm movements (only 7 configurations vs 52)
                 if dt>0.01:
                     qInterp = vectorops.div(vectorops.add(q, qNext), 2)
                     path.insert(i+1, qInterp)
@@ -2016,7 +2069,12 @@ class PickingController:
                     i += 1
                     self.waitForMove()
                     if counter%SPEED == 0 or INCREMENTAL:
-                        self.controller.appendMilestone(q)
+                        if limb == 'left':
+                            self.controller.appendMilestoneLeft(q)
+                        elif limb == 'right':
+                            self.controller.appendMilestoneRight(q)
+                        else:
+                            self.controller.appendMilestone(q)
                     counter +=1
 
     def sendPathClosedLoop(self,path, clearRightArm = False):
