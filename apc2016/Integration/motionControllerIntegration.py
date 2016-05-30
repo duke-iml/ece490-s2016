@@ -100,7 +100,7 @@ if REAL_JSON:
     global singleItemList
 
     global orderList
-    (binList, orderList, singleItemList) = binOrderParser.workBinOrder("../apc_pick_task.json")
+    (binList, orderList, singleItemList) = binOrderParser.workBinOrder("../JSON_FILES/apc_pick_task.json")
 
 
 perceiver = perception.Perceiver(REAL_CAMERA)
@@ -189,9 +189,10 @@ class KnowledgeBase:
 
     def getShelfNormal(self):
         # assume z = 0
+        # it's already so close to zero it doesn't affect much
         rot_matrix = knowledge.shelf_xform[0]
-        #self.
-
+        return rot_matrix[7:9]
+        # normal to the back plane of the shelf appears to point in the +z direction
 
 
 
@@ -644,23 +645,26 @@ class PickingController:
         self.stateRight = 'ready'
         self.right_bin = None
 
-    def moveArm(self, limb, statusConditional=None, path_name=None, singleMilestone=False):
+    def moveArm(self, limb, statusConditional=None, path_name=None,  finalState=None):
         if limb == 'left':
-            if self.moveLeftArm(statusConditional, path_name, singleMilestone):
+            if self.moveLeftArm(statusConditional, path_name, finalState):
                 return True
         if limb == 'right':
-            if self.moveRightArm(statusConditional, path_name, singleMilestone):
+            if self.moveRightArm(statusConditional, path_name, finalState):
                 return True
         #wasn't able to move
         return False
 
 
-    def moveLeftArm(self, statusConditional=None, path_name=None, singleMilestone=False):
+    def moveLeftArm(self, statusConditional=None, path_name=None, finalState=None):
         if(self.stateLeft == statusConditional or statusConditional == None):
             path = None
             try:
                 path = eval(path_name)
-                if singleMilestone:
+                try:
+                    len(path[0])
+                except:
+                    #path is a single milestone
                     path = [path]
             except:
                 print 'Error no '+path_name+'in recorded constants'
@@ -677,18 +681,25 @@ class PickingController:
                 #wait at the milestone for 2 seconds
                 #later should replace with Hyunsoo's code setting milestones if dt is too large
 
+            if finalState is not None
+                self.stateLeft = finalState
+
         else:
             print "Error, arm is not in state "+ statusConditional
             return False
 
-    def moveRightArm(self, statusConditional=None, path_name=None, singleMilestone=False):
+    def moveRightArm(self, statusConditional=None, path_name=None, finalState=None):
         if(self.stateRight == statusConditional or statusConditional == None):
             path = None
 
             try:
                 path = eval(path_name)
-                if singleMilestone:
+                try:
+                    len(path[0])
+                except:
+                    #path is a single milestone
                     path = [path]
+
             except:
                 print 'Error no '+path_name+'in recorded constants'
                 return False
@@ -704,6 +715,9 @@ class PickingController:
                 #wait at the milestone for 2 seconds
                 #wait at the milestone for 2 seconds
                 #later should replace with Hyunsoo's code setting milestones if dt is too large
+
+            if finalState is not None
+                self.stateRight = finalState
 
         else:
             print "Error, arm is not in state "+ statusConditional
@@ -733,39 +747,23 @@ class PickingController:
 
         if LOAD_PHYSICAL_TRAJECTORY:
             if limb is not None:
-                q_target = eval('Q_VIEW_TOTE_'+limb.upper())
-
-                if limb =='left' and selt.stateLeft =='ready':
-                    self.controller.appendMilestoneLeft(q_target)
-                    self.stateLeft = 'viewTote'
-
-                if limb =='right' and self.stateRight  == 'ready':
-                    self.controller.appendMilestoneRight(q_target)
-                    #we're in rest config
-                    self.stateRight = 'viewTote'
+                if moveArm(limb, 'ready', 'Q_VIEW_TOTE_'+limb.upper(), 'viewTote'):
+                    pass
+                else:
+                    print "Error in moveArm (from viewToteAction)"
             else:
-
                 print 'Error in viewTote action can\'t move with no limb'
+
+            perceiver.
 
     def prepGraspFromToteAction(self, limb):
 
         #assumes we're using the constants file
         if limb is not None:
-            try:
-                q_target = eval('Q_STOW_'+limb.upper()+'_STRAIGHT')
-            except:
-                print 'q_target does not exist'
-                return False
-
-            #replace all of this with method to move the left arm/right arm
-            if limb =='left' and selt.stateLeft =='viewTote':
-                self.controller.appendMilestoneLeft(q_target)
-                self.stateLeft = 'toteGraspPrepped'
-
-            if limb =='right' and self.stateRight  == 'viewTote':
-                self.controller.appendMilestoneRight(q_target)
-                #we're in rest config
-                self.stateRight = 'toteGraspPrepped'
+            if moveArm(limb, 'ready', 'Q_STOW_'+limb.upper()+'_STRAIGHT', 'toteGraspPrepped'):
+                pass
+            else:
+                print "Error in moveArm (from preGraspFromToteAction"
         else:
 
             print 'Error in viewTote action can\'t move with no limb'
