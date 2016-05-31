@@ -475,7 +475,7 @@ class PickingController:
         self.perceptionTransform = None
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
-        self.vacuumTransform = ([],[])
+        self.vacuumTransform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         #transform to end effector
 
         self.left_bin = None
@@ -828,6 +828,7 @@ class PickingController:
         #x = forward
         #y = left
         goalXY = self.pick_pos
+        goalXY = [1,1]
         startZ = 1
         endZ = 0.2
         points = 6.0
@@ -835,39 +836,44 @@ class PickingController:
         incZ = (endZ-startZ)/points
 
         goalZ = startZ
+
         for i in range(50):
-            targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
+            #targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
 
             #vacuum X_form
             #match with several points going down
 
-            local1 = VACUUM_POINT_XFORM[1]
-            local2 = vectorops.add(VACUUM_POINT_XFORM[1], [0.1, 0, 0])
+            local1 = self.vacuumTransform[1]
+            local2 = vectorops.add(self.vacuumTransform[1], [0.1, 0, 0])
             #along the axis of the wrist and 0.5m fruther
+            goals = []
+            limbs = []
+            sortedSolutions=[]
 
-            global1 = [goalXY[:], goalZ -0.1]
-            print global1
-            #global2 = 
+            link = self.robot.link(limb+'_wrist')
+
+            while goalZ > endZ:
+                global1 = [goalXY[0],goalXY[1], goalZ -0.1]
+                global2 = [goalXY[0],goalXY[1], goalZ]
+
+                goal1 = ik.objective(self.robot.link(limb+'_wrist'),local=local1,world=global1)
+                goal2 = ik.objective(self.robot.link(limb+'_wrist'),local=local2,world=global2)
 
 
-            goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
-            dist = vectorops.distance(link.getTransform()[1], targetXform[1])
+                goal = [goal1, goal2]
+                goals.append(goal)
+                limbs= [limb, limb]
+                goalZ+=incZ
 
-            sortedSolutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
+                #dist = vectorops.distance(link.getTransform()[1], targetXform[1])
+                dist = 100
+                qcmd = motion.robot.getKlamptSensedPosition()
 
-            if len(sortedSolutions)==0:
-                offset = vectorops.sub(offset, [0,0,0.0025])
-                continue
 
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
+                print goals
 
+                solutions = self.get_ik_solutions(goal, limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
+                sortedSolutions.append(solutions)
             # else, if we want to path plan
             numSol = 0
             for solution in sortedSolutions:
