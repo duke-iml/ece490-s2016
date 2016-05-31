@@ -829,8 +829,8 @@ class PickingController:
         #y = left
         goalXY = self.pick_pos
         goalXY = [1,1]
-        startZ = 1
-        endZ = 0.2
+        startZ = 4
+        endZ = 2
         points = 6.0
 
         incZ = (endZ-startZ)/points
@@ -844,11 +844,13 @@ class PickingController:
             #match with several points going down
 
             local1 = self.vacuumTransform[1]
-            local2 = vectorops.add(self.vacuumTransform[1], [0.1, 0, 0])
+            local2 = vectorops.add(self.vacuumTransform[1], [0, 0, 0.1])
             #along the axis of the wrist and 0.5m fruther
             goals = []
             limbs = []
             sortedSolutions=[]
+
+            q_start = motion.robot.getKlamptSensedPosition()
 
             link = self.robot.link(limb+'_wrist')
 
@@ -870,31 +872,42 @@ class PickingController:
                 qcmd = motion.robot.getKlamptSensedPosition()
 
 
-                print goals
+                #print goals
 
                 solutions = self.get_ik_solutions(goal, limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
+
+                print 'Goal Z = ', goalZ, ' and the number of solutions is ', len(solutions)
+
                 sortedSolutions.append(solutions)
             # else, if we want to path plan
             numSol = 0
+
+            path = [q_start]
+
             for solution in sortedSolutions:
                 numSol += 1
                 print numSol, "solutions planned out of", len(sortedSolutions)
                 # path = self.planner.plan(qcmd,solution[0],'left')
 
-                path = [qcmd, solution[0]]
+                print solution
 
+                if solution:
+                    #if a solution exists
+                    path.append(solution[0]) 
 
-                if path == 1 or path == 2 or path == False:
-                    continue
-                elif path != None:
-                    # throw away solution if it deviates too much from initial config
-                    # for i in range(len(path)):
-                    #     if vectorops.distance(qcmd, path[i]) > 0.05:
-                    #         return False
-                    self.sendPath(path, INCREMENTAL = True)
-                    return True
+                # if path == 1 or path == 2 or path == False:
+                #     continue
+                # elif path != None:
+                #     # throw away solution if it deviates too much from initial config
+                #     # for i in range(len(path)):
+                #     #     if vectorops.distance(qcmd, path[i]) > 0.05:
+                #     #         return False
+                #     self.sendPath(path, INCREMENTAL = True)
+            if len(path)>1:
+                self.sendPath(path, INCREMENTAL=True)
+                return True
         print "Failed to plan path"
-        self.robot.setConfig(currConfig)
+        self.robot.setConfig(q_start)
         return False
 
 
@@ -1613,6 +1626,9 @@ class PickingController:
                 numSolutions[index] += 1
                 #print "validity checker(limb) = ",
                 # print validity_checker(limb)
+
+                print "Solved ", numSolutions[index]
+
                 if validity_checker(limb):
                     numColFreeSolutions[index] += 1
                     ikSolutions.append((self.robot.getConfig(),index))
