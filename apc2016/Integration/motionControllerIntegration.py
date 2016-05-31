@@ -753,6 +753,7 @@ class PickingController:
                 if self.q_most_recent_right is None:
                     qAdd = motion.robot.getKlamptSensedPosition()
                     qAdd = [qAdd[v] for v in self.right_arm_indices]
+                    print self.right_arm_indices
                 else: 
                     qAdd = self.q_most_recent_right
                 path[0]=qAdd
@@ -783,17 +784,6 @@ class PickingController:
             print "Error, arm is not in state "+ statusConditional
             return False
 
-
-    def moveToBinViewingConfig(self, bin_letter):
-        print "Moving to bin_%s config..."%(bin_letter),
-        baxter_startup_config = self.robot.getConfig()
-        # path = [baxter_startup_config, bin_viewing_configs[bin_letter]]
-        #self.sendPath(path)
-        self.controller.setMilestone(bin_viewing_configs[bin_letter])
-        self.waitForMove()
-        print "Done"
-
-        #replace with move_camera_to_bin later
 
     #====================================================
     # Process for stowing:
@@ -837,10 +827,29 @@ class PickingController:
 
         #x = forward
         #y = left
+        goalXY = self.pick_pos
+        startZ = 1
+        endZ = 0.2
+        points = 6.0
 
+        incZ = (endZ-startZ)/points
 
+        goalZ = startZ
         for i in range(50):
             targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
+
+            #vacuum X_form
+            #match with several points going down
+
+            local1 = VACUUM_POINT_XFORM[1]
+            local2 = vectorops.add(VACUUM_POINT_XFORM[1], [0.1, 0, 0])
+            #along the axis of the wrist and 0.5m fruther
+
+            global1 = [goalXY[:], goalZ -0.1]
+            print global1
+            #global2 = 
+
+
             goal = ik.objective(link, R=targetXform[0], t=targetXform[1])
             dist = vectorops.distance(link.getTransform()[1], targetXform[1])
 
@@ -905,8 +914,6 @@ class PickingController:
         return False
         pass
 
-    def group2IK(self, limb):
-        pass 
 
     #================================================
     # Process for picking
@@ -2973,7 +2980,8 @@ def run_controller(controller,command_queue):
                 controller.ungraspAction()
             elif c == 'p':
                 #controller.placeInOrderBinAction()
-                controller.placeInToteAction(DEFAULT_LIMB)
+                controller.graspFromToteAction(DEFAULT_LIMB)
+                #controller.placeInToteAction(DEFAULT_LIMB)
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == '`':
