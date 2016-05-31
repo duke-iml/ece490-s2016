@@ -828,84 +828,94 @@ class PickingController:
         #x = forward
         #y = left
         goalXY = self.pick_pos
-        goalXY = [1,1]
-        startZ = 4
-        endZ = 2
-        points = 6.0
+        goalXY = [0.5,0.5]
+        startZ = 2
+        endZ = 0
+        points = 20.0
 
         incZ = (endZ-startZ)/points
 
         goalZ = startZ
 
-        for i in range(50):
-            #targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
+        
+        #targetXform = [currXform[0], vectorops.add(currXform[1], offset)]
 
-            #vacuum X_form
-            #match with several points going down
+        #vacuum X_form
+        #match with several points going down
 
-            local1 = self.vacuumTransform[1]
-            local2 = vectorops.add(self.vacuumTransform[1], [0, 0, 0.1])
-            #along the axis of the wrist and 0.5m fruther
-            goals = []
-            limbs = []
-            sortedSolutions=[]
+        local1 = self.vacuumTransform[1]
+        # local2 = vectorops.add(self.vacuumTransform[1], [0, 0, 0.5])
+        #along the axis of the wrist and 0.1m fruther
+        goals = []
+        limbs = []
+        sortedSolutions=[]
 
-            q_start = motion.robot.getKlamptSensedPosition()
+        q_start = motion.robot.getKlamptSensedPosition()
 
-            link = self.robot.link(limb+'_wrist')
+        link = self.simworld.robot(0).link(limb+'_wrist')
+        print 'Current limb is', limb
+        print self.simworld.robot(0).link('right_wrist').getName(), self.robot.link('right_wrist')
+        print self.simworld.robot(0).link('left_wrist').getName(), self.robot.link('left_wrist')
+        print link.getName(), link
+        print 'link_xform', link.getTransform()
+        while goalZ > endZ:
+            global1 = [goalXY[0], goalXY[1], goalZ]
+            # global2 = [goalXY[0],goalXY[1], goalZ-0.5]
 
-            while goalZ > endZ:
-                global1 = [goalXY[0],goalXY[1], goalZ -0.1]
-                global2 = [goalXY[0],goalXY[1], goalZ]
+            goal1 = ik.objective(link,local=local1,world=global1)
+            # goal1 = ik.objective(link,local=[0,0,0],world=[0.5782783724582089, 0.39504104980613364, 1.1248255095980265])
+            # goal2 = ik.objective(self.robot.link(limb+'_wrist'),local=local2,world=global2)
 
-                goal1 = ik.objective(self.robot.link(limb+'_wrist'),local=local1,world=global1)
-                goal2 = ik.objective(self.robot.link(limb+'_wrist'),local=local2,world=global2)
+            for i in range(1000):
+                if ik.solve(goal1, tol=0.1):
+                    sortedSolutions.append([conf for conf in self.simworld.robot(0).getConfig()])
+                    print 'Goal Z = ', goalZ, ' solved at ', i
+                    break
+            else:
+                print "all failed for %f"%goalZ
 
+            goalZ+=incZ
 
-                goal = [goal1, goal2]
-                goals.append(goal)
-                limbs= [limb, limb]
-                goalZ+=incZ
+            #limbs = [limb]
+            #goal = [goal1, goal2]
+            #goals.append(goal)
+            #dist = vectorops.distance(link.getTransform()[1], targetXform[1])
+            #dist = 100
+            #qcmd = motion.robot.getKlamptSensedPosition()
+            #solutions = self.get_ik_solutions([goal], limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
 
-                #dist = vectorops.distance(link.getTransform()[1], targetXform[1])
-                dist = 100
-                qcmd = motion.robot.getKlamptSensedPosition()
-
-
-                #print goals
-
-                solutions = self.get_ik_solutions(goal, limbs, qcmd, maxResults=10, maxIters=10,rangeVal=dist/1000)
-
-                print 'Goal Z = ', goalZ, ' and the number of solutions is ', len(solutions)
-
-                sortedSolutions.append(solutions)
-            # else, if we want to path plan
+            #sortedSolutions.append(solutions)
+        # else, if we want to path plan
             numSol = 0
 
-            path = [q_start]
+        path = [q_start]
 
-            for solution in sortedSolutions:
-                numSol += 1
-                print numSol, "solutions planned out of", len(sortedSolutions)
-                # path = self.planner.plan(qcmd,solution[0],'left')
+        for solution in sortedSolutions:
+            numSol += 1
+            # print numSol, "solutions planned out of", len(sortedSolutions)
+            # path = self.planner.plan(qcmd,solution[0],'left')
 
-                print solution
+            # print solution
 
-                if solution:
-                    #if a solution exists
-                    path.append(solution[0]) 
+            path.append(solution) 
 
-                # if path == 1 or path == 2 or path == False:
-                #     continue
-                # elif path != None:
-                #     # throw away solution if it deviates too much from initial config
-                #     # for i in range(len(path)):
-                #     #     if vectorops.distance(qcmd, path[i]) > 0.05:
-                #     #         return False
-                #     self.sendPath(path, INCREMENTAL = True)
-            if len(path)>1:
-                self.sendPath(path, INCREMENTAL=True)
-                return True
+            # if path == 1 or path == 2 or path == False:
+            #     continue
+            # elif path != None:
+            #     # throw away solution if it deviates too much from initial config
+            #     # for i in range(len(path)):
+            #     #     if vectorops.distance(qcmd, path[i]) > 0.05:
+            #     #         return False
+            #     self.sendPath(path, INCREMENTAL = True)
+
+        # print 'path is ', path
+
+        if len(path)>1:
+            print 'sending'
+            self.sendPath(path, limb=limb)
+            print 'sent'
+            return True
+
         print "Failed to plan path"
         self.robot.setConfig(q_start)
         return False
@@ -1601,6 +1611,9 @@ class PickingController:
         Returns: a list [(solution1,index1),...,(solutionn,indexn)] of up to
         maxResults collision-free solutions.
         """
+
+        printer =True
+
         if initialConfig == None:
             initialConfig = self.controller.getCommandedConfig()
         if validity_checker == None:
@@ -1612,6 +1625,7 @@ class PickingController:
         for i in range(maxIters):
             index = random.randint(0,len(goals)-1) # choose which ik goals to solve
             goal = goals[index]
+            print goal
             limb = limbs[index]
             numTrials[index] += 1
             # if first time trying the ik goal, initialize with current config
@@ -1990,6 +2004,12 @@ class PickingController:
         #         else:
         #             i += 1
 
+
+        for p in path:
+            for c in p:
+                print '%0.2f,'%c,
+            print ''
+
         n = self.robot.numLinks()
         for i in range(len(path)):
 
@@ -2013,6 +2033,7 @@ class PickingController:
             smoothePath[-1] = path[-1]
             path = smoothePath
 
+
         '''
         q = path[0]
         qmin,qmax = self.robot.getJointLimits()
@@ -2031,15 +2052,16 @@ class PickingController:
         print 'about to check if we read constatnt'
 
         if not readConstants:
-            for q in path[1:]:
+            for j in xrange(1, len(path)):
+            # for q in path[1:]:
                 for i in [23,30,31,43,50,51,54]:
                     # print i, qmin[i], q[i], qmax[i]
-                    q[i] = 0
+                    path[j][i] = 0
 
                 if clearRightArm:
                     q[35] = -0.3
 
-                q = self.clampJointLimits(q,qmin,qmax)
+                #q = self.clampJointLimits(q,qmin,qmax)
 
                 if not PHYSICAL_SIMULATION:
                     self.controller.controller.setVelocity([1]*61,0.1)
@@ -2063,9 +2085,8 @@ class PickingController:
                     #     self.controller.appendMilestone(q)
 
             # original
-        if not PHYSICAL_SIMULATION:
-            return
-        else:
+        print "reached"
+        if PHYSICAL_SIMULATION:
             i = 0
             endIndex = len(path)
             if endIndex==1:
@@ -2078,7 +2099,7 @@ class PickingController:
             
             while i <endIndex-1:
                 # print i, endIndex
-                q = path[i]              
+                q = path[i]
                 qNext = path[i+1]
                 dt = vectorops.distance(q,qNext)
 
