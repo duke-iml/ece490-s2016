@@ -5,7 +5,7 @@ from realsense_utils.client import RemoteCamera
 from realsense_utils.common_utils import render_3d_scatter
 from realsense_utils import colorize_point_cloud
 # def colorize_point_cloud(cloud, color, depth_uv, rgb_table=None)
-import struct, icp, sys, threading
+import struct, icp, sys, threading, colorsys
 from scipy.spatial import KDTree
 from scipy.sparse import dok_matrix
 from scipy.stats import gaussian_kde
@@ -15,7 +15,7 @@ from segmentation import distance_label
 from scipy.sparse.csgraph import connected_components
 
 sys.setrecursionlimit(10000)
-downsample_rate = 100
+downsample_rate = 50
 
 class CameraData:
 	def __init__(self, color, cloud, depth_uv, color_uv):
@@ -50,8 +50,8 @@ class Perceiver:
 	def __init__(self, camera_connect=True):
 		# self.prefix = ''
 		self.prefix = '/home/group3/ece490-s2016/apc2016/Integration/perception/'
-		self.shelf_perturb_R = None
-		self.shelf_perturb_t = None
+		self.shelf_perturb_R = np.eye(3)
+		self.shelf_perturb_t = np.array([0,0,0])
 		# if camera_connect:
 		# 	self.camera = RemoteCamera('10.236.66.147', 30000)
 		# 	self.cd = None
@@ -87,7 +87,7 @@ class Perceiver:
 		keep_idxs = all_idxs - discard_idxs
 		return list(keep_idxs)
 
-	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, colorful=True, fit=False, threshold=0.01):
+	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, colorful=True, fit=False, threshold=0.02):
 		'''
 		return a point cloud (either colored or not) of the current bin content in the global frame. shelf is removed. 
 		if fit is True, a new round of ICP is done on the model shelf
@@ -104,20 +104,46 @@ class Perceiver:
 		scene_cloud_xyz = scene_cloud[:, 0:3]
 		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
 		cur_camera_t = np.array(cur_camera_t)
-		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R)+cur_camera_t # colorless cloud
+		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R.T)+cur_camera_t # colorless cloud
 		scene_cloud[:, 0:3] = scene_cloud_xyz # transform scene_cloud
 		scene_tree = KDTree(scene_cloud_xyz)
 		model_cloud = self.load_model_bin_cloud(bin_letter, downsample=True)
 		model_xform_R, model_xform_t = self.load_R_t(self.get_bin_viewing_camera_xform_path(bin_letter), nparray=True)
-		model_cloud = model_cloud.dot(model_xform_R) + model_xform_t # apply saved transformation
+		model_cloud = model_cloud.dot(model_xform_R.T) + model_xform_t # apply saved transformation
 		assert (self.shelf_perturb_R is not None) and (self.shelf_perturb_t is not None), 'Shelf perturbation has not been calibrated'
-		model_cloud = model_cloud.dot(self.shelf_perturb_R) + self.shelf_perturb_t # apply perturbation transformation found by ICP
+		model_cloud = model_cloud.dot(self.shelf_perturb_R.T) + self.shelf_perturb_t # apply perturbation transformation found by ICP
 		if fit:
 			R, t = icp.match(model_cloud, scene_tree)
 			model_cloud = model_cloud.dot(R.T) + t
 		keep_idxs = self.subtract_model(model_cloud, scene_tree=scene_tree, threshold=threshold)
-		bin_content_cloud = scene_cloud[keep_idxs, :]
-		return bin_content_cloud
+		content_cloud = scene_cloud[keep_idxs, :]
+
+		# num_content_cloud_pts = content_cloud.shape[0]
+		# print "Making content cloud with %i points"%content_cloud.shape[0]
+		# content_tree = KDTree(content_cloud)
+		# print "Done. Querying neighbors within 0.03 m"
+		# idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		# unisolated_flag = map(lambda x: len(x)>=3, idxs)
+		# content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
+		# print "Clean cloud has %i points"%content_cloud.shape[0]
+
+		# print "Making content cloud with %i points"%content_cloud.shape[0]
+		# content_tree = KDTree(content_cloud)
+		# print "Done. Querying neighbors within 0.03 m"
+		# idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		# unisolated_flag = map(lambda x: len(x)>=4, idxs)
+		# content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
+		# print "Clean cloud has %i points"%content_cloud.shape[0]
+
+		# print "Making content cloud with %i points"%content_cloud.shape[0]
+		# content_tree = KDTree(content_cloud)
+		# print "Done. Querying neighbors within 0.03 m"
+		# idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		# unisolated_flag = map(lambda x: len(x)>=5, idxs)
+		# content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
+		# print "Clean cloud has %i points"%content_cloud.shape[0]
+		return content_cloud
+
 
 	def crop_cloud(self, cloud, bin_letter):
 		'''
@@ -126,11 +152,11 @@ class Perceiver:
 		'''
 		return cloud
 
-	def crop_and_segment(self, bin_content_cloud, bin_letter, threshold=0.01):
+	def crop_and_segment(self, bin_content_cloud, bin_letter, threshold=0.02):
 		cropped_cloud = self.crop_cloud(bin_content_cloud, bin_letter)
 		N = cropped_cloud.shape[0]
 		colorless_cloud = cropped_cloud[:,0:3]
-		print 'Begin making sparse adjacency matrix...'
+		print 'Begin making sparse adjacency matrix of size %d X %d...'%(N, N)
 		adj_matrix = dok_matrix((N, N), dtype='bool_')
 		for i in xrange(N):
 			for j in xrange(i+1, N):
@@ -187,7 +213,9 @@ class Perceiver:
 		cloud = cloud[keep_idxs, :]
 		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
 		cur_camera_t = np.array(cur_camera_t)
-		cloud = cloud.dot(cur_camera_R.T) + cur_camera_t
+		cloud_xyz = cloud[:,0:3] 
+		cloud_xyz = cloud_xyz.dot(cur_camera_R.T) + cur_camera_t
+		cloud[:,0:3] = cloud_xyz
 		if tolist:
 			cloud = cloud.tolist()
 		return cloud

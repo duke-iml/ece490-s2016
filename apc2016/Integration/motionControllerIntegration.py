@@ -12,7 +12,7 @@
 
 
 #
-import sys
+import sys, struct, time
 
 sys.path.insert(0, "../../common")
 sys.path.insert(0, "..")
@@ -491,7 +491,9 @@ class PickingController:
         self.q_most_recent_left = None
 
         self.points = None
-        self.bin_contents_cloud = None
+        self.bin_content_cloud = None
+        self.bin_render_downsample_rate = 5
+        self.bin_render_ptsize = 1
         self.tote_cloud = None
         self.tote_render_downsample_rate = 5
         self.tote_render_ptsize = 1
@@ -537,7 +539,7 @@ class PickingController:
             iters += 1
         # print "--> done\n"
 
-    def calibratePerception(self, bin_letter='A', limb='left'):
+    def calibratePerception(self, bin_letter, limb='left'):
         #assumes you are already at the location where you want to do the transformation
         # try:
             # sends the camera transform so that perceiver can send back the shelf transform in world frame
@@ -550,7 +552,7 @@ class PickingController:
         #     print "perception calibration not working"
         print "Camera calibration DONE\n"
 
-    def saveCanonicalBinPointCloud(self, bin_letter='A', limb='left'):
+    def saveCanonicalBinPointCloud(self, bin_letter, limb='left'):
         print 'Saving canonical point cloud for bin', bin_letter
         perceiver.save_canonical_bin_point_cloud(bin_letter, *self.getCameraToWorldXform(limb))
 
@@ -558,9 +560,20 @@ class PickingController:
         print 'Saving canonical point cloud for tote'
         perceiver.save_canonical_tote_cloud(*self.getCameraToWorldXform(limb))
 
-    def renderBinContent(self, bin_letter='A', limb='left'):
-        print 'Render bin content for bin', bin_letter
-        self.bin_contents_cloud = perceiver.get_current_bin_content_cloud('A', *self.getCameraToWorldXform(limb))
+    def renderBinContent(self, bin_letter, render_type, limb='left'):
+        print 'Render bin content for bin %s. render_type: %s - %s'%(bin_letter, render_type, ['none', 'full', 'content', 'cc'][int(render_type)])
+        if render_type in ['full', '1']:
+            self.bin_content_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), colorful=True)
+            self.bin_render_downsample_rate = 50
+            self.bin_render_ptsize = 5
+        elif render_type in ['content', '2']:
+            self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), colorful=True)
+            self.bin_render_downsample_rate = 1
+            self.bin_render_ptsize = 5
+        elif render_type in ['cc', '3']:
+            self.bin_content_cloud = perceiver.get_current_bin_content_cc_cloud(bin_letter, *self.getCameraToWorldXform(limb))
+            self.bin_render_downsample_rate = 1
+            self.bin_render_ptsize = 5
 
     def renderToteContent(self, including_tote, limb='left'):
         '''
@@ -569,8 +582,8 @@ class PickingController:
         print 'Render tote content. Also rendering tote?', including_tote
         if including_tote:
             self.tote_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb))
-            self.tote_render_downsample_rate = 20
-            self.tote_render_ptsize = 1
+            self.tote_render_downsample_rate = 50
+            self.tote_render_ptsize = 5
         else:
             self.tote_cloud = perceiver.get_current_tote_content_cloud(*self.getCameraToWorldXform(limb))
             self.tote_render_downsample_rate = 1
@@ -2507,12 +2520,15 @@ class MyGLViewer(GLRealtimeProgram):
             glutPostRedisplay()
 
     def glShowPointCloud(self, pc, downsample_rate=5, pt_size=None):
+        # print glGetFloatv(GL_CURRENT_COLOR)
         pc = np.array(pc)
+        # print 'Rendering %d points'%pc.shape[0]
         d = pc.shape[1]
         assert d==3 or d==4, 'Unrecognized point cloud shape: '+str(pc.shape)
         pc = pc[::downsample_rate, :]
         pc = pc.tolist()
-        glColor3f(1.0, 0.0, 0.0)
+        glDisable(GL_LIGHTING)
+        glColor3f(0, 1, 0)
         if pt_size is not None:
             glPointSize(pt_size)
         glBegin(GL_POINTS)
@@ -2525,6 +2541,8 @@ class MyGLViewer(GLRealtimeProgram):
                 glColor3f(r, g, b)
             glVertex3f(p[0], p[1], p[2])
         glEnd()
+        glEnable(GL_LIGHTING)
+        glColor3f(1,0,0)
 
     def printStuff(self):
         print "shelf xform:", knowledge.shelf_xform
@@ -2572,9 +2590,9 @@ class MyGLViewer(GLRealtimeProgram):
             self.simworld.drawGL()
 
         if SHOW_BIN_CONTENT:
-            points = self.picking_controller.bin_contents_cloud
+            points = self.picking_controller.bin_content_cloud
             if points is not None:
-                self.glShowPointCloud(points)
+                self.glShowPointCloud(points, self.picking_controller.bin_render_downsample_rate, self.picking_controller.bin_render_ptsize)
 
         if SHOW_TOTE_CONTENT:
             points = self.picking_controller.tote_cloud
@@ -2953,12 +2971,11 @@ def run_controller(controller,command_queue):
                 print 'C: See(C) the Tote'
                 print 'B: Get the Bounds of Bin A'
                 print 'Q: Quit'
-            elif c=='c':
-                controller.viewToteAction(limb='right')
             elif c=='e':
                 print 'View Bin - Press Bin Letter on GUI. Press X to cancel'
                 bin_letter = command_queue.get()
                 while bin_letter is None:
+                    print bin_letter
                     bin_letter = command_queue.get()
                 if bin_letter.lower()=='x':
                     print 'Canceled'
@@ -2989,23 +3006,32 @@ def run_controller(controller,command_queue):
                 else:
                     controller.saveCanonicalTotePointCloud(limb=DEFAULT_LIMB)
             elif c=='a':
-                print 'Render Bin Content - Press Bin Letter on GUI. Press X to cancel'
+                print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
                 bin_letter = command_queue.get()
                 while bin_letter is None:
                     bin_letter = command_queue.get()
                 if bin_letter.lower()=='x':
                     print 'Canceled'
                     continue
-                # bin_letter = raw_input('Render Bin Content - Enter Bin Letter in Terminal: ')
-                controller.renderBinContent(bin_letter.upper(), limb=DEFAULT_LIMB)
-            elif c=='t':
-                print 'Render Tote Content - Press 1 to render objects including tote, 2 to render only objects (tote subtracted)'
+                if not ( ('a'<=bin_letter.lower()<='l') or bin_letter.lower()=='t' ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue
+                print 'Render Bin/Tote Content - Press 1 to render objects including bin/tote, 2 to render only objects (bin/tote subtracted)'
                 flag = command_queue.get()
                 while flag is None:
                     flag = command_queue.get()
                 if flag in ['x', 'X']:
+                    print 'Canceled'
                     continue
-                controller.renderToteContent(flag=='1', limb=DEFAULT_LIMB)
+                if flag not in ['1', '2', '3']:
+                    print 'Unrecognized Input. Canceled'
+                    continue
+                if bin_letter!='t':
+                    a = time.time()
+                    controller.renderBinContent(bin_letter.upper(), flag, limb=DEFAULT_LIMB)
+                    print 'compute time', time.time() - a
+                else:
+                    controller.renderToteContent(flag=='1', limb=DEFAULT_LIMB)
             elif c=='l':
                 controller.getPickPositionForStow(limb=DEFAULT_LIMB)
             elif c=='v':
@@ -3028,13 +3054,16 @@ def run_controller(controller,command_queue):
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == '`':
-                controller.calibratePerception(limb=DEFAULT_LIMB)
+                controller.calibratePerception('A', limb=DEFAULT_LIMB)
             elif c=='s':
                 controller.calibrateShelf()
             elif c=='w':
                 controller.calibrateCamera(limb=DEFAULT_LIMB)
             elif c=='f':
                 self.simworld.terrain(0).geometry().transform(*self.perceptionTransform)
+            elif c=='c':
+                print 'Viewing Tote: '
+                controller.viewToteAction(limb='right')
             elif c=='g':
                 self.simworld.terrain(0).geometry().transform(*self.perceptionTransformInv)
             elif c == 'o':
@@ -3078,7 +3107,7 @@ def run_controller(controller,command_queue):
                 if bin_letter.lower()=='x':
                     print 'Canceled'
                     continue
-                controller.getBounds('bin_'+bin_letter.upper())
+                print controller.getBounds('bin_'+bin_letter.upper())
 
         else:
             print "Waiting for command..."
@@ -3159,6 +3188,12 @@ def loadFromFile(fileName):
     # Getting back the objects:
     with open(fileName, 'rb') as f:
         return pickle.load(f)
+
+def f_addr_to_i(f):
+    return struct.unpack('I', struct.pack('f', f))[0]
+    
+def i_addr_to_f(i):
+    return struct.unpack('f', struct.pack('I', i))[0]
 
 def pcl_float_to_rgb(f):
     i = f_addr_to_i(f)
