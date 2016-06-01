@@ -228,9 +228,9 @@ class MyEEPoseProgram(GLRealtimeProgram):
             print "=============================="
             print "Arm Configuration ", self.driveArm
             if( self.driveArm == 'r' ):
-                print motion.robot.right_limb.sensedPosition()
+                print motion.robot.right_limb.sensedPosition()[:7]
             elif (self.driveArm == 'l'):
-                print motion.robot.left_limb.sensedPosition()
+                print motion.robot.left_limb.sensedPosition()[:7]
             
         self.refresh()
 
