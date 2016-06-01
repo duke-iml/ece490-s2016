@@ -52,36 +52,19 @@ CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
 6.4, 1.6, 48, 3.2, 7,
 12.8, 0.3, 0.3, 10, 2.1, 8,
 5.12, 4, 3, 3] 
-<<<<<<< HEAD
-
-import sys
-
-sys.path.insert(0, "../../common")
-sys.path.insert(0, "..")
-# from Sensors import scale
-import json
-import json_parser_stow
+from Sensors import scale
 
 class stowHandler:
     def __init__(self,filename):
-        self.parser=json_parser_stow.json_parser_stow()
-        # self.scale=scale.Scale()
-        # currentWeight=self.scale.read()
-        self.currentWeight =100
+        self.parser=json_parser.json_parser()
+        self.scale=scale.Scale()
+        currentWeight=self.scale.read()
         (binContents, toteContents)=self.parser.readInFile(filename)
         print toteContents
-    def pickWhichObj(self, debug=False):
-    	# newWeight=self.scale.read()
-        newWeight=100
-    	objWeight=self.currentWeight-newWeight
-
-    	
-        if (debug):
-            print "Object Weight is ",objWeight
-            print "Because old weight was ", self.currentWeight, " & new weight is ", newWeight
-
-        self.currentWeight=newWeight
-
+    def pickWhichObj(self):
+    	newWeight=self.scale.read()
+    	objWeight=currentWeight-newWeight
+    	currentWeight=newWeight
     	if objWeight<17:
     		return ["oral_b_toothbrush_green", "oral_b_toothbrush_red"]
     	elif objWeight<22:
@@ -142,19 +125,4 @@ class stowHandler:
     		return ["dasani_water_bottle"]
     	else:
     		return ["fitness_gear_3lb_dumbbell"]
-
-
-    def updateTote(self,objRemoved):
-        if objRemoved in self.toteContents: 
-            self.toteContents.remover(objRemoved)
-            return True
-        else:
-            return False
-    def jsonOutput(self, filename, shelfMap, toteContents):
-        self.parser.writeOutFile(filename, self.binContents, self.toteContents)
-
-if __name__ == "__main__":
-    FILE_NAME="apc_stow_task.json"
-    a=stowHandler(FILE_NAME)
-    print a.pickWhichObj()
-
+    # def updateTote(self,objRemoved):
