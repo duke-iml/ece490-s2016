@@ -857,7 +857,7 @@ class PickingController:
         #match with several points going down
 
         local1 = self.vacuumTransform[1]
-        # local2 = vectorops.add(self.vacuumTransform[1], [0, 0, 0.5])
+        local2 = vectorops.add(self.vacuumTransform[1], [0, 0, 0.5])
         #along the axis of the wrist and 0.1m fruther
         goals = []
         limbs = []
@@ -873,14 +873,14 @@ class PickingController:
         print 'link_xform', link.getTransform()
         while goalZ > endZ:
             global1 = [goalXY[0], goalXY[1], goalZ]
-            # global2 = [goalXY[0],goalXY[1], goalZ-0.5]
+            global2 = [goalXY[0],goalXY[1], goalZ-0.5]
 
             goal1 = ik.objective(link,local=local1,world=global1)
             # goal1 = ik.objective(link,local=[0,0,0],world=[0.5782783724582089, 0.39504104980613364, 1.1248255095980265])
-            # goal2 = ik.objective(self.robot.link(limb+'_wrist'),local=local2,world=global2)
+            goal2 = ik.objective(link,local=local2,world=global2)
 
             for i in range(1000):
-                if ik.solve(goal1, tol=0.1):
+                if ik.solve([goal1, goal2], tol=0.1):
                     sortedSolutions.append([conf for conf in self.simworld.robot(0).getConfig()])
                     print 'Goal Z = ', goalZ, ' solved at ', i
                     break
