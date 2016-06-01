@@ -229,7 +229,7 @@ class Perceiver:
 
 		return (x,y,z) coordinate in global frame of position that has something to suck. 
 		'''
-		tote_content_cloud = self.get_current_tote_content_cloud(cur_camera_R, cur_camera_t)
+		tote_content_cloud = self.get_current_tote_content_cloud(cur_camera_R, cur_camera_t, fit=fit)
 		tote_content_cloud = self.crop_tote_cloud(tote_content_cloud)
 		xs = tote_content_cloud[:,0]
 		ys = tote_content_cloud[:,1]
@@ -240,6 +240,11 @@ class Perceiver:
 		xs_sorted = sorted(list(xs.flat))
 		ys_sorted = sorted(list(ys.flat))
 		N = len(xs_sorted)
+		if len(xs_sorted)==0 or len(ys_sorted)==0:
+			if not return_tote_content_cloud:
+				return 0, 0
+			else:
+				return (0, 0), np.zeros((2,3))
 		xmin, xmax = xs_sorted[int(N*0.1)], xs_sorted[int(N*0.9)] # in the unit of meter
 		ymin, ymax = ys_sorted[int(N*0.1)], ys_sorted[int(N*0.9)]
 		x_inrange = np.logical_and(xs >= xmin, xs <= xmax)

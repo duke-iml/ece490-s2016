@@ -15,6 +15,8 @@ class CommVacuum:
         foundPort = False
         ports = list(serial.tools.list_ports.comports())
         portArray = []
+
+        print ports
         for p in ports:
             if "Arduino Mega" in p[1]:
                 # print "Port =", p[0]
@@ -23,10 +25,17 @@ class CommVacuum:
                 portArray.append(port)
                 foundPort = True
         if foundPort == False:
+
+            portArray.append('/dev/ttyACM0')
             print "No Port Found (Arduino Mega)"
+            print "Attempting to input dev/ttyACM0"
+
+
 
         for i in range(len(portArray)):
             port = portArray[i]
+
+
             while True:
                 try:
                     self.com = Serial(port, 9600)
