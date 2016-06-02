@@ -42,7 +42,8 @@ BOTH=2
 
 numLimbs = 2
 
-numDofs = {LEFT:8,RIGHT:9,BOTH:17}
+numDofs = {LEFT:7,RIGHT:7,BOTH:14}
+#? numDofs
 
 #global variables
 motion_lib = None

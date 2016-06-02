@@ -87,7 +87,7 @@ CAMERA_TRANSFORM = ([1,0,0,0,1,0,0,0,1], [0,0,0])
 LOAD_TRAJECTORY_DEFAULT = False
 LOAD_PHYSICAL_TRAJECTORY = True
 FORCE_WAIT = False
-
+SHELF_STATIONARY = False
 
 if REAL_SCALE:
      myScale = scale.Scale()
@@ -477,7 +477,7 @@ class PickingController:
         self.current_bin = None
         self.held_object = None
 
-        self.perceptionTransform = None
+        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.013904755755343905, 0.9994709798204462, 0.029400990870081654, 0.008185473524082682, 0.02951662704126083, -0.9995307732887939, -0.9998698194217949, -0.013657570240181879, -0.008591564733139484], [-0.14500000000000005, -0.03, 0.075])
@@ -605,217 +605,6 @@ class PickingController:
         self.tote_render_downsample_rate = 1
         self.tote_render_ptsize = 5
 
-    def moveToRestConfig(self, limb='both'):
-        print "Moving to rest config...",
-
-        baxter_startup_config = self.robot.getConfig()
-
-        if LOAD_PHYSICAL_TRAJECTORY:
-
-            if limb =='both':
-
-                self.moveToLeftRest()
-                self.moveToRightRest()
-            
-            elif limb == 'left':
-                self.moveToLeftRest()
-
-            elif limb == 'right':
-                
-                self.moveToRightRest()
-
-            self.waitForMove()
-
-        else:
-            path = [baxter_startup_config, baxter_rest_config]
-            #self.sendPath(path)
-
-            self.controller.setMilestone(baxter_rest_config)
-            self.waitForMove()
-        print "Done"
-
-    def moveToLeftRest(self):
-        if(self.stateLeft == 'scan'):
-            lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
-            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
-            self.moveLeftArm(path =lPath)
-
-      
-        elif(self.stateLeft == 'grasp' ):
-            #not set up yet
-            # go to store then rest
-            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT')
-            self.moveLeftArm(path = lPath)
-
-            return False
-
-        elif self.stateLeft == 'stow':
-            #go right ahead through the code
-            pass
-
-        else:
-            #not set up yet
-            #find the nearest milestone and follow the path back
-            pass
-
-        self.moveLeftArm(path_name = 'Q_DEFAULT_LEFT', finalState = 'ready')
-        self.left_bin = None
-
-
-    def moveToRightRest(self):
-        if(self.stateRight == 'scan'):
-            rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
-            self.moveRightArm(path=rPath)
-
-      
-        elif(self.stateRight == 'grasp' ):
-            #not set up yet
-            # go to store then rest
-            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()+'_RIGHT')
-            self.moveRightArm(path=rPath)
-            #sendPath(path = rPath, )
-            #self.moveRightArm()
-
-            return False
-
-        elif self.stateRight == 'stow':
-            #go right ahead through the code
-            pass
-
-        else:
-            #not set up yet
-            #find the nearest milestone and follow the path back
-            pass
-
-        self.moveRightArm(path_name = 'Q_DEFAULT_RIGHT', finalState = 'ready')
-        self.right_bin = None
-
-    def moveArm(self, limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
-        if limb == 'left':
-            if self.moveLeftArm(statusConditional, path_name, path, finalState, reverse):
-                return True
-        if limb == 'right':
-            if self.moveRightArm(statusConditional, path_name, path, finalState, reverse):
-                return True
-        #wasn't able to move
-        print 'Errow with move'+limb+'arm'
-        return False
-
-
-    def moveLeftArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
-        if(self.stateLeft == statusConditional or statusConditional == None):
-            if path is None:
-                try:
-                    path = eval(path_name)
-                except:
-                    print 'Error no '+path_name+'in recorded constants'
-                    return False
-
-
-            #for milestone in path:
-            try:
-                len(path[0])
-            except:
-                #path is a single milestone
-                path=[path]
-                path.append(path[0])
-                qAdd = None
-                if self.q_most_recent_left is None:
-                    qAdd = motion.robot.getKlamptSensedPosition()
-                    qAdd = [qAdd[v] for v in self.left_arm_indices[:7]]
-                else: 
-                    qAdd = self.q_most_recent_left
-                path[0]=qAdd
-                #print path
-
-            print 'sending path ', path
-
-            if reverse:
-                path = path[::-1]
-
-            self.sendPath(path, limb='left', readConstants=True)
-
-            # for milestone in path:
-            #     self.controller.appendMilestoneLeft(milestone, 1)
-            #     #move to the milestone in 1 second
-
-            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
-            #     if FORCE_WAIT:
-            #         self.forceWait(milestone, self.left_arm_indices, 0.01)
-            #     else:
-            #         self.controller.appendMilestoneLeft(milestone, 3)
-            #     #wait at the milestone for 2 seconds
-            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
-
-            self.q_most_recent_left = path[-1]
-
-            if finalState is not None:
-                self.stateLeft = finalState
-            return True
-        else:
-            print "Error, arm is not in state "+ statusConditional
-            return False
-
-    def moveRightArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
-        if(self.stateRight == statusConditional or statusConditional == None):
-            if path is None:
-                try:
-                    path = eval(path_name)
-                except:
-                    print 'Error no '+path_name+'in recorded constants'
-                    return False
-
-
-            #for milestone in path:
-            try:
-                len(path[0])
-            except:
-                #path is a single milestone
-                path=[path]
-                path.append(path[0])
-
-                #change to most recently commanded position
-                qAdd = None
-                if self.q_most_recent_right is None:
-                    qAdd = motion.robot.getKlamptSensedPosition()
-                    qAdd = [qAdd[v] for v in self.right_arm_indices[:7]]
-                    #print self.right_arm_indices
-                else: 
-                    qAdd = self.q_most_recent_right
-                path[0]=qAdd
-                #print path 
-
-            print 'sending path ', path
-
-            if reverse:
-                path = path[::-1]
-
-            self.sendPath(path, limb='right', readConstants=True)
-
-            # for milestone in path:
-            #     self.controller.appendMilestoneLeft(milestone, 1)
-            #     #move to the milestone in 1 second
-
-            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
-            #     if FORCE_WAIT:
-            #         self.forceWait(milestone, self.left_arm_indices, 0.01)
-            #     else:
-            #         self.controller.appendMilestoneRight(milestone, 3)
-            #     #wait at the milestone for 2 seconds
-            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
-
-            self.q_most_recent_right = path[-1]
-
-
-            if finalState is not None:
-                self.stateRight = finalState
-        
-            return True
-        else:
-            print "Error, arm is not in state "+ statusConditional
-            return False
-
-
     #====================================================
     # Process for stowing:
     '''TODO
@@ -844,7 +633,6 @@ class PickingController:
             #take a picture and get a position to move back
 
             #global x,y = self.pick_pos
-
 
     def prepGraspFromToteAction(self, limb):
 
@@ -966,7 +754,6 @@ class PickingController:
         else:
             return True
 
-
     def placeInBinAction(self, limb, bin='H'):
 
         # limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False
@@ -990,6 +777,7 @@ class PickingController:
             vacuumController.change_vacuum_state(0)
         except:
             print 'Error in vacuum Comms'
+            return False
 
         return True
 
@@ -1797,7 +1585,12 @@ class PickingController:
 
                 #splitting things up into two motions isn't working
                 self.moveArm(limb=limb, path_name=camera_path)
-                self.moveArm(limb=limb, path_name=scan_path, finalState = 'scan')
+
+                if SHELF_STATIONARY:
+                    self.moveArm(limb=limb, path_name=scan_path, finalState = 'scan')
+                else:
+                    self.moveToOffset(limb=limb, q_name = scan_path, finalState = 'scan')
+
 
         # If we are backing off from bin to view camera
         else:
@@ -1870,6 +1663,394 @@ class PickingController:
                     self.moveArm(statusConditional = 'grasp', limb=limb, path_name = stow_path, finalState='stow')
                 else:
                     self.moveArm(limb=limb, path_name=stow_path, reverse=True)
+
+    # Movement functions
+
+    def moveToOffset(self, limb=None, statusConditional=None, q_name=None, milestone=None, finalState=None, transformType=None):
+
+        print 'Last position\'s transform is: ',self.simworld.robot(0).link(limb+'_wrist').getTransform()   
+
+        #self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
+
+        q_start = [conf for conf in motion.robot.getKlamptSensedPosition()]
+        q_perturb = [0.0]*len(q_start)
+
+        if q_name is not None:
+            if milestone is None:
+                milestone = eval(q_name)
+
+        if limb == 'left' and milestone is not None:
+
+            for i in range(len(q_start)):
+                q_perturb[i] = q_start[i]
+
+            for i in range(len(self.left_arm_indices[::7])):
+                q_perturb[self.left_arm_indices[i]] = milestone[i]
+
+
+        elif limb == 'right' and milestone is not None:
+
+            for i in range(len(q_start)):
+                q_perturb[i] = q_start[i]
+
+            for i in range(len(self.right_arm_indices[::7])):
+                q_perturb[self.right_arm_indices[i]] = milestone[i]
+
+        else:
+            return False
+
+
+        print q_start
+        print q_perturb
+
+        self.simworld.robot(0).setConfig([conf for conf in q_perturb])
+
+        currTransform = self.simworld.robot(0).link(limb+'_wrist').getTransform()
+
+        # if transformType == 'vacuum':
+        #     currTransform = se3.mul(self.simworld.robot(0).link(limb+'_wrist').getTransform(), self.vacuumTransform)
+        # elif transformType == 'camera'
+        #     currTransform = se3.mul(self.simworld.robot(0).link(limb+'_wrist').getTransform(), self.cameraTransform)
+        # else:
+        #     return False
+
+        print 'Current Tranaform is ',currTransform
+ 
+        self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
+
+        newTransform = se3.mul( currTransform, self.perceptionTransform)
+        print 'New Transform is ', newTransform
+
+        self.frames.append(newTransform)
+
+        #q_start is initial position - found by hand
+
+        goal = ik.objective(self.simworld.robot(0).link(limb+'_wrist'), R=newTransform[0], t=newTransform[1])
+
+        path = [q_perturb]
+
+        for i in range(1000):
+
+            self.simworld.robot(0).setConfig([conf for conf in q_start])
+
+            if ik.solve(goal, tol=1e-6):
+                path.append([conf for conf in self.simworld.robot(0).getConfig()])
+                print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
+                print 'Solved at ', i
+                break
+        else:
+            print "all failed for ik in moveToOffset"
+            return False
+
+
+
+        self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
+
+        print path
+
+
+
+        self.sendPath(path=path, limb=limb)
+
+        return True
+
+
+ 
+    def moveToObjectInBinFromTop(self, position, limb, step):
+        #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
+        #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
+        #Assumes we have determined we want to pick up the object from above
+
+        #We need to calculate the shelf normal
+        #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
+
+        ik_constraint = IKObjective()
+        ik_constraint.setLinks(self.simworld.robot(0).link(limb+'_wrist'))
+        ik_constraint.setAxialRotConstraint([0,0,1],knowledge.getShelfNormal())
+        # want the forward axis of the wrist to be constrained to normal to the shelf
+        #forward axis of the wrist is +z
+
+        if step==1:
+
+            world_loc = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
+            #ik to top center of bin, normal to the shelf
+            #use ik seed and knowledge of shelf
+            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+            pass
+        elif step==2:
+            #step 2: enter along vacuum/wrist axis until far enough in
+            pass
+        elif step==3:
+            #step 3: move along y direction to get above object
+            pass
+
+        elif step==4:
+            pass
+            #turn vacuum on
+            #attempt to move down to half the object's height from the ground
+
+        elif step==5:
+            pass
+            #check to make sure we have sucked something and that it is not the shelf
+            #throw in various other checks here
+
+        elif step==6: 
+            pass
+            #take the reverse path back out of the bin
+
+
+        #potential issues - something is in front of the front of the shelf
+
+    def moveToObjectInBinFromSide(self, position, limb, step):
+        #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
+        #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
+        #Assumes we have determined we want to pick up the object from above
+
+        #We need to calculate the shelf normal
+        #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
+
+
+        if step==1:
+            #ik to top center of bin, normal to the shelf
+            #use ik seed and knowledge of shelf
+            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+            pass
+        elif step==2:
+            #step 2: enter along vacuum/wrist axis until far enough in
+            pass
+        elif step==3:
+            #step 3: rotate suction cup so that it moves towards the normal
+
+            #if we collide with something, move out, down and then back in (push the object away)
+            pass
+        elif step==4:
+            #move until you intersect the normal
+            pass
+        elif step==5:
+            #step5: roate suction to be normal to object
+            pass
+        elif step==6:
+            #turn vacuum on
+            #attempt to move down to half the object's height from the ground
+            pass
+        elif step==7:
+            #check to make sure we have sucked something and that it is not the shelf
+            #throw in various other checks here
+            pass
+        elif step==8: 
+            pass
+            #take the reverse path back out of the bin
+
+
+        #potential issues - something is in front of the front of the shelf
+
+    def moveToRestConfig(self, limb='both'):
+        print "Moving to rest config...",
+
+        baxter_startup_config = self.robot.getConfig()
+
+        if LOAD_PHYSICAL_TRAJECTORY:
+
+            if limb =='both':
+
+                self.moveToLeftRest()
+                self.moveToRightRest()
+            
+            elif limb == 'left':
+                self.moveToLeftRest()
+
+            elif limb == 'right':
+                
+                self.moveToRightRest()
+
+            self.waitForMove()
+
+        else:
+            path = [baxter_startup_config, baxter_rest_config]
+            #self.sendPath(path)
+
+            self.controller.setMilestone(baxter_rest_config)
+            self.waitForMove()
+        print "Done"
+
+    def moveToLeftRest(self):
+        if(self.stateLeft == 'scan'):
+            lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
+            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
+            self.moveLeftArm(path =lPath)
+
+      
+        elif(self.stateLeft == 'grasp' ):
+            #not set up yet
+            # go to store then rest
+            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT')
+            self.moveLeftArm(path = lPath)
+
+            return False
+
+        elif self.stateLeft == 'stow':
+            #go right ahead through the code
+            pass
+
+        else:
+            #not set up yet
+            #find the nearest milestone and follow the path back
+            pass
+
+        self.moveLeftArm(path_name = 'Q_DEFAULT_LEFT', finalState = 'ready')
+        self.left_bin = None
+
+    def moveToRightRest(self):
+        if(self.stateRight == 'scan'):
+            rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
+            self.moveRightArm(path=rPath)
+
+      
+        elif(self.stateRight == 'grasp' or self.stateRight == 'toteStowInBin'):
+            #not set up yet
+            # go to store then rest
+            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()+'_RIGHT')
+            self.moveRightArm(path=rPath)
+            #sendPath(path = rPath, )
+            #self.moveRightArm()
+
+            return False
+
+        elif self.stateRight == 'stow':
+            #go right ahead through the code
+            pass
+
+        else:
+            #not set up yet
+            #find the nearest milestone and follow the path back
+            pass
+
+        self.moveRightArm(path_name = 'Q_DEFAULT_RIGHT', finalState = 'ready')
+        self.right_bin = None
+
+    def moveArm(self, limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+        if limb == 'left':
+            if self.moveLeftArm(statusConditional, path_name, path, finalState, reverse):
+                return True
+        if limb == 'right':
+            if self.moveRightArm(statusConditional, path_name, path, finalState, reverse):
+                return True
+        #wasn't able to move
+        print 'Errow with move'+limb+'arm'
+        return False
+
+    def moveLeftArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+        if(self.stateLeft == statusConditional or statusConditional == None or self.stateLeft in statusConditional):
+            if path is None:
+                try:
+                    path = eval(path_name)
+                except:
+                    print 'Error no '+path_name+'in recorded constants'
+                    return False
+
+
+            #for milestone in path:
+            try:
+                len(path[0])
+            except:
+                #path is a single milestone
+                path=[path]
+                path.append(path[0])
+                qAdd = None
+                if self.q_most_recent_left is None:
+                    qAdd = motion.robot.getKlamptSensedPosition()
+                    qAdd = [qAdd[v] for v in self.left_arm_indices[:7]]
+                else: 
+                    qAdd = self.q_most_recent_left
+                path[0]=qAdd
+                #print path
+
+            print 'sending path ', path
+
+            if reverse:
+                path = path[::-1]
+
+            self.sendPath(path, limb='left', readConstants=True)
+
+            # for milestone in path:
+            #     self.controller.appendMilestoneLeft(milestone, 1)
+            #     #move to the milestone in 1 second
+
+            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
+            #     if FORCE_WAIT:
+            #         self.forceWait(milestone, self.left_arm_indices, 0.01)
+            #     else:
+            #         self.controller.appendMilestoneLeft(milestone, 3)
+            #     #wait at the milestone for 2 seconds
+            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
+
+            self.q_most_recent_left = path[-1]
+
+            if finalState is not None:
+                self.stateLeft = finalState
+            return True
+        else:
+            print "Error, arm is not in state "+ statusConditional
+            return False
+
+    def moveRightArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+        if(self.stateRight == statusConditional or statusConditional == None or self.stateRight in statusConditional):
+            if path is None:
+                try:
+                    path = eval(path_name)
+                except:
+                    print 'Error no '+path_name+'in recorded constants'
+                    return False
+
+
+            #for milestone in path:
+            try:
+                len(path[0])
+            except:
+                #path is a single milestone
+                path=[path]
+                path.append(path[0])
+
+                #change to most recently commanded position
+                qAdd = None
+                if self.q_most_recent_right is None:
+                    qAdd = motion.robot.getKlamptSensedPosition()
+                    qAdd = [qAdd[v] for v in self.right_arm_indices[:7]]
+                    #print self.right_arm_indices
+                else: 
+                    qAdd = self.q_most_recent_right
+                path[0]=qAdd
+                #print path 
+
+            print 'sending path ', path
+
+            if reverse:
+                path = path[::-1]
+
+            self.sendPath(path, limb='right', readConstants=True)
+
+            # for milestone in path:
+            #     self.controller.appendMilestoneRight(milestone, 1)
+            #     #move to the milestone in 1 second
+
+            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
+            #     if FORCE_WAIT:
+            #         self.forceWait(milestone, self.right_arm_indices, 0.01)
+            #     else:
+            #         self.controller.appendMilestoneRight(milestone, 3)
+            #     #wait at the milestone for 2 seconds
+            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
+
+            self.q_most_recent_right = path[-1]
+
+
+            if finalState is not None:
+                self.stateRight = finalState
+        
+            return True
+        else:
+            print "Error, arm is not in state "+ statusConditional
+            return False
 
     #######################################################################################
     #Old Movement Functions
@@ -2088,10 +2269,10 @@ class PickingController:
         #             i += 1
 
 
-        for p in path:
-            for c in p:
-                print '%0.2f,'%c,
-            print ''
+        # for p in path:
+        #     for c in p:
+        #         print '%0.2f,'%c,
+        #     print ''
 
         n = self.robot.numLinks()
         for i in range(len(path)):
@@ -2101,8 +2282,6 @@ class PickingController:
                 # if we're reading a path from the milestones
                 pass
             else:
-                print n
-                print len(path[i])
                 if len(path[i])<n:
                     path[i] += [0.0]*(n-len(path[i]))
 
@@ -2463,95 +2642,6 @@ class PickingController:
 
 
     #=========================================================
-    # Movement functions
- 
-    def moveToObjectInBinFromTop(self, position, limb, step):
-        #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
-        #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
-        #Assumes we have determined we want to pick up the object from above
-
-        #We need to calculate the shelf normal
-        #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
-
-        ik_constraint = IKObjective()
-        ik_constraint.setLinks(self.simworld.robot(0).link(limb+'_wrist'))
-        ik_constraint.setAxialRotConstraint([0,0,1],knowledge.getShelfNormal())
-        # want the forward axis of the wrist to be constrained to normal to the shelf
-        #forward axis of the wrist is +z
-
-        if step==1:
-
-            world_loc = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
-            #ik to top center of bin, normal to the shelf
-            #use ik seed and knowledge of shelf
-            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-            pass
-        elif step==2:
-            #step 2: enter along vacuum/wrist axis until far enough in
-            pass
-        elif step==3:
-            #step 3: move along y direction to get above object
-            pass
-
-        elif step==4:
-            pass
-            #turn vacuum on
-            #attempt to move down to half the object's height from the ground
-
-        elif step==5:
-            pass
-            #check to make sure we have sucked something and that it is not the shelf
-            #throw in various other checks here
-
-        elif step==6: 
-            pass
-            #take the reverse path back out of the bin
-
-
-        #potential issues - something is in front of the front of the shelf
-
-    def moveToObjectInBinFromSide(self, position, limb, step):
-        #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
-        #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
-        #Assumes we have determined we want to pick up the object from above
-
-        #We need to calculate the shelf normal
-        #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
-
-
-        if step==1:
-            #ik to top center of bin, normal to the shelf
-            #use ik seed and knowledge of shelf
-            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-            pass
-        elif step==2:
-            #step 2: enter along vacuum/wrist axis until far enough in
-            pass
-        elif step==3:
-            #step 3: rotate suction cup so that it moves towards the normal
-
-            #if we collide with something, move out, down and then back in (push the object away)
-            pass
-        elif step==4:
-            #move until you intersect the normal
-            pass
-        elif step==5:
-            #step5: roate suction to be normal to object
-            pass
-        elif step==6:
-            #turn vacuum on
-            #attempt to move down to half the object's height from the ground
-            pass
-        elif step==7:
-            #check to make sure we have sucked something and that it is not the shelf
-            #throw in various other checks here
-            pass
-        elif step==8: 
-            pass
-            #take the reverse path back out of the bin
-
-
-        #potential issues - something is in front of the front of the shelf
 
 
             
@@ -2976,7 +3066,6 @@ def load_item_geometry(item,geometry_ptr = None):
             print "Error loading geometry file",item.info.geometryFile
             exit(1)
         return geometry_ptr
-
 
 def draw_xformed(xform,localDrawFunc):
     """Draws something given a se3 transformation and a drawing function
