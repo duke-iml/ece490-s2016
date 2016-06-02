@@ -839,6 +839,8 @@ class PickingController:
                 if self.move_camera_to_bin(b, limb=limb):
                     self.waitForMove()
                     self.current_bin = b
+
+
                     #run_perception_on_bin(knowledge, b)
                     print "Sensed bin", b, "with camera on left arm"
                     return True
@@ -857,31 +859,45 @@ class PickingController:
         #Ideally move to the bin we're aiming for unless perception tells us that we can't grasp it
 
         self.waitForMove()
-        if self.stateLeft != 'scan':
-            print 'Not in scanning configuration, can\'t move from scan to grasp'
-            return False
-        else:
-            if eval('self.'+limb+'_bin') in apc.bin_names:
-                if self.move_from_scan_to_grasp(limb):
-                    #moved to configuration
+        if eval('self.'+limb+'_bin') in apc.bin_names:
+            if self.move_from_scan_to_grasp(limb):
+                #self.moveArm would be cleaner
+                continue
+            elif self.move_from_rest_to_grasp(limb):
 
-                    #stateLeft should be 'grasp'
+                continue
+                #moved to configuration
 
-                    self.waitForMove()
+                #stateLeft should be 'grasp'
 
-                    #choose whether to go in from the top or the side due to the object
+                self.waitForMove()
 
-                    #attempt to go to location derived from perception
+                #choose whether to go in from the top or the side due to the object
 
-                    #turn on vacuum 
+                #attempt to go to location derived from perception
 
-                    #see if we grasped stuff
+                #turn on vacuum 
 
-                    #pull back out
-                else:
-                    print 'couldn\'t move to grasp'
+                #see if we grasped stuff
+
+                #pull back out
             else:
-                print 'Invalid bin', eval('self.'+limb+'_bin')
+                print 'couldn\'t move to grasp'
+                return False
+
+            #we've moved to configuration
+            #arm's state should be graspPrep or something like that
+
+            #move to shelfOffset
+
+
+            self.moveToOffset(limb, milestone=eval(), finalState = 'grasp')
+            #def moveToOffset(self, limb=None, statusConditional=None, q_name=None, milestone=None, finalState=None):
+
+            #perception.getGraspDirection
+
+        else:
+            print 'Invalid bin', eval('self.'+limb+'_bin')
 
 
     def placeInToteAction(self, limb):
@@ -1610,7 +1626,12 @@ class PickingController:
             if PHYSICAL_SIMULATION:
 
                 if not reverse:
-                    self.moveArm(statusConditional = 'scan', limb=limb, path_name = grasp_path, finalState='grasp')
+                    self.moveArm(statusConditional = 'scan', limb=limb, path = eval(grasp_path)[0:-1], finalState='graspMove')
+                    # the above is the first to the second from last position
+                    #self.moveArm(statusConditional='scan', limb=limb, path_name=grasp_path, finalState='graspMove')
+                    # the above is the first to the last position
+                    self.moveToOffset(limb=limb, milestone=eval(grasp_path)[-1], finalState='graspPrep')
+
                 else:
                     self.moveArm(limb = limb, path_name = grasp_path, reverse = True)
 
@@ -1632,7 +1653,15 @@ class PickingController:
                 else:
                     self.moveArm(limb=limb, path_name=stow_path, reverse=True)
 
-    # Movement functions
+    def move_from_rest_to_grasp(self, limb, reverse=False):
+        print 'Error move_from_rest_to_grasp is not implemented'
+        return False
+
+
+    #============================================================================================================================================
+    #The above methods are somewhat clunky - consider deprecating
+
+    # Streamlined movement functions
 
     def moveToOffset(self, limb=None, statusConditional=None, q_name=None, milestone=None, finalState=None):
 
@@ -1697,6 +1726,7 @@ class PickingController:
         goal = ik.objective(self.simworld.robot(0).link(limb+'_wrist'), local=[[1,0,0],[0,1,0],[0,0,1]], world=[p1_world, p2_world, p3_world])
 
         path = [q_canonical]
+        #path = [q_start]
 
         for i in range(1000):
 
@@ -1902,7 +1932,7 @@ class PickingController:
         if(self.stateLeft == 'scan'):
             lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
             #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
-            self.moveLeftArm(path =lPath)
+            self.moveLeftArm(path =lPath, reverse=True)
 
       
         elif(self.stateLeft == 'grasp' ):
@@ -1928,7 +1958,7 @@ class PickingController:
     def moveToRightRest(self):
         if(self.stateRight == 'scan'):
             rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
-            self.moveRightArm(path=rPath)
+            self.moveRightArm(path=rPath, reverse=True)
 
       
         elif(self.stateRight == 'grasp' or self.stateRight == 'toteStowInBin'):
@@ -2055,6 +2085,7 @@ class PickingController:
 
             # if len(path)>=1:
             #     self.sendPath(path, limb='right', readConstants=True)
+            # ^Hyunsoo's code - delinked the arms from moving simultaneously
 
             for milestone in path:
                 self.controller.appendMilestoneRight(milestone, 1)
@@ -2066,7 +2097,7 @@ class PickingController:
                 else:
                     self.controller.appendMilestoneRight(milestone, 3)
                 #wait at the milestone for 2 seconds
-                #later should replace with Hyunsoo's code setting milestones if dt is too large
+
 
             self.q_most_recent_right = path[-1]
 
