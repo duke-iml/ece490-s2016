@@ -99,7 +99,6 @@ if REAL_JSON:
 
     # Order list. Can be parsed from JSON input
     global binList
-    global objList
     global singleItemList
 
     global orderList
@@ -477,7 +476,7 @@ class PickingController:
         self.current_bin = None
         self.held_object = None
 
-        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0,0])
+        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0,.5])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.013904755755343905, 0.9994709798204462, 0.029400990870081654, 0.008185473524082682, 0.02951662704126083, -0.9995307732887939, -0.9998698194217949, -0.013657570240181879, -0.008591564733139484], [-0.14500000000000005, -0.03, 0.075])
@@ -926,10 +925,6 @@ class PickingController:
                                    vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
         global binIndex
         binIndex = 0
-        global binList
-        global objList
-        global singleItemList
-        (binList, objList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
 
 
 
@@ -1106,39 +1101,6 @@ class PickingController:
 
         print "Failed to plan path"
         return False
-
-    def spatula(self, direction):
-        self.waitForMove()
-        self.robot.setConfig(self.controller.getCommandedConfig())
-
-        # initialize spatulaPart to narrow base
-        spatulaPart = 2 
-
-        bin_name = self.current_bin
-        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
-            spatulaPart = 2 #"narrow_base"
-        elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
-            spatulaPart = 1 # "wide_base"
-        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
-            spatulaPart = 2 #"narrow_base"
-
-        if direction=="out":
-            direction = 1
-        elif direction=="in":
-            direction = 0
-        elif direction=="partial":
-            print "direction = 0.5"
-            direction = 0.5
-
-        if direction=="fence_out":
-            direction = 1
-            spatulaPart = 3 #"fence"
-        elif direction=="fence_in":
-            direction = 0
-            spatulaPart = 3 #"fence"
-
-        self.controller.commandGripper('left', [direction], spatulaPart)
-        self.waitForMove()
 
     def move_spatula_to_center(self, ik_constrain=True):
         """Tilt the robot's wrist before and after actuating the spatula
@@ -1366,13 +1328,20 @@ class PickingController:
         """Given a list of objects to be put in the order bin, run
         until completed."""
         # go through all bins
+        DEFAULT_LIMB = 'left'
+
         for b in apc.bin_names:
-            # if the bin is empty
-            if knowledge.bin_contents[b]==None:
+            # # if the bin is empty
+            # if knowledge.bin_contents[b]==None:
                 # try to view the bin
-                if not self.viewBinAction(b):
-                    print "Could not view bin",b
-                    continue
+            if not self.viewBinAction(b,limb=DEFAULT_LIMB):
+                print "Could not view bin",b
+                continue
+            # PICK STEPS
+            self.saveCanonicalTotePointCloud(limb=DEFAULT_LIMB)
+            self.preparePickBinAction(b,limb=DEFAULT_LIMB)
+            # GET OBJECT POSITION FROM PERCEPTION
+            # self.moveToObjectInBinFromTop(position,limb=DEFAULT_LIMB, step)
 
             doNextBin = False
             # if any of the objects in the bin is in the "remaining objets" list, and we want to keep searching in current bin
@@ -2093,7 +2062,7 @@ class PickingController:
                     yPos = xyPos[1]
                 else:
                     print "Multiple objects..."
-                    xyPos = perceiver.perceive(objList[binIndex])
+                    xyPos = perceiver.perceive(orderList[binIndex])
                     if xyPos == None:
                         print "Failed to detect object"
                         return False
@@ -2999,47 +2968,6 @@ class MyGLViewer(GLRealtimeProgram):
                 exit(0)
         glutPostRedisplay()
 
-
-def run_perception_on_bin(knowledge,bin_name):
-    """This is a fake perception module that simply reveals all the items
-    the given bin."""
-    # if the dictionary "bin_contents" doesn't contain any values for the key "bin_name"
-    if knowledge.bin_contents[bin_name]==None:
-        # not sensed yet
-        knowledge.bin_contents[bin_name] = []
-        for item in ground_truth_items:
-            if item.bin_name == bin_name:
-                # add the item to the list of sensed items for the bin
-                knowledge.bin_contents[bin_name].append(item)
-    return
-
-def init_ground_truth():
-    global ground_truth_items
-    ground_truth_items = [
-                          apc.ItemInBin(apc.tall_item,'bin_A'),
-                          apc.ItemInBin(apc.med_item,'bin_B'),
-                          apc.ItemInBin(apc.tall_item,'bin_C'),
-                          apc.ItemInBin(apc.med_item,'bin_D'),
-                          apc.ItemInBin(apc.tall_item,'bin_E'),
-                          apc.ItemInBin(apc.med_item,'bin_F'),
-                          apc.ItemInBin(apc.tall_item,'bin_G'),
-                          apc.ItemInBin(apc.med_item,'bin_H'),
-                          apc.ItemInBin(apc.tall_item,'bin_I'),
-                          apc.ItemInBin(apc.med_item,'bin_J'),
-                          apc.ItemInBin(apc.tall_item,'bin_K'),
-                          apc.ItemInBin(apc.med_item,'bin_L')]
-    for i in range(len(ground_truth_items)):
-        ux = random.uniform(0.25,0.5)
-        uy = random.uniform(0.2,0.4)
-        if ground_truth_items[i].info.name == 'med_item':
-            # theta = random.uniform(math.pi/4, 3*math.pi/4)
-            theta = math.pi/2
-        else:
-            theta = random.uniform(-math.pi/6, math.pi/6)
-        ground_truth_items[i].set_in_bin_xform(ground_truth_shelf_xform, ux, uy, theta)
-    for item in ground_truth_items:
-        item.info.geometry = load_item_geometry(item)
-
 def load_item_geometry(item,geometry_ptr = None):
     """Loads the geometry of the given item and returns it.  If geometry_ptr
     is provided, then it is assumed to be a Geometry3D object and the object
@@ -3249,18 +3177,12 @@ def run_controller(controller,command_queue):
                 controller.runPickFromTote(limb = 'right')
 
             elif c == '2':
-                # controller.fulfillOrderAction(orderList)
                 controller.moveToRestConfig()
-
-                global binOrderParser
-                global binList
-                global objList
-                global singleItemList
-                (binList, objList, singleItemList) = binOrderParser.workBinOrder("apc_pick_task.json")
+                controller.fulfillOrderAction(orderList)
 
                 print "================================"
                 print "Bin Order:", binList
-                print "Object Order:", objList
+                print "Object Order:", orderList
                 print "Single Item?:", singleItemList
                 print "================================\n"
 
@@ -3268,17 +3190,17 @@ def run_controller(controller,command_queue):
                 #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
                 global binIndex 
                 binIndex = 0
-                for i in range(len(binList)):
-                    controller.viewBinAction(binList[i])
-                    controller.scoopAction()
-                    controller.move_spatula_to_center()
-                    controller.move_gripper_to_center()
-                    controller.graspAction()
-                    controller.placeInOrderBinAction()
-                    controller.viewBinAction(binList[i])
-                    controller.unscoopAction()
-                    #controller.moveToRestConfig()
-                    binIndex += 1
+                # for i in range(len(binList)):
+                #     controller.viewBinAction(binList[i])
+                #     controller.scoopAction()
+                #     controller.move_spatula_to_center()
+                #     controller.move_gripper_to_center()
+                #     controller.graspAction()
+                #     controller.placeInOrderBinAction()
+                #     controller.viewBinAction(binList[i])
+                #     controller.unscoopAction()
+                #     #controller.moveToRestConfig()
+                #     binIndex += 1
             elif c=='q':
                 break
             elif c=='b':
