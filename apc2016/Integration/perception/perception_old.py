@@ -87,8 +87,7 @@ class Perceiver:
 		keep_idxs = all_idxs - discard_idxs
 		return list(keep_idxs)
 
-	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, colorful=True, fit=False, threshold=0.01,
-		crop=False, bin_bound=None, perturb_xform=None):
+	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, colorful=True, fit=False, threshold=0.02):
 		'''
 		return a point cloud (either colored or not) of the current bin content in the global frame. shelf is removed. 
 		if fit is True, a new round of ICP is done on the model shelf
@@ -105,70 +104,63 @@ class Perceiver:
 		scene_cloud_xyz = scene_cloud[:, 0:3]
 		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
 		cur_camera_t = np.array(cur_camera_t)
-		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R)+cur_camera_t # colorless cloud
+		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R.T)+cur_camera_t # colorless cloud
 		scene_cloud[:, 0:3] = scene_cloud_xyz # transform scene_cloud
 		scene_tree = KDTree(scene_cloud_xyz)
 		model_cloud = self.load_model_bin_cloud(bin_letter, downsample=True)
 		model_xform_R, model_xform_t = self.load_R_t(self.get_bin_viewing_camera_xform_path(bin_letter), nparray=True)
-		model_cloud = model_cloud.dot(model_xform_R) + model_xform_t # apply saved transformation
+		model_cloud = model_cloud.dot(model_xform_R.T) + model_xform_t # apply saved transformation
 		assert (self.shelf_perturb_R is not None) and (self.shelf_perturb_t is not None), 'Shelf perturbation has not been calibrated'
-		model_cloud = model_cloud.dot(self.shelf_perturb_R) + self.shelf_perturb_t # apply perturbation transformation found by ICP
+		model_cloud = model_cloud.dot(self.shelf_perturb_R.T) + self.shelf_perturb_t # apply perturbation transformation found by ICP
 		if fit:
 			R, t = icp.match(model_cloud, scene_tree)
 			model_cloud = model_cloud.dot(R.T) + t
 		keep_idxs = self.subtract_model(model_cloud, scene_tree=scene_tree, threshold=threshold)
-		bin_content_cloud = scene_cloud[keep_idxs, :]
-		if crop:
-			if perturb_xform is None:
-				perturb_xform = (self.shelf_perturb_R, self.shelf_perturb_t)
-			bin_content_cloud = self.crop_cloud(bin_content_cloud, bin_bound, perturb_xform)
-		return bin_content_cloud
+		content_cloud = scene_cloud[keep_idxs, :]
 
-	def crop_cloud(self, cloud, bin_bound, perturb_xform):
+		# num_content_cloud_pts = content_cloud.shape[0]
+		# print "Making content cloud with %i points"%content_cloud.shape[0]
+		# content_tree = KDTree(content_cloud)
+		# print "Done. Querying neighbors within 0.03 m"
+		# idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		# unisolated_flag = map(lambda x: len(x)>=3, idxs)
+		# content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
+		# print "Clean cloud has %i points"%content_cloud.shape[0]
+
+		# print "Making content cloud with %i points"%content_cloud.shape[0]
+		# content_tree = KDTree(content_cloud)
+		# print "Done. Querying neighbors within 0.03 m"
+		# idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		# unisolated_flag = map(lambda x: len(x)>=4, idxs)
+		# content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
+		# print "Clean cloud has %i points"%content_cloud.shape[0]
+
+		# print "Making content cloud with %i points"%content_cloud.shape[0]
+		# content_tree = KDTree(content_cloud)
+		# print "Done. Querying neighbors within 0.03 m"
+		# idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		# unisolated_flag = map(lambda x: len(x)>=5, idxs)
+		# content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
+		# print "Clean cloud has %i points"%content_cloud.shape[0]
+		return content_cloud
+
+
+	def crop_cloud(self, cloud, bin_letter):
 		'''
-		crop the cloud to keep only those that are in the bin_bound transformed by perturb_xform
-
-		bin_bound is a list of two lists of three numbers: [[xmin, ymin, zmin], [xmax, ymax, zmax]]
-		
-		solution: rather than transforming the bin_bound and test for inside-ness of skewed cube, inverse transform 
-		the cloud and test for inside-ness of axis-parallel cube. 
+		UNIMPLEMENTED
+		TAKE CARE OF COLOR CHANNEL
 		'''
-		assert len(cloud.shape)==2, 'cloud shape must be N x 3 or N x 4 (with color)'
-		if bin_bound is None:
-			return cloud
-		
-		min_list, max_list = bin_bound
-		xmin, ymin, zmin = min_list
-		xmax, ymax, zmax = max_list
+		return cloud
 
-		if perturb_xform is None:
-			perturb_xform = [[1,0,0,0,1,0,0,0,1],[0,0,0]] # identity xform
-		cloud_xyz = cloud[:,0:3]
-		inv_perturb_R, inv_perturb_t = se3.inv(perturb_xform)
-		inv_perturb_R = np.array(inv_perturb_R).reshape(3,3).T
-		inv_perturb_t = np.array(inv_perturb_t)
-		cloud_xyz_inv_xformed = cloud_xyz.dot(inv_perturb_R.T) + inv_perturb_t
-		xmin_flag = cloud_xyz_inv_xformed[:,0] >= xmin
-		xmax_flag = cloud_xyz_inv_xformed[:,0] <= xmax
-		ymin_flag = cloud_xyz_inv_xformed[:,1] >= ymin
-		ymax_flag = cloud_xyz_inv_xformed[:,1] <= ymax
-		zmin_flag = cloud_xyz_inv_xformed[:,2] >= zmin
-		zmax_flag = cloud_xyz_inv_xformed[:,2] <= zmax
-		in_flag = reduce(np.logical_and, [xmin_flag, xmax_flag, ymin_flag, ymax_flag, zmin_flag, zmax_flag])
-		cropped_cloud = cloud[in_flag, :]
-		print 'Cropped cloud from %i points to %i points'%(cloud.shape[0], cropped_cloud.shape[0])
-
-	def crop_and_segment(self, bin_content_cloud, bin_bound=None, perturb_xform=None, threshold=0.01):
-		if perturb_xform is None:
-			perturb_xform = (self.shelf_perturb_R, self.shelf_perturb_t)
-		cropped_cloud = self.crop_cloud(bin_content_cloud, bin_bound, perturb_xform)
+	def crop_and_segment(self, bin_content_cloud, bin_letter, threshold=0.02):
+		cropped_cloud = self.crop_cloud(bin_content_cloud, bin_letter)
 		N = cropped_cloud.shape[0]
-		cloud_xyz = cropped_cloud[:,0:3]
-		print 'Begin making sparse adjacency matrix...'
+		colorless_cloud = cropped_cloud[:,0:3]
+		print 'Begin making sparse adjacency matrix of size %d X %d...'%(N, N)
 		adj_matrix = dok_matrix((N, N), dtype='bool_')
 		for i in xrange(N):
 			for j in xrange(i+1, N):
-				if np.linalg.norm(cloud_xyz[i,:]-cloud_xyz[j,:])<threshold:
+				if np.linalg.norm(colorless_cloud[i,:]-colorless_cloud[j,:])<threshold:
 					adj_matrix[i,j] = 1
 		adj_matrix = adj_matrix + adj_matrix.T + np.eye(N)
 		print 'Done. Start computing connected component... '
@@ -176,11 +168,11 @@ class Perceiver:
 		print 'Done. Found %d components. '%n_components
 		return cropped_cloud, labels, n_components
 
-	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, bin_bound=None, 
-		perturb_xform=None, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.01):
+	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, fit=False, 
+		shelf_subtraction_threshold=0.01, cc_threshold=0.01):
 		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, 
 			colorful=False, fit=fit, threshold=shelf_subtraction_threshold)
-		cropped_cloud, labels, n_components = self.crop_and_segment(bin_content_cloud, bin_bound, perturb_xform, cc_threshold)
+		cropped_cloud, labels, n_components = self.crop_and_segment(bin_content_cloud, bin_letter, cc_threshold)
 		cropped_cloud_with_color = np.hstack( (cropped_cloud, np.zeros( (cropped_cloud.shape[0],1) ) ) )
 		for i in xrange(n_components):
 			h = i / n_components
@@ -248,6 +240,11 @@ class Perceiver:
 		xs_sorted = sorted(list(xs.flat))
 		ys_sorted = sorted(list(ys.flat))
 		N = len(xs_sorted)
+		if len(xs_sorted)==0 or len(ys_sorted)==0:
+			if not return_tote_content_cloud:
+				return 0, 0
+			else:
+				return (0, 0), np.zeros((2,3))
 		xmin, xmax = xs_sorted[int(N*0.1)], xs_sorted[int(N*0.9)] # in the unit of meter
 		ymin, ymax = ys_sorted[int(N*0.1)], ys_sorted[int(N*0.9)]
 		x_inrange = np.logical_and(xs >= xmin, xs <= xmax)

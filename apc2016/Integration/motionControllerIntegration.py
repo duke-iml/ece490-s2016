@@ -82,6 +82,7 @@ REAL_PRESSURE = False
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
 SHOW_TOTE_CONTENT = True # setting this to True will show tote content as perceived by camera
+SHOW_BIN_BOUNDS = True # setting this to True will draw bin bounds
 
 CAMERA_TRANSFORM = ([1,0,0,0,1,0,0,0,1], [0,0,0])
 LOAD_TRAJECTORY_DEFAULT = False
@@ -633,7 +634,26 @@ class PickingController:
             self.bin_render_downsample_rate = 50
             self.bin_render_ptsize = 5
         elif render_type in ['content', '2']:
-            self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), colorful=True)
+            local_bound = self.getBounds('bin_'+bin_letter)
+            min_local_bound, max_local_bound = local_bound
+            min_global_bound = se3.apply(knowledge.shelf_xform, min_local_bound)
+            max_global_bound = se3.apply(knowledge.shelf_xform, max_local_bound)
+            if min_global_bound[0] < max_global_bound[0]:
+                min_global_x = min_global_bound[0]
+            else:
+                min_global_x = max_global_bound[0]
+
+            if min_global_bound[1] < max_global_bound[1]:
+                min_global_y = min_global_bound[1]
+            else:
+                min_global_y = max_global_bound[1]
+            
+            if min_global_bound[2] < max_global_bound[2]:
+                min_global_z = min_global_bound[2]
+            else:
+                min_global_z = max_global_bound[2]
+            self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), colorful=True, crop=True, 
+                bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]])
             self.bin_render_downsample_rate = 1
             self.bin_render_ptsize = 5
         elif render_type in ['cc', '3']:
@@ -3053,6 +3073,9 @@ class MyGLViewer(GLRealtimeProgram):
                 gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [pick_pos[0], pick_pos[1], -0.1]), 1, 0.01, fancy=False)
                 pass
                 
+        if SHOW_BIN_BOUNDS:
+            for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:
+                draw_wire_box(*map(lambda p:se3.apply(knowledge.shelf_xform, p), apc.bin_bounds['bin_'+letter]))
         # draw the shelf and floor
         # if self.simworld.numTerrains()==0:
         #     for i in range(self.planworld.numTerrains()):
