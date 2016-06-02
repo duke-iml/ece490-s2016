@@ -180,6 +180,36 @@ class KnowledgeBase:
             world_offset = vectorops.add(world_offset, [-0.04,0,0])
 
         return vectorops.add(world_center,world_offset)
+   
+    def getBinFrontCenterTop(self, bin_name):
+        #center of the front face of the bin
+
+        bmin,bmax = apc.bin_bounds[bin_name]
+        # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
+        local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmin[2]+bmax[2]*.8]
+
+        # horizontal adjustment
+        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
+            local_center = vectorops.add(local_center, [-0.0,0,0])
+        elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
+            # local_center = vectorops.add(local_center, [-0.00,0,0])
+            local_center = vectorops.add(local_center, [0.00,0,0])
+        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
+            local_center = vectorops.add(local_center, [-0.01,0,0])
+
+        if bin_name == 'bin_J':
+            local_center = vectorops.add(local_center, [-0.01,0,0])
+        if bin_name == 'bin_K':
+            local_center = vectorops.add(local_center, [-0.025,0,0])
+        # in/out adjustment
+        #if bin_name == 'bin_J' or bin_name == 'bin_K' or bin_name == 'bin_L':
+        #    local_center = vectorops.add(local_center, [0,0,-0.003])
+
+
+        world_center = se3.apply(knowledge.shelf_xform, local_center)
+        return world_center
+
+
     def getBinScanPosition(self):
         #store where the camera is in relation the bins when calibrating
         #then apply transform to get position of new point so camera can move there
@@ -862,25 +892,11 @@ class PickingController:
         if eval('self.'+limb+'_bin') in apc.bin_names:
             if self.move_from_scan_to_grasp(limb):
                 #self.moveArm would be cleaner
-                continue
+                pass
+                
             elif self.move_from_rest_to_grasp(limb):
 
-                continue
-                #moved to configuration
-
-                #stateLeft should be 'grasp'
-
-                self.waitForMove()
-
-                #choose whether to go in from the top or the side due to the object
-
-                #attempt to go to location derived from perception
-
-                #turn on vacuum 
-
-                #see if we grasped stuff
-
-                #pull back out
+                pass
             else:
                 print 'couldn\'t move to grasp'
                 return False
@@ -889,13 +905,39 @@ class PickingController:
             #arm's state should be graspPrep or something like that
 
             #move to shelfOffset
+            #self.moveToOffset(limb, milestone=eval(), finalState = 'grasp')
+            # covered in self.move_from_scan_to_grasp
+
+            graspDirection = [['up'], [0,0,1]]
+            #graspDirection[0] = direction
+            #graspDirection[1] = normal in vector format
+
+            try:
+                perception.getGraspDirection
+            except:
+                print 'perception grasp direction not set up yet'
 
 
-            self.moveToOffset(limb, milestone=eval(), finalState = 'grasp')
-            #def moveToOffset(self, limb=None, statusConditional=None, q_name=None, milestone=None, finalState=None):
+            if graspDirection[0] == 'up':
+                position = [0.5, 0.5, 0.5]
+                try:
+                    position = perception.getPickPositionForPick()
+                except:
+                    print 'Error perception code for point not set up'
 
-            #perception.getGraspDirection
+                graspToObjectInBinFromTop(position=position, limb=limb, step=-1)
+            elif graspDirection[0] =='side':
+                position = [0.5, 0.5, 0.5]
+                try:
+                    position = perception.getPickPositionForPick()
+                except:
+                    print 'Error perception code for point not set up'
 
+                graspToObjectInBinFromSide(position=position, limb=limb, step=-1)
+
+            else:
+                print 'Error, unprepared grasp direction'
+                return False
         else:
             print 'Invalid bin', eval('self.'+limb+'_bin')
 
@@ -1811,7 +1853,7 @@ class PickingController:
 
 
  
-    def moveToObjectInBinFromTop(self, position, limb, step):
+    def moveToObjectInBinFromTop(self, position, limb, step, naiive=False):
         #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
         #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
         #Assumes we have determined we want to pick up the object from above
@@ -1819,42 +1861,92 @@ class PickingController:
         #We need to calculate the shelf normal
         #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
 
-        ik_constraint = IKObjective()
-        ik_constraint.setLinks(self.simworld.robot(0).link(limb+'_wrist'))
-        ik_constraint.setAxialRotConstraint([0,0,1],knowledge.getShelfNormal())
+        #ik_constraint = IKObjective()
+        #ik_constraint.setLinks(self.simworld.robot(0).link(limb+'_wrist'))
+        #ik_constraint.setAxialRotConstraint([0,0,1],knowledge.getShelfNormal())
+        
+
         # want the forward axis of the wrist to be constrained to normal to the shelf
         #forward axis of the wrist is +z
+        
 
-        if step==1:
+        #p1_world = se3.apply(newEndEffectorTransform, [1,0,0])
+        #p2_world = se3.apply(newEndEffectorTransform, [0,1,0])
+        #p3_world = se3.apply(newEndEffectorTransform, [0,0,1])
 
-            world_loc = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
-            #ik to top center of bin, normal to the shelf
-            #use ik seed and knowledge of shelf
-            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+        q_seed = [i for i in self.simworld.robot(0).getConfig()]
+
+        step1 = []
+        step2 = []
+        step3 = []
+        step4 = []
+        step5 = []
+
+        if naiive:
+            #fix the suction cup's direction aim for the top of the bin, ik to a position slightly above the object
+            #ik down
+            #
             pass
-        elif step==2:
-            #step 2: enter along vacuum/wrist axis until far enough in
-            pass
-        elif step==3:
-            #step 3: move along y direction to get above object
-            pass
+        else:
+            bin = None
+            if limb =='left':
+                bin = self.left_bin
+            elif limb =='right':
+                bin = self.right_bin
 
-        elif step==4:
-            pass
-            #turn vacuum on
-            #attempt to move down to half the object's height from the ground
-
-        elif step==5:
-            pass
-            #check to make sure we have sucked something and that it is not the shelf
-            #throw in various other checks here
-
-        elif step==6: 
-            pass
-            #take the reverse path back out of the bin
+            if step==1:
+                world_loc = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
+                target = knowledge.getBinFrontCenterTop(bin)
+                ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
 
 
-        #potential issues - something is in front of the front of the shelf
+                for i in range(1000):
+
+                    self.simworld.robot(0).setConfig([conf for conf in q_seed])
+
+                    if ik.solve(goal, tol=1e-4):
+                        step1.append([conf for conf in self.simworld.robot(0).getConfig()])
+                        print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
+                        print 'Solved at ', i
+                        break
+                else:
+                    print "all failed for ik in moveToOffset"
+                    return False
+
+                self.sendPath(path=step1, limb = limb)
+
+            elif step==2:
+                #step 2: enter along vacuum/wrist axis until far enough in
+                pass
+            elif step==3:
+                #step 3: move along y direction to get above object
+                pass
+
+            elif step==4:
+                pass
+                #turn vacuum on
+                #attempt to move down to half the object's height from the ground
+
+            elif step==5:
+                pass
+                #check to make sure we have sucked something and that it is not the shelf
+                #throw in various other checks here
+
+            elif step==6: 
+                pass
+                #take the reverse path back out of the bins - something is in front of the front of the shelf
+
+    def buildIKGoalSuctionDown(self,limb, target, offset=0.5):
+
+        targetZOffset = vectorops.add(target, [0,0,-offset])
+        targetAxisConstraint = so3.apply(knowledge.shelf_xform[0], vectorops.add(target, [offset, 0,0]))
+
+        #might be better to apply perception transform
+
+        return ik.objective(self.simworld.robot(0).link(limb+'_wrist'), local = [[0,0,0],[offset, 0,0],[0,0,offset]], world=[target, targetZOffset, targetAxisConstraint])
 
     def moveToObjectInBinFromSide(self, position, limb, step):
         #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
