@@ -136,6 +136,9 @@ class KnowledgeBase:
         self.order_bin_contents = []
         self.center_point = None
     def bin_front_center(self,bin_name):
+
+        #center of the front face of the bin
+
         bmin,bmax = apc.bin_bounds[bin_name]
         # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
         local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmax[2]]
@@ -161,6 +164,9 @@ class KnowledgeBase:
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
     def bin_vantage_point(self,bin_name):
+
+        # a little in front of the front_center of the bin
+
         world_center = self.bin_front_center(bin_name)
         world_offset = so3.apply(knowledge.shelf_xform[0],[0,0.04,0.55])
 
@@ -171,12 +177,6 @@ class KnowledgeBase:
         elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
             world_offset = vectorops.add(world_offset, [-0.04,0,0])
 
-        return vectorops.add(world_center,world_offset)
-    def bin_center_point(self):
-        return self.center_point
-    def bin_vertical_point(self):
-        world_center = self.bin_center_point()
-        world_offset = [0,-0.25,0.35]
         return vectorops.add(world_center,world_offset)
     def getBinScanPosition(self):
         #store where the camera is in relation the bins when calibrating
