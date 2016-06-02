@@ -209,6 +209,35 @@ class KnowledgeBase:
         world_center = se3.apply(knowledge.shelf_xform, local_center)
         return world_center
 
+    def getBinMidCenterTop(self, bin_name):
+        #center of the front face of the bin
+
+        bmin,bmax = apc.bin_bounds[bin_name]
+        # local_center = [(bmin[0]+bmax[0])*0.5, (bmin[1]+bmax[1])*0.5, bmax[2]]
+        local_center = [(bmin[0]+bmax[0])*0.5, bmin[1], bmin[2]+bmax[2]*.8]
+
+        # horizontal adjustment
+        if bin_name == 'bin_A' or bin_name == 'bin_D' or bin_name == 'bin_G' or bin_name == 'bin_J':
+            local_center = vectorops.add(local_center, [-0.0,0,0])
+        elif bin_name == 'bin_B' or bin_name == 'bin_E' or bin_name == 'bin_H' or bin_name == 'bin_K':
+            # local_center = vectorops.add(local_center, [-0.00,0,0])
+            local_center = vectorops.add(local_center, [0.00,0,0])
+        elif bin_name == 'bin_C' or bin_name == 'bin_F' or bin_name == 'bin_I' or bin_name == 'bin_L':
+            local_center = vectorops.add(local_center, [-0.01,0,0])
+
+        if bin_name == 'bin_J':
+            local_center = vectorops.add(local_center, [-0.01,0,0])
+        if bin_name == 'bin_K':
+            local_center = vectorops.add(local_center, [-0.025,0,0])
+        # in/out adjustment
+        #if bin_name == 'bin_J' or bin_name == 'bin_K' or bin_name == 'bin_L':
+        #    local_center = vectorops.add(local_center, [0,0,-0.003])
+
+
+        world_center = se3.apply(knowledge.shelf_xform, local_center)
+        return world_center
+
+
 
     def getBinScanPosition(self):
         #store where the camera is in relation the bins when calibrating
@@ -1886,7 +1915,78 @@ class PickingController:
             #fix the suction cup's direction aim for the top of the bin, ik to a position slightly above the object
             #ik down
             #
-            pass
+            bin = None
+            if limb =='left':
+                bin = self.left_bin
+            elif limb =='right':
+                bin = self.right_bin
+
+            if step==1:
+                #move to the top center of the bin
+
+                target = knowledge.getBinFrontCenterTop(bin)
+                ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+
+
+                for i in range(1000):
+
+                    self.simworld.robot(0).setConfig([conf for conf in q_seed])
+
+                    if ik.solve(goal, tol=1e-4):
+                        step1.append([conf for conf in self.simworld.robot(0).getConfig()])
+                        print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
+                        print 'Solved at ', i
+                        break
+                else:
+                    print "all failed for ik in step1 of picking an object from the top"
+                    return False
+
+                self.sendPath(path=step1, limb = limb)
+
+            elif step==2
+                #move into the bin
+
+                target = knowledge.getBinMidCenterTop(bin)
+                ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+
+
+
+            elif step==3
+                #move to the target + some z direction (not more than we currently are at or else quit)
+
+                target = perception.getGoal()
+                ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+
+
+                for i in range(1000):
+
+                    self.simworld.robot(0).setConfig([conf for conf in q_seed])
+
+                    if ik.solve(goal, tol=1e-4):
+                        step1.append([conf for conf in self.simworld.robot(0).getConfig()])
+                        print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
+                        print 'Solved at ', i
+                        break
+                else:
+                    print "all failed for ik in step1 of picking an object from the top"
+                    return False
+
+                self.sendPath(path=step1, limb = limb)
+
+            elif step==4            
+                #turn on vacuum and move down
+
+
+
         else:
             bin = None
             if limb =='left':
@@ -1913,7 +2013,7 @@ class PickingController:
                         print 'Solved at ', i
                         break
                 else:
-                    print "all failed for ik in moveToOffset"
+                    print "all failed for ik in step1 of picking an object from the top"
                     return False
 
                 self.sendPath(path=step1, limb = limb)
@@ -1947,6 +2047,28 @@ class PickingController:
         #might be better to apply perception transform
 
         return ik.objective(self.simworld.robot(0).link(limb+'_wrist'), local = [[0,0,0],[offset, 0,0],[0,0,offset]], world=[target, targetZOffset, targetAxisConstraint])
+
+    def simpleIK(self, numIter=1000, q_seed=None, tol=1e-4, limb=None, goal=None):
+
+        path = []
+
+        if q_seed is None:
+            q_seed = [q for q in self.simworld.robot(0).getConfig()]
+
+        for i in range(numIter):
+
+            self.simworld.robot(0).setConfig([conf for conf in q_seed])
+
+            if ik.solve(goal, tol=tol):
+                path.append([conf for conf in self.simworld.robot(0).getConfig()])
+                print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
+                print 'Solved at ', i
+                self.sendPath(path=path, limb=limb)
+                return path
+        else:
+            print "all failed for ik in step1 of picking an object from the top"
+            return False
+
 
     def moveToObjectInBinFromSide(self, position, limb, step):
         #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
