@@ -475,8 +475,8 @@ class PickingController:
         self.current_bin = None
         self.held_object = None
 
-        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0,.1])
-        self.perceptionTransformInv =  ([1,0,0,0,1,0,0,0,1], [0,0,- .1])
+        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0.0,0.0])
+        self.perceptionTransformInv =  ([1,0,0,0,1,0,0,0,1], [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.013904755755343905, 0.9994709798204462, 0.029400990870081654, 0.008185473524082682, 0.02951662704126083, -0.9995307732887939, -0.9998698194217949, -0.013657570240181879, -0.008591564733139484], [-0.14500000000000005, -0.03, 0.075])
@@ -1553,7 +1553,6 @@ class PickingController:
 
                 #splitting things up into two motions isn't working
                 self.moveArm(limb=limb, path_name=camera_path)
-
                 if SHELF_STATIONARY:
                     self.moveArm(limb=limb, path_name=scan_path, finalState = 'scan')
                 else:
@@ -1670,27 +1669,32 @@ class PickingController:
 
         self.simworld.robot(0).setConfig([conf for conf in q_canonical])
 
-        currTransform = self.simworld.robot(0).link(limb+'_wrist').getTransform()
+        curEndEffectorTransform = self.simworld.robot(0).link(limb+'_wrist').getTransform()
+        # curEndEffectorTransform = self.simworld.robot(0).link(41).getTransform()
 
         # if transformType == 'vacuum':
-        #     currTransform = se3.mul(self.simworld.robot(0).link(limb+'_wrist').getTransform(), self.vacuumTransform)
+        #     curEndEffectorTransform = se3.mul(self.simworld.robot(0).link(limb+'_wrist').getTransform(), self.vacuumTransform)
         # elif transformType == 'camera'
-        #     currTransform = se3.mul(self.simworld.robot(0).link(limb+'_wrist').getTransform(), self.cameraTransform)
+        #     curEndEffectorTransform = se3.mul(self.simworld.robot(0).link(limb+'_wrist').getTransform(), self.cameraTransform)
         # else:
         #     return False
 
-        print 'Current Tranaform is ',currTransform
+        print 'Current Tranaform is ', curEndEffectorTransform
  
-        self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
+        self.frames.append(curEndEffectorTransform)
 
-        newTransform = se3.mul( self.perceptionTransform, currTransform)
-        print 'New Transform is ', newTransform
+        newEndEffectorTransform = se3.mul( self.perceptionTransform, curEndEffectorTransform)
+        print 'New Transform is ', newEndEffectorTransform
 
-        self.frames.append(newTransform)
+        #self.frames.append(newEndEffectorTransform)
 
         #q_start is initial position - found by hand
 
-        goal = ik.objective(self.simworld.robot(0).link(limb+'_wrist'), R=newTransform[0], t=newTransform[1])
+        # goal = ik.objective(self.simworld.robot(0).link(limb+'_wrist'), R=newEndEffectorTransform[0], t=newEndEffectorTransform[1])
+        p1_world = se3.apply(newEndEffectorTransform, [1,0,0])
+        p2_world = se3.apply(newEndEffectorTransform, [0,1,0])
+        p3_world = se3.apply(newEndEffectorTransform, [0,0,1])
+        goal = ik.objective(self.simworld.robot(0).link(limb+'_wrist'), local=[[1,0,0],[0,1,0],[0,0,1]], world=[p1_world, p2_world, p3_world])
 
         path = [q_canonical]
 
@@ -1698,7 +1702,7 @@ class PickingController:
 
             self.simworld.robot(0).setConfig([conf for conf in q_start])
 
-            if ik.solve(goal, tol=1e-6):
+            if ik.solve(goal, tol=1e-4):
                 path.append([conf for conf in self.simworld.robot(0).getConfig()])
                 print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
                 print 'Solved at ', i
@@ -1957,7 +1961,7 @@ class PickingController:
             if self.moveRightArm(statusConditional, path_name, path, finalState, reverse):
                 return True
         #wasn't able to move
-        print 'Errow with move'+limb+'arm'
+        print 'Error with move'+limb+'arm'
         return False
 
     def moveLeftArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
@@ -1991,19 +1995,20 @@ class PickingController:
             if reverse:
                 path = path[::-1]
 
-            self.sendPath(path, limb='left', readConstants=True)
+            #if len(path)>=1:
+            #    self.sendPath(path, limb='left', readConstants=True)
 
-            # for milestone in path:
-            #     self.controller.appendMilestoneLeft(milestone, 1)
-            #     #move to the milestone in 1 second
+            for milestone in path:
+                self.controller.appendMilestoneLeft(milestone, 1)
+                #move to the milestone in 1 second
 
-            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
-            #     if FORCE_WAIT:
-            #         self.forceWait(milestone, self.left_arm_indices, 0.01)
-            #     else:
-            #         self.controller.appendMilestoneLeft(milestone, 3)
-            #     #wait at the milestone for 2 seconds
-            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
+                self.waitForMove() #still doesn't do anything, but it's the thought that counts
+                if FORCE_WAIT:
+                    self.forceWait(milestone, self.left_arm_indices, 0.01)
+                else:
+                    self.controller.appendMilestoneLeft(milestone, 3)
+                #wait at the milestone for 2 seconds
+                #later should replace with Hyunsoo's code setting milestones if dt is too large
 
             self.q_most_recent_left = path[-1]
 
@@ -2048,19 +2053,20 @@ class PickingController:
             if reverse:
                 path = path[::-1]
 
-            self.sendPath(path, limb='right', readConstants=True)
+            # if len(path)>=1:
+            #     self.sendPath(path, limb='right', readConstants=True)
 
-            # for milestone in path:
-            #     self.controller.appendMilestoneRight(milestone, 1)
-            #     #move to the milestone in 1 second
+            for milestone in path:
+                self.controller.appendMilestoneRight(milestone, 1)
+                #move to the milestone in 1 second
 
-            #     self.waitForMove() #still doesn't do anything, but it's the thought that counts
-            #     if FORCE_WAIT:
-            #         self.forceWait(milestone, self.right_arm_indices, 0.01)
-            #     else:
-            #         self.controller.appendMilestoneRight(milestone, 3)
-            #     #wait at the milestone for 2 seconds
-            #     #later should replace with Hyunsoo's code setting milestones if dt is too large
+                self.waitForMove() #still doesn't do anything, but it's the thought that counts
+                if FORCE_WAIT:
+                    self.forceWait(milestone, self.right_arm_indices, 0.01)
+                else:
+                    self.controller.appendMilestoneRight(milestone, 3)
+                #wait at the milestone for 2 seconds
+                #later should replace with Hyunsoo's code setting milestones if dt is too large
 
             self.q_most_recent_right = path[-1]
 
@@ -2369,7 +2375,7 @@ class PickingController:
                     #     self.controller.appendMilestone(q)
 
             # original
-        print "reached"
+        # print "reached"
         if PHYSICAL_SIMULATION:
             i = 0
             endIndex = len(path)
@@ -2413,7 +2419,7 @@ class PickingController:
                 self.controller.appendMilestoneRight(path[-1])
             else:
                 self.controller.appendMilestone(path[-1])
-            print 'Done with moving'
+            # print 'Done with moving'
 
     def sendPathClosedLoop(self,path, clearRightArm = False):
         # print "pathlength starting =", len(path)
@@ -3213,7 +3219,11 @@ def run_controller(controller,command_queue):
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == '`':
-                controller.calibratePerception('A', limb=DEFAULT_LIMB)
+                print 'Press Bin Letter of the Bin to Calibrate'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                controller.calibratePerception(bin_letter.upper(), limb=DEFAULT_LIMB)
             elif c=='s':
                 controller.calibrateShelf()
             elif c=='w':
