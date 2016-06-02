@@ -89,6 +89,8 @@ LOAD_PHYSICAL_TRAJECTORY = True
 FORCE_WAIT = False
 SHELF_STATIONARY = False
 
+visualizer = None
+
 if REAL_SCALE:
      myScale = scale.Scale()
      stowHandler = stowHandler.stowHandler()
@@ -439,9 +441,6 @@ class PhysicalLowLevelController(LowLevelController):
             #print 'Desitnation is: ', destination
             if not motion.robot.right_mq.appendLinear(dt, [destination[v] for v in self.right_arm_indices[:7]]): raise RuntimeError()
         return True
-
-
-
     def appendMilestoneLeft(self, destination, dt=2):
         #dt = 10
         if len(destination) == 7:
@@ -476,7 +475,8 @@ class PickingController:
         self.current_bin = None
         self.held_object = None
 
-        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0,.5])
+        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0,.1])
+        self.perceptionTransformInv =  ([1,0,0,0,1,0,0,0,1], [0,0,- .1])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.013904755755343905, 0.9994709798204462, 0.029400990870081654, 0.008185473524082682, 0.02951662704126083, -0.9995307732887939, -0.9998698194217949, -0.013657570240181879, -0.008591564733139484], [-0.14500000000000005, -0.03, 0.075])
@@ -608,8 +608,7 @@ class PickingController:
     # Process for stowing:
     '''TODO
 
-    implement graspFromToteAction
-    create and implement moveFromToteToBinAction
+    improve path for placeInBinAction 
     '''
 
     def viewToteAction(self,limb ):
@@ -1459,7 +1458,7 @@ class PickingController:
         for i in range(maxIters):
             index = random.randint(0,len(goals)-1) # choose which ik goals to solve
             goal = goals[index]
-            print goal
+            #print goal
             limb = limbs[index]
             numTrials[index] += 1
             # if first time trying the ik goal, initialize with current config
@@ -1558,7 +1557,8 @@ class PickingController:
                 if SHELF_STATIONARY:
                     self.moveArm(limb=limb, path_name=scan_path, finalState = 'scan')
                 else:
-                    self.moveToOffset(limb=limb, q_name = scan_path, finalState = 'scan')
+                    self.moveToOffset(limb=limb, q_name=scan_path, finalState='scan')
+                    #self.moveToOffset2(limb=limb, bin_name=bin_name, finalState = 'scan')
 
 
         # If we are backing off from bin to view camera
@@ -1635,14 +1635,16 @@ class PickingController:
 
     # Movement functions
 
-    def moveToOffset(self, limb=None, statusConditional=None, q_name=None, milestone=None, finalState=None, transformType=None):
+    def moveToOffset(self, limb=None, statusConditional=None, q_name=None, milestone=None, finalState=None):
 
         print 'Last position\'s transform is: ',self.simworld.robot(0).link(limb+'_wrist').getTransform()   
 
         #self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
 
-        q_start = [conf for conf in motion.robot.getKlamptSensedPosition()]
-        q_perturb = [0.0]*len(q_start)
+        assert (q_name is not None) or (milestone is not None), 'Either q_name or milestone must not be None'
+
+        q_start = [conf for conf in self.simworld.robot(0).getConfig()]
+        q_canonical = [q for q in q_start]
 
         if q_name is not None:
             if milestone is None:
@@ -1650,29 +1652,23 @@ class PickingController:
 
         if limb == 'left' and milestone is not None:
 
-            for i in range(len(q_start)):
-                q_perturb[i] = q_start[i]
-
-            for i in range(len(self.left_arm_indices[::7])):
-                q_perturb[self.left_arm_indices[i]] = milestone[i]
+            for i in range(7):
+                q_canonical[self.left_arm_indices[i]] = milestone[i]
 
 
         elif limb == 'right' and milestone is not None:
 
-            for i in range(len(q_start)):
-                q_perturb[i] = q_start[i]
-
-            for i in range(len(self.right_arm_indices[::7])):
-                q_perturb[self.right_arm_indices[i]] = milestone[i]
+            for i in range(7):
+                q_canonical[self.right_arm_indices[i]] = milestone[i]
 
         else:
             return False
 
 
         print q_start
-        print q_perturb
+        print q_canonical
 
-        self.simworld.robot(0).setConfig([conf for conf in q_perturb])
+        self.simworld.robot(0).setConfig([conf for conf in q_canonical])
 
         currTransform = self.simworld.robot(0).link(limb+'_wrist').getTransform()
 
@@ -1687,7 +1683,7 @@ class PickingController:
  
         self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
 
-        newTransform = se3.mul( currTransform, self.perceptionTransform)
+        newTransform = se3.mul( self.perceptionTransform, currTransform)
         print 'New Transform is ', newTransform
 
         self.frames.append(newTransform)
@@ -1696,7 +1692,7 @@ class PickingController:
 
         goal = ik.objective(self.simworld.robot(0).link(limb+'_wrist'), R=newTransform[0], t=newTransform[1])
 
-        path = [q_perturb]
+        path = [q_canonical]
 
         for i in range(1000):
 
@@ -1722,6 +1718,62 @@ class PickingController:
         self.sendPath(path=path, limb=limb)
 
         return True
+
+
+    def moveToOffset2(self, limb=None, statusConditional=None, bin_name=None, finalState=None, transformType=None):
+
+
+        #get limb ik path
+        R_shelf = knowledge.shelf_xform[0]
+        R_camera = so3.mul(R_shelf, so3.rotation([1,0,0], math.pi))
+        t_camera = vectorops.sub(knowledge.bin_vantage_point(bin_name), self.cameraTransform[1])
+
+
+        left_goal=[]
+        left_goal.append(ik.objective(self.robot.link(limb+'_wrist'),R=R_camera,t=t_camera))
+        limbs = [limb]
+        qcmd = self.controller.getCommandedConfig()
+
+        for i in range(100):
+            # load IK solution if we are backing off from bin to view the bin, or we are not saving IK solutions
+            self.simworld.robot(0).setConfig([conf for conf in q_start])
+
+            if ik.solve(goal, tol=1e-6):
+                path.append([conf for conf in self.simworld.robot(0).getConfig()])
+                print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
+                print 'Solved at ', i
+                break
+        else:
+            print "all failed for ik in moveToOffset"
+            return False
+        self.sendPath(sortedSolutions[0])
+        # for solution in sortedSolutions:
+        #     numSol += 1
+        #     print numSol, "solutions planned out of", len(sortedSolutions)
+        #     # print len(qcmd), len(solution[0])
+        #     # print solution[0], solution[0][0]
+        #     if ik_constraint==None:
+        #         path = self.planner.plan(qcmd,solution[0],'left', ignoreColShelfSpatula=ignoreColShelfSpatula)
+        #     else:
+        #         path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
+
+        #     if path == 1 or path == 2 or path == False:
+        #         break
+        #     elif path != None:
+        #         if not LOAD_IK and SAVE_MOVE_TO_BIN_IK:
+        #             saveToFile(solution, "IK_Solutions/"+str(bin_name))
+        #         if SAVE_MOVE_TO_BIN_TRAJECTORY:
+        #             saveToFile(path, "Trajectories/"+str(bin_name))
+        #         if SKIP_PATH_VIEWING:
+        #             self.controller.setMilestone(sortedSolutions[0][0])
+        #             return True
+        #         if ik_constraint==None:
+        #             self.sendPath(path)
+        #         else:
+        #             self.sendPathClosedLoop(path)
+        #         return True
+        print "Failed to plan path"
+        #pass to moveArm
 
 
  
@@ -3167,12 +3219,12 @@ def run_controller(controller,command_queue):
             elif c=='w':
                 controller.calibrateCamera(limb=DEFAULT_LIMB)
             elif c=='f':
-                self.simworld.terrain(0).geometry().transform(*self.perceptionTransform)
+                visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransform)
             elif c=='c':
                 print 'Viewing Tote: '
                 controller.viewToteAction(limb='right')
             elif c=='g':
-                self.simworld.terrain(0).geometry().transform(*self.perceptionTransformInv)
+                visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransformInv)
             elif c == '1':
                 controller.runPickFromTote(limb = 'right')
 
@@ -3256,7 +3308,7 @@ def load_apc_world():
 
 
     calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.555, -0.02])
-    perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
+    # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
     # ([ 0.99631874, -0.01459558,  0.08447454, 0.01519797,  0.9998634,  -0.00649233, -0.08436826,  0.00775227,  0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
