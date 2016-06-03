@@ -906,6 +906,13 @@ class PickingController:
 
     '''
 
+    def runPickFromBin(self, bin, limb):
+        if self.viewBinAction(b=bin, limb = limb):
+            self.waitForMove()
+            if self.prepGraspFromBinAction(limb=limb):
+                self.waitForMove()
+                
+
     def viewBinAction(self,b, limb):
         self.waitForMove()
 
@@ -1923,6 +1930,8 @@ class PickingController:
         #p2_world = se3.apply(newEndEffectorTransform, [0,1,0])
         #p3_world = se3.apply(newEndEffectorTransform, [0,0,1])
 
+        DEFAULT_GOAL = [0.5,0.5,0.5]
+
         q_seed = [i for i in self.simworld.robot(0).getConfig()]
 
         step1 = []
@@ -1930,6 +1939,8 @@ class PickingController:
         step3 = []
         step4 = []
         step5 = []
+
+        PHYSICAL_SIMULATION = 0
 
         if naiive:
             #fix the suction cup's direction aim for the top of the bin, ik to a position slightly above the object
@@ -1950,27 +1961,16 @@ class PickingController:
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
 
-
-                for i in range(1000):
-
-                    self.simworld.robot(0).setConfig([conf for conf in q_seed])
-
-                    if ik.solve(goal, tol=1e-4):
-                        step1.append([conf for conf in self.simworld.robot(0).getConfig()])
-                        print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
-                        print 'Solved at ', i
-                        break
-                else:
-                    print "all failed for ik in step1 of picking an object from the top"
-                    return False
-
-                self.sendPath(path=step1, limb = limb)
+                step1 = simpleIK(limb=limb, goal=ikGoal)
+                #self.sendPath(path=step1, limb = limb)
 
             elif step==2
-                #move into the bin
+                #move towards the object
+                # check to make sure point is within the
 
                 target = knowledge.getBinMidCenterTop(bin)
                 ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
+                step2 = simpleIK(limb=limb, goal=ikGoal)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -1980,32 +1980,48 @@ class PickingController:
             elif step==3
                 #move to the target + some z direction (not more than we currently are at or else quit)
 
-                target = perception.getGoal()
+                try:
+                    target = perception.getGoal()
+                except:
+                    print 'perception to get goal not integrated'
+                    target = DEFAULT_GOAL
+                #keep the x, y - throw out the z
+
+                #check to make sure target is actually in bin
+                target[2] = knowledge.getBinMidCenterTop(bin)[2]
+
                 ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
 
+                step3 = simpleIK(limb=limb, goal=ikGoal)
 
-                for i in range(1000):
-
-                    self.simworld.robot(0).setConfig([conf for conf in q_seed])
-
-                    if ik.solve(goal, tol=1e-4):
-                        step1.append([conf for conf in self.simworld.robot(0).getConfig()])
-                        print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
-                        print 'Solved at ', i
-                        break
-                else:
-                    print "all failed for ik in step1 of picking an object from the top"
-                    return False
 
                 self.sendPath(path=step1, limb = limb)
 
             elif step==4            
                 #turn on vacuum and move down
+                try:
+                    target = perception.getGoal()
+                except:
+                    print 'perception to get goal not integrated'
+                    target = DEFAULT_GOAL
+
+                #keep the x, y - throw out the z
+
+                #check to make sure target is actually in bin
+                target[2] = knowledge.getBinMidCenterTop(bin)[2]
+
+                ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+
+                step3 = simpleIK(limb=limb, goal=ikGoal)
 
 
+                self.sendPath(path=step1, limb = limb)
 
         else:
             bin = None
@@ -2059,6 +2075,10 @@ class PickingController:
                 pass
                 #take the reverse path back out of the bins - something is in front of the front of the shelf
 
+        PHYSICAL_SIMULATION = 1
+
+
+
     def buildIKGoalSuctionDown(self,limb, target, offset=0.5):
 
         targetZOffset = vectorops.add(target, [0,0,-offset])
@@ -2083,7 +2103,7 @@ class PickingController:
                 path.append([conf for conf in self.simworld.robot(0).getConfig()])
                 print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
                 print 'Solved at ', i
-                self.sendPath(path=path, limb=limb)
+                #self.sendPath(path=path, limb=limb)
                 return path
         else:
             print "all failed for ik in step1 of picking an object from the top"
