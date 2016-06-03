@@ -1,7 +1,7 @@
 import scale
 import time
 
-myScale = scale.Scale_Measurement()
+myScale = scale.Scale()
 
 while(1):
 	

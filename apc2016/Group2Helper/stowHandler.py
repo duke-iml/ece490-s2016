@@ -57,21 +57,31 @@ import sys
 
 sys.path.insert(0, "../../common")
 sys.path.insert(0, "..")
-# from Sensors import scale
+from Sensors import scale
 import json
 import json_parser_stow
 
 class stowHandler:
-    def __init__(self,filename):
+    def __init__(self,filename=None):
         self.parser=json_parser_stow.json_parser_stow()
-        # self.scale=scale.Scale()
-        # currentWeight=self.scale.read()
-        self.currentWeight =100
-        (binContents, toteContents)=self.parser.readInFile(filename)
-        print toteContents
+        
+        self.scale = None
+        self.currentWeight = 100
+        try:
+            self.scale=scale.Scale()
+            self.currentWeight=self.scale.read().split(' ')[0]
+            print 'Initial Reading', self.currentWeight
+            self.currentWeight = self.currentWeight.split(' ')[0]
+            print 'Numeric Reading', self.currentWeight
+        except:
+            print 'Scale not connected'
+
+        if filename is not None:
+            (binContents, toteContents)=self.parser.readInFile(filename)
+            print toteContents
     def pickWhichObj(self, debug=False):
-    	# newWeight=self.scale.read()
-        newWeight=100
+    	newWeight=self.scale.read()
+        #newWeight=100
     	objWeight=self.currentWeight-newWeight
 
     	
