@@ -8,7 +8,8 @@ while(1):
 	time.sleep(1)
 	print("Scale reading")
 	try:	
-		print( myScale.readData(10))
+		print myScale.readData(10)
+		print 'some'
 
 	except KeyboardInterrupt:
-		break 
+		break
