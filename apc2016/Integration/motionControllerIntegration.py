@@ -246,7 +246,8 @@ class KnowledgeBase:
         pointZ = minMax[0][2]*.2+minMax[1][2]*.8
 
         return [pointX, pointY, pointZ]
-    
+    def applyShelfXform(self, point):
+        return se3.apply(knowledge.shelf_xform, point)
 
     def getBinScanPosition(self):
         #store where the camera is in relation the bins when calibrating
@@ -1074,6 +1075,16 @@ class PickingController:
                 #EX: 'GRASP_TO_STOW_B_RIGHT'
                 if self.moveArm(limb, statusConditional = 'viewBin', path_name=path_name, final_state = 'graspPrepped'):
                     self.waitForMove()
+
+                    try:
+                        time.sleep(2)
+                        #wait for two seconds
+                        #maybe forcewait until it's in stow state
+                        vacuumController.change_vacuum_state(0)
+                    except:
+                        print 'Error in vacuum Controller'
+
+
                     return True
                 else:
                     print 'Error in moveArm (from prepGraspFromBinAction)'
@@ -1948,6 +1959,7 @@ class PickingController:
         #p3_world = se3.apply(newEndEffectorTransform, [0,0,1])
 
         DEFAULT_GOAL = [1.1151453560415345, -0.046864004769163026, 1.1370113707939946]
+        DEFAULT_NORMAL = [0, 1, 1] #45 degree angle
 
         q_seed = [i for i in self.simworld.robot(0).getConfig()]
 
@@ -1957,6 +1969,8 @@ class PickingController:
         step4 = []
         step5 = []
 
+        target = []
+
         # print 'physical simulation is off'
         # PHYSICAL_SIMULATION = 0
 
@@ -1964,6 +1978,13 @@ class PickingController:
             #fix the suction cup's direction aim for the top of the bin, ik to a position slightly above the object
             #ik down
             #
+            try:
+                target=perception.getGoal()
+            except:
+                print 'perception not set up yet'
+                target = DEFAULT_GOAL
+
+
             step = 1;
 
             bin = 'bin_H'
@@ -1976,107 +1997,84 @@ class PickingController:
 
             if step==1:
                 #move to the top center of the bin
-
-                target = knowledge.getBinFrontCenterTop(bin)
-
-                self.debugPoints.append(target)
-
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target)
+                target1 = knowledge.getBinFrontCenterTop(bin)
+                self.debugPoints.append(target1)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-
                 print target
-
-
                 print 'trying step1 ik'
                 step1 = self.simpleIK(limb=limb, goal=ikGoal)
-
                 self.sendPath(path=step1, limb=limb)
                 #self.sendPath(path=step1, limb = limb)
-
                 time.sleep(2)
 
                 step =3
 
-            if step==2:
-                #move towards the object
-                # check to make sure point is within the
-
-                target = knowledge.getBinMidCenterTop(bin)
-
-                self.debugPoints.append(target)
-                
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target)
-                step2 = self.simpleIK(limb=limb, goal=ikGoal)
-                #ik to top center of bin, normal to the shelf
-                #use ik seed and knowledge of shelf
-                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-
-                print 'trying step2 ik'
-                self.sendPath(path=step2, limb=limb)
-
-                time.sleep(2)
-
-                step = 3
+            # if step==2:
+            #     #move towards the object
+            #     # check to make sure point is within the
+            #     target = knowledge.getBinMidCenterTop(bin)
+            #     self.debugPoints.append(target)
+            #     ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target)
+            #     step2 = self.simpleIK(limb=limb, goal=ikGoal)
+            #     #ik to top center of bin, normal to the shelf
+            #     #use ik seed and knowledge of shelf
+            #     # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+            #     print 'trying step2 ik'
+            #     self.sendPath(path=step2, limb=limb)
+            #     time.sleep(2)
+            #     step = 3
 
             if step==3:
-                #move to the target + some z direction (not more than we currently are at or else quit)
-
-                try:
-                    target = perception.getGoal()
-                except:
-                    print 'perception to get goal not integrated'
-                    target = DEFAULT_GOAL
                 #keep the x, y - throw out the z
 
                 #check to make sure target is actually in bin
-
-                newTarget = knowledge.getBinMidCenterTop(bin)
-                newTarget[0] = target[0]
-                newTarget[1] = target[1]
-
-                self.debugPoints.append(newTarget)
-
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=newTarget)
+                target3 = knowledge.getBinMidCenterTop(bin)
+                target3[0] = target[0]
+                target3[1] = target[1]
+                self.debugPoints.append(target3)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target3)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-
                 print 'trying step3 ik'
                 step3 = self.simpleIK(limb=limb, goal=ikGoal)
-
                 self.sendPath(path=step3, limb=limb)
-
                 time.sleep(2)
-
                 step=4
 
             if step==4 :           
                 #turn on vacuum and move down
                 try:
-                    target = perception.getGoal()
+                    vacuumController.change_vacuum_state(1)
                 except:
-                    print 'perception to get goal not integrated'
-                    target = DEFAULT_GOAL
-
+                    print 'Error in vacuum Controller'
                 #keep the x, y - throw out the z
-                self.debugPoints.append(target)
+                target4 = target
+                self.debugPoints.append(target4)
                 #check to make sure target is actually in bin
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=DEFAULT_GOAL)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target4)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-
                 print 'trying step4 ik'
                 step4 = self.simpleIK(limb=limb, goal=ikGoal)
-
                 self.sendPath(path=step4, limb = limb)
-
                 print 'Got to step 4'
 
+                step = 5
+
+            if step==5:
+                #pull back out
+
+                self.sendPath(path=step3, limb=limb)
+                self.sendPath(path=step1, limb=limb)
 
 
+                #check that object is still held
+                return True
 
         else:
             bin = None
@@ -2130,10 +2128,12 @@ class PickingController:
                 pass
                 #take the reverse path back out of the bins - something is in front of the front of the shelf
 
+            #get back out from 
+
         # print 'physical simulation is on'
         # PHYSICAL_SIMULATION = 1
 
-    def moveToObjectInBinFromSide(self, position, limb, step):
+    def moveToObjectInBinFromSide(self, position, limb, step, naiive = True):
         #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
         #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
         #Assumes we have determined we want to pick up the object from above
@@ -2142,36 +2142,174 @@ class PickingController:
         #We want to aim into the shelf with the suction cup down and enter with the wrist pointing in the direction of the normal of the shelf
 
 
-        if step==1:
-            #ik to top center of bin, normal to the shelf
-            #use ik seed and knowledge of shelf
-            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-            pass
-        elif step==2:
-            #step 2: enter along vacuum/wrist axis until far enough in
-            pass
-        elif step==3:
-            #step 3: rotate suction cup so that it moves towards the normal
+        DEFAULT_GOAL = [1.1151453560415345, -0.046864004769163026, 1.1370113707939946]
+        DEFAULT_NORMAL = [0, 1, 1] #45 degree angle
 
-            #if we collide with something, move out, down and then back in (push the object away)
-            pass
-        elif step==4:
-            #move until you intersect the normal
-            pass
-        elif step==5:
-            #step5: roate suction to be normal to object
-            pass
-        elif step==6:
-            #turn vacuum on
-            #attempt to move down to half the object's height from the ground
-            pass
-        elif step==7:
-            #check to make sure we have sucked something and that it is not the shelf
-            #throw in various other checks here
-            pass
-        elif step==8: 
-            pass
-            #take the reverse path back out of the bin
+        target = []
+        normal = []
+
+        step1 =[]
+        step2 = []
+        step3 = []
+        step4 = []
+        step5 = []
+
+        if naiive:
+            #fix the suction cup's direction aim for the top of the bin, ik to a position slightly above the object
+            #ik down
+            #
+
+            target = []
+            normal = []
+            try:
+                target=perception.getGoal()
+            except:
+                print 'perception goal not set up yet'
+                target = DEFAULT_GOAL
+
+            try:
+                target = perception.getNormal()
+            except:
+                print 'perception normal not set up yet'
+                normal = DEFAULT_NORMAL
+
+
+            #step 1 move to the top middle of the front face of the given bin
+            #step 2 move in as far as the target indicates (rotation about x)
+            #   -i.e. given point is x,y,z keep z and y the same as before but move in a given x distance
+            #step 3 get the normal and compute a point that is 5cm away - move - rotate the suction cup while doing this
+            #   note: 1 = 1m so 5cm = 0.05
+            #step 4 move to the actual point utilizing the normal to position the suction cup
+
+
+            step = 1
+
+            bin = 'bin_H'
+            if limb =='left':
+                #bin = self.left_bin
+                pass
+            elif limb =='right':
+                #bin = self.right_bin
+                pass
+
+            if step==1:
+                #move to the top center of the bin
+                target = knowledge.getBinFrontCenterTop(bin)
+                self.debugPoints.append(target)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+                print target
+                print 'trying step1 ik'
+                step1 = self.simpleIK(limb=limb, goal=ikGoal)
+                self.sendPath(path=step1, limb=limb)
+                time.sleep(2)
+
+                step =2
+
+            if step==2:
+                target2 = knowledge.getBinFrontCenterTop(bin)
+                self.debugPoints.append(target)
+
+                #dummy = knowledge.applyShelfXform([target[0], 0, 0])
+                dummy = se3.mul(self.percetionTransform, [target[0], 0, 0])
+
+                target2[0] = dummy[0]
+
+                #target should be the middle of the bin, near the top but only so far in as would be indicated by x
+
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target2)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+                print target
+                print 'trying step2 ik'
+                step1 = self.simpleIK(limb=limb, goal=ikGoal)
+                self.sendPath(path=step1, limb=limb)
+                time.sleep(2)
+
+                step =3
+
+
+            if step==3:
+                #keep the x, y - throw out the z
+
+                #check to make sure target is actually in bin
+
+                target3 = target
+
+                self.debugPoints.append(vectorops.add(target, vectorops.mul(vectorops.unit(normal), 0.05)))
+                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target3, normal = vectorops.unit(normal), normalDisplacement = 0.05)
+                print 'trying step3 ik'
+                step3 = self.simpleIK(limb=limb, goal=ikGoal)
+                self.sendPath(path=step3, limb=limb)
+                time.sleep(2)
+                step=4
+
+            if step==4 :           
+                #turn on vacuum and move down
+                #keep the x, y - throw out the z
+                #check to make sure target is actually in bin
+                try:
+                    vacuumController.change_vacuum_state(1)
+                except:
+                    print 'Error in vacuum Controller'
+
+                target4= target
+                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target4, normal = klampt.vectorops.unit(normal), normalDisplacement = 0)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+
+                print 'trying step4 ik'
+                step4 = self.simpleIK(limb=limb, goal=ikGoal)
+
+                self.sendPath(path=step4, limb = limb)
+
+                print 'Got to step 4'
+
+                step = 5
+
+            if step ==5:
+                self.sendPath(path = step3, limb=limb)
+                self.sendPath(path = step2, limb = limb)
+                self.sendPath(path=step1, limb=limb)
+                #check that object is still held
+
+                return True
+
+        else:
+            if step==1:
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+                pass
+            elif step==2:
+                #step 2: enter along vacuum/wrist axis until far enough in
+                pass
+            elif step==3:
+                #step 3: rotate suction cup so that it moves towards the normal
+
+                #if we collide with something, move out, down and then back in (push the object away)
+                pass
+            elif step==4:
+                #move until you intersect the normal
+                pass
+            elif step==5:
+                #step5: roate suction to be normal to object
+                pass
+            elif step==6:
+                #turn vacuum on
+                #attempt to move down to half the object's height from the ground
+                pass
+            elif step==7:
+                #check to make sure we have sucked something and that it is not the shelf
+                #throw in various other checks here
+                pass
+            elif step==8: 
+                pass
+                #take the reverse path back out of the bin
 
 
         #potential issues - something is in front of the front of the shelf
@@ -2402,6 +2540,29 @@ class PickingController:
         appliedTransform = self.perceptionTransform
 
         targetAxisConstraint = vectorops.add(target, so3.apply(appliedTransform[0], [offset, 0,0]))
+
+        print 'target = ', target
+        print 'targetZOffset = ', targetZOffset
+        print 'targetAxisConstraint = ', targetAxisConstraint
+        print 'Distance between the two =', vectorops.distance(target, targetAxisConstraint)
+        #might be better to apply perception transform
+
+        vacuumPoint = self.vacuumTransform[1]
+        vacuumOffset = vectorops.add(self.vacuumTransform[1], [offset, 0, 0])
+        vacuumAxisOffset = vectorops.add(self.vacuumTransform[1], [0,0,offset])
+
+        return ik.objective(self.robot.link(limb+'_wrist'), local = [vacuumPoint, vacuumOffset, vacuumAxisOffset], world=[target, targetZOffset, targetAxisConstraint])
+
+    def buildIKGoalSuctionNormal(self, limb, target, normal, offset = 0.5, normalDisplacement = 0):
+
+        #appliedTransform = knowledge.shelf_xform
+        target = vectorops.add(target, vectorops.mul(normal, normalDisplacement))
+
+
+        appliedTransform = self.perceptionTransform
+
+        targetAxisConstraint = vectorops.add(target, so3.apply(appliedTransform[0], [offset, 0,0]))
+        targetZOffset = vectorops.add(target, vectorops.mul(normal, -offset))
 
         print 'target = ', target
         print 'targetZOffset = ', targetZOffset
