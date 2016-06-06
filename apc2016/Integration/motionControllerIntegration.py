@@ -648,18 +648,23 @@ class PickingController:
             max_global_bound = se3.apply(knowledge.shelf_xform, max_local_bound)
             if min_global_bound[0] < max_global_bound[0]:
                 min_global_x = min_global_bound[0]
+                max_global_x = max_global_bound[0]
             else:
                 min_global_x = max_global_bound[0]
-
+                max_global_x = min_global_bound[0]
             if min_global_bound[1] < max_global_bound[1]:
                 min_global_y = min_global_bound[1]
+                max_global_y = max_global_bound[1]
             else:
                 min_global_y = max_global_bound[1]
+                max_global_y = min_global_bound[1]
             
             if min_global_bound[2] < max_global_bound[2]:
                 min_global_z = min_global_bound[2]
+                max_global_z = max_global_bound[2]
             else:
                 min_global_z = max_global_bound[2]
+                max_global_z = min_global_bound[2]
             self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), colorful=True, crop=True, 
                 bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]])
             self.bin_render_downsample_rate = 1
