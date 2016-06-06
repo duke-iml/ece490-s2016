@@ -91,34 +91,24 @@ class stowHandler:
 
         self.currentWeight=newWeight
 
-    	if objWeight<17:
-    		return ["oral_b_toothbrush_green", "oral_b_toothbrush_red"]
-    	elif objWeight<22:
-    		return ["expo_dry_erase_board_eraser","scotch_bubble_mailer"]
+    	if objWeight<22:
+    		return ["expo_dry_erase_board_eraser","scotch_bubble_mailer","oral_b_toothbrush_green", "oral_b_toothbrush_red"]
     	elif objWeight<28:
     		return ["fiskars_scissors_red"]
-    	elif objWeight<31:
-    		return ["womens_knit_gloves"]
     	elif objWeight<37:
-    		return ["cloud_b_plush_bear"]
+    		return ["cloud_b_plush_bear","womens_knit_gloves"]
     	elif objWeight<47:
-    		return ["platinum_pets_dog_bowl"]
+    		return ["safety_first_outlet_plugs","platinum_pets_dog_bowl"]
     	elif objWeight<55:
     		return ["kyjen_squeakin_eggs_plush_puppies"]
     	elif objWeight<60:
     		return ["cherokee_easy_tee_shirt"]
     	elif objWeight<66:
     		return ["cool_shot_glue_sticks"]
-    	elif objWeight<72:
+    	elif objWeight<73:
     		return ["dr_browns_bottle_brush","soft_white_lightbulb"]
-    	elif objWeight<76:
-    		return ["jane_eyre_dvd"]
-    	elif objWeight<79:
-    		return ["laugh_out_loud_joke_book","command_hooks"]
-    	elif objWeight<81:
-    		return ["barkely_hide_bones"]
     	elif objWeight<90:
-    		return ["ticonderoga_12_pencils"]
+    		return ["ticonderoga_12_pencils","barkely_hide_bones","laugh_out_loud_joke_book","command_hooks","jane_eyre_dvd"]
     	elif objWeight<105:
     		return ["rolodex_jumbo_pencil_cup","creativity_chenille_stems"]
     	elif objWeight<116:
@@ -127,14 +117,10 @@ class stowHandler:
     		return ["dove_beauty_bar","staples_index_cards"]
     	elif objWeight<132:
     		return ["crayola_24_ct"]
-    	elif objWeight<136:
+    	elif objWeight<137:
     		return ["easter_turtle_sippy_cup","woods_extension_cord"]
-    	elif objWeight<140:
-    		return ["scotch_duct_tape"]
-    	elif objWeight<143:
-    		return ["clorox_utility_brush","elmers_washable_no_run_school_glue"]
     	elif objWeight<156:
-    		return ["rawlings_baseball"]
+    		return ["rawlings_baseball","clorox_utility_brush","elmers_washable_no_run_school_glue","scotch_duct_tape"]
     	elif objWeight<211:
     		return ["kleenex_tissue_box"]
     	elif objWeight<262:
