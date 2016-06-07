@@ -55,8 +55,7 @@ CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
 
 import sys
 
-sys.path.insert(0, "../../common")
-sys.path.insert(0, "..")
+sys.path.insert(0, "../Sensors")
 from Sensors import scale
 import json
 import json_parser_stow
@@ -91,7 +90,9 @@ class stowHandler:
 
         self.currentWeight=newWeight
 
-    	if objWeight<22:
+    	if objWeight<10:
+            return []
+        elif objWeight<22:
     		return ["expo_dry_erase_board_eraser","scotch_bubble_mailer","oral_b_toothbrush_green", "oral_b_toothbrush_red"]
     	elif objWeight<28:
     		return ["fiskars_scissors_red"]

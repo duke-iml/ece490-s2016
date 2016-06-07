@@ -65,12 +65,12 @@ from Group2Helper import stowHandler
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 1 or ALL_ARDUINOS
+VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
@@ -346,6 +346,25 @@ class LowLevelController:
         set_model_gripper_command(self.robotModel,limb,command,spatulaPart)
         self.controller.setMilestone(self.robotModel.getConfig())
         self.lock.release()
+    def appendMilestoneRight(self, destination, dt=2, endvelocity=None):
+        self.lock.acquire()
+        myConfig = self.robotModel.getConfig()
+        if len(destination) < len(myConfig):
+            for i in range(len(right_arm_geometry_indices)):
+                myConfig[right_arm_geometry_indices[i]] = destination[i]  
+        if endvelocity == None: self.controller.addMilestoneLinear(myConfig)
+        else: self.controller.addMilestone(myConfig,endvelocity)
+        self.lock.release()
+    def appendMilestoneLeft(self, destination, dt=2, endvelocity=None):
+        self.lock.acquire()
+        myConfig = self.robotModel.getConfig()
+        if len(destination) < len(myConfig):
+            for i in range(len(left_arm_geometry_indices)):
+                myConfig[left_arm_geometry_indices[i]] = destination[i]  
+        if endvelocity == None: self.controller.addMilestoneLinear(myConfig)
+        else: self.controller.addMilestone(myConfig,endvelocity)
+        self.lock.release()
+
 
 class FakeLowLevelController:
     def __init__(self,robotModel,robotController):
@@ -404,6 +423,24 @@ class FakeLowLevelController:
         self.config = self.robotModel.getConfig()
         self.lastCommandTime = time.time()
         self.lock.release()
+    def appendMilestoneRight(self, destination, dt=2):
+        self.lock.acquire()
+        myConfig = self.robotModel.getConfig()
+        if len(destination) < len(myConfig):
+            for i in range(len(right_arm_geometry_indices)):
+                myConfig[right_arm_geometry_indices[i]] = destination[i]  
+        self.config = myConfig
+        self.lastCommandTime = time.time()
+        self.lock.release()
+    def appendMilestoneLeft(self, destination, dt=2):
+        self.lock.acquire()
+        myConfig = self.robotModel.getConfig()
+        if len(destination) < len(myConfig):
+            for i in range(len(left_arm_geometry_indices)):
+                myConfig[left_arm_geometry_indices[i]] = destination[i]  
+        self.config = myConfig
+        self.lastCommandTime = time.time()
+        self.lock.release()
 
 class PhysicalLowLevelController(LowLevelController):
     """A low-level controller for the real robot."""
@@ -413,8 +450,8 @@ class PhysicalLowLevelController(LowLevelController):
         #motion.setup(mode="physical",libpath="", klampt_model = klampt_model)
         #self.left_arm_indices = [robotModel.getLink(i).index for i in baxter.left_arm_link_names]
         #self.right_arm_indices = [robotModel.getLink(i).index for i in baxter.right_arm_link_names]
-        self.left_arm_indices = left_arm_geometry_indices + left_hand_geometry_indices
-        self.right_arm_indices = right_arm_geometry_indices + right_hand_geometry_indices
+        self.left_arm_indices = left_arm_geometry_indices
+        self.right_arm_indices = right_arm_geometry_indices 
         #if not motion.robot.startup():
         #    raise RuntimeError("Robot could not be started")
 
@@ -2323,11 +2360,17 @@ class PickingController:
 
             if limb =='both':
 
-                print 'moving to left'
-                self.moveToLeftRest()
-                print 'moving to right'
-                self.moveToRightRest()
-            
+                # print 'moving to left'
+                # self.moveToLeftRest()
+                # print 'moving to right'
+                # self.moveToRightRest()
+                pathL = [eval('Q_DEFAULT_LEFT')]
+                pathR = [eval('Q_DEFAULT_RIGHT')]
+
+
+                self.moveBothArms(pathL =pahtL,pathR = pathR, finalState = 'ready')
+
+
             elif limb == 'left':
                 self.moveToLeftRest()
 
@@ -2407,9 +2450,56 @@ class PickingController:
         if limb == 'right':
             if self.moveRightArm(statusConditional, path_name, path, finalState, reverse):
                 return True
+        if limb =='both':
+            path_nameL = path_name
+            path_nameR = path_name
+            reverseL = reverse
+            reverseR = reverse
+            pathL = path
+            pathR = path
+            if self.moveBothArms(statusConditional, path_nameL, pathL, path_nameR, pathR, finalState, reverseL, reverseR):
+                pass
         #wasn't able to move
         print 'Error with move'+limb+'arm'
         return False
+
+    def moveBothArms(self, statusConditional=None, path_nameL=None, pathL=None, path_nameR=None, finalState=None, reverseL=False, reverseR=False):
+
+        dummyConfig = [0.0]*self.robot.numLinks()
+
+        if pathL is None:
+                try:
+                    pathL = eval(path_nameL)
+                except:
+                    print 'Error no '+path_nameL+'in recorded constants'
+                    return False
+        if pathR is None:
+                try:
+                    pathR = eval(path_nameR)
+                except:
+                    print 'Error no '+path_nameR+'in recorded constants'
+                    return False
+
+        
+
+        while len(pathL) > len(pathR):
+            pathL.append(pathL[-1])
+    
+        while len(pathR) > len(pathL):
+            pathR.append(pathR[-1])
+
+        realPath = []
+        realConfig = [dummyConfig[v] for v in dummyConfig]
+        for j in range(len(pathL)):
+            realConfig = []
+            for i in range(len(self.left_arm_indices)):
+                realConfig[self.left_arm_indices[i]] = pathL[j][i]
+            for i in range(len(self.right_arm_indices)):
+                realConfig[self.right_arm_indices[i]] = pathR[j][i]                
+            realPath.append(realConfig)
+
+        self.sendPath(realPath)
+
 
     def moveLeftArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
         if(self.stateLeft == statusConditional or statusConditional == None or self.stateLeft in statusConditional):
