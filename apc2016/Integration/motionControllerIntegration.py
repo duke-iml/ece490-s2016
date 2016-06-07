@@ -70,7 +70,7 @@ PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 0 or ALL_ARDUINOS
+VACUUM = 1 or ALL_ARDUINOS
 
 SPEED = 3
 
@@ -591,7 +591,9 @@ class PickingController:
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.013904755755343905, 0.9994709798204462, 0.029400990870081654, 0.008185473524082682, 0.02951662704126083, -0.9995307732887939, -0.9998698194217949, -0.013657570240181879, -0.008591564733139484], [-0.14500000000000005, -0.03, 0.075])
 
-        self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.010000000000000002, 0.02, 0.55])
+        #self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.010000000000000002, 0.02, 0.55]) #straight
+        self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.04, 0.035, 0.51])                 #90 degrees
+
 
         #transform to end effector
 
@@ -759,8 +761,8 @@ class PickingController:
             min_global_z = max_global_bound[2]
             max_global_z = min_global_bound[2]
 
-        pos, cloud = perceiver.get_picking_position_for_stowing(bin_letter, *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
-            bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]])
+        pos, cloud = perceiver.get_picking_position_for_single_item_bin(bin_letter, *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
+            bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]], return_bin_content_cloud=True)
         
         print 'Picking position is:', pos
         self.pick_pick_pos = pos
@@ -1052,8 +1054,8 @@ class PickingController:
 
                             self.moveToOffset(limb, q_name = scan_name)                    
 
-
                             time.sleep(5)
+                            self.getPickPositionForPick(bin_letter=b[4], limb=limb)
                             
                             if limb == 'left':
                                 self.left_bin = b
@@ -2088,7 +2090,8 @@ class PickingController:
             #ik down
             #
             try:
-                target=perception.getGoal()
+                target = self.pick_pick_pos
+                assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
             except:
                 print 'perception not set up yet'
                 target = DEFAULT_GOAL
@@ -2096,14 +2099,12 @@ class PickingController:
 
             step = 1;
 
-            bin = 'bin_H'
+            bin = None
             if limb =='left':
-                #bin = self.left_bin
-                pass
+                bin = self.left_bin
             elif limb =='right':
-                #bin = self.right_bin
-                pass
-
+                bin = self.right_bin
+                
             if step==1:
                 #move to the top center of the bin
                 target1 = knowledge.getBinFrontCenterTop(bin)
@@ -2271,10 +2272,12 @@ class PickingController:
             target = []
             normal = []
             try:
-                target=perception.getGoal()
+                target = self.pick_pick_pos
+                assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
             except:
-                print 'perception goal not set up yet'
+                print 'perception not set up yet'
                 target = DEFAULT_GOAL
+
 
             try:
                 target = perception.getNormal()
@@ -2794,8 +2797,8 @@ class PickingController:
             self.robot.setConfig([conf for conf in q_seed])
 
             if ik.solve(goal, tol=tol):
-                path.append([conf for conf in self.simworld.robot(0).getConfig()])
-                print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
+                path.append([conf for conf in self.robot.getConfig()])
+                print 'Found Transform is ', self.robot.link(limb+'_wrist').getTransform()
                 print 'Solved at ', i
                 #self.sendPath(path=path, limb=limb)
                 return path
@@ -3108,16 +3111,18 @@ class PickingController:
         if PHYSICAL_SIMULATION:
             i = 0
             endIndex = len(path)            
-            if endIndex==1:
-                q=path[0]
-                path[0]=self.robot.getConfig()
-                path.append(q)
+            # if endIndex==1:
+            #     q=path[0]
+            #     path[0]=self.robot.getConfig()
+            #     path.append(q)
 
             counter = 0
 
             path.append(path[-1])
             endIndex = len(path)
         
+            print 'myPath = ', path
+
             while i <endIndex-1:
                 # print i, endIndex
                 q = path[i]
@@ -3515,8 +3520,11 @@ class MyGLViewer(GLRealtimeProgram):
             glPointSize(5)
             glBegin(GL_POINTS)
             glVertex3f(* se3.mul(self.simworld.robot(0).link('right_wrist').getTransform(), self.picking_controller.vacuumTransform)[1])
+            #glVertex3f(*se3.mul(self.simworld.robot(0).link('right_wrist').getTransform(), self.pickick_controller.vacuumTransform))
             glEnd()
             glEnable(GL_LIGHTING)
+
+            gldraw.xform_widget(se3.mul(self.simworld.robot(0).link('right_wrist').getTransform(), self.picking_controller.vacuumTransform), 0.05, 0.01)
 
             glDisable(GL_LIGHTING)
             glColor3f(0, 0, 1)
@@ -3961,7 +3969,7 @@ def run_controller(controller,command_queue):
                 if not ( ('a'<=bin_letter.lower()<='l') or bin_letter.lower()=='t' ):
                     print 'Unrecognized Letter. Canceled'
                     continue
-                controller.getPickPositionForPick(bin_letter, limb=DEFAULT_LIMB)
+                controller.getPickPositionForPick(bin_letter.upper(), limb=DEFAULT_LIMB)
             elif c=='l':
                 controller.getPickPositionForStow(limb=DEFAULT_LIMB)
             elif c=='v':

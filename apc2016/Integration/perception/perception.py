@@ -183,9 +183,9 @@ class Perceiver(object):
 		print 'Done. Found %d components. '%n_components
 		return cropped_cloud, labels, n_components
 
-	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, bin_bound=None, 
+	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, bin_bound=None, 
 		perturb_xform=None, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.01):
-		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, 
+		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
 			colorful=False, fit=fit, threshold=shelf_subtraction_threshold)
 		cropped_cloud, labels, n_components = self.crop_and_segment(bin_content_cloud, bin_bound, perturb_xform, cc_threshold)
 		cropped_cloud_with_color = np.hstack( (cropped_cloud, np.zeros( (cropped_cloud.shape[0],1) ) ) )
@@ -205,7 +205,7 @@ class Perceiver(object):
 
 		return (x,y,z) coordinate in global frame of position that has something to suck. 
 		'''
-		bin_content_cloud = get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, 
+		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
 			colorful=colorful, fit=fit, threshold=threshold, crop=crop, bin_bound=bin_bound, perturb_xform=None)
 		xs = bin_content_cloud[:,0]
 		ys = bin_content_cloud[:,1]
@@ -225,12 +225,16 @@ class Perceiver(object):
 		z_inrange = np.logical_and(zs >= zmin, zs <= zmax)
 		inrange = reduce(np.logical_and, [x_inrange, y_inrange, z_inrange])
 		bin_content_cloud_inrange = bin_content_cloud[inrange, :]
-		cloud_inrange_xy = bin_content_cloud_inrange[:, 0:2]
-		gaussian_kernel = gaussian_kde(cloud_inrange_xy.T)
-		x_grid, y_grid, z_grid = np.meshgrid(np.linspace(xmin, xmax, 100), np.linspace(ymin, ymax, 100), np.linspace(zmin, zmax, 100), indexing='ij')
+		cloud_inrange_xyz = bin_content_cloud_inrange[:, 0:3]
+		gaussian_kernel = gaussian_kde(cloud_inrange_xyz.T)
+		print 'making grid'
+		x_grid, y_grid, z_grid = np.meshgrid(np.linspace(xmin, xmax, 30), np.linspace(ymin, ymax, 30), np.linspace(zmin, zmax, 30), indexing='ij')
 		positions = np.vstack([x_grid.ravel(), y_grid.ravel(), z_grid.ravel()])
+		print 'calculating density'
 		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
+		print 'argmax-ing'
 		max_idx = densities.argmax()
+		print 'done'
 		if not return_bin_content_cloud:
 			return x_grid.flatten()[max_idx], y_grid.flatten()[max_idx], z_grid.flatten()[max_idx]
 		else:
