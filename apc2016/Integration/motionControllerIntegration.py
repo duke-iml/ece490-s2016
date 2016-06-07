@@ -65,8 +65,8 @@ from Group2Helper import stowHandler
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -3035,17 +3035,20 @@ class PickingController:
 
 
         if not readConstants:
+            print "total", len(path), "milestones in path"
             for j in xrange(0, len(path)):
+                print "moving to milestone #", j
             # for q in path[1:]:
-                for i in [23,30,31,43,50,51,54]:
-                    # print i, qmin[i], q[i], qmax[i]
-                    path[j][i] = 0
+                #for i in [23,30,31,43,50,51,54]:
+                #    # print i, qmin[i], q[i], qmax[i]
+                #    path[j][i] = 0
 
-                if clearRightArm:
-                    q[35] = -0.3
+                #if clearRightArm:
+                #    q[35] = -0.3
 
                 #q = self.clampJointLimits(q,qmin,qmax)
 
+                print "PHYSICAL_SIMULATION=",PHYSICAL_SIMULATION
                 if not PHYSICAL_SIMULATION:
                     self.controller.controller.setVelocity([1]*61,0.1)
                     self.controller.appendMilestone(path[j])
@@ -3072,15 +3075,17 @@ class PickingController:
         # print "reached"
         if PHYSICAL_SIMULATION:
             i = 0
-            endIndex = len(path)
+            endIndex = len(path)            
             if endIndex==1:
                 q=path[0]
                 path[0]=self.robot.getConfig()
+                path.append(q)
 
             counter = 0
 
             path.append(path[-1])
-            
+            endIndex = len(path)
+        
             while i <endIndex-1:
                 # print i, endIndex
                 q = path[i]
@@ -3112,6 +3117,7 @@ class PickingController:
             elif limb == 'right':
                 self.controller.appendMilestoneRight(path[-1])
             else:
+                print "blah"
                 self.controller.appendMilestone(path[-1])
             # print 'Done with moving'
 
