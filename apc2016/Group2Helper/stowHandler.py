@@ -54,8 +54,8 @@ CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
 5.12, 4, 3, 3] 
 
 import sys
-
-sys.path.insert(0, "../Sensors")
+import time
+sys.path.insert(0, "../")
 from Sensors import scale
 import json
 import json_parser_stow
@@ -66,22 +66,25 @@ class stowHandler:
         
         self.scale = None
         self.currentWeight = 100
-        try:
-            self.scale=scale.Scale()
-            self.currentWeight=self.scale.read().split(' ')[0]
-            print 'Initial Reading', self.currentWeight
-            self.currentWeight = self.currentWeight.split(' ')[0]
-            print 'Numeric Reading', self.currentWeight
-        except:
-            print 'Scale not connected'
+        # try:
+        self.scale=scale.Scale_Measurement()
+
+        self.currentWeight=float(self.scale.readData(10).split(' ')[0])
+        print 'Initial Reading', self.currentWeight
+        # self.currentWeight = self.currentWeight.split(' ')[0]
+        print 'Numeric Reading', self.currentWeight
+    # except:
+        # print 'Scale not connected'
 
         if filename is not None:
             (binContents, toteContents)=self.parser.readInFile(filename)
             print toteContents
     def pickWhichObj(self, debug=False):
-    	newWeight=self.scale.read()
+    	newWeight = float(self.scale.readData(10).split(' ')[0])
+        print newWeight
+        # newWeight=self.scale.readData(10)
         #newWeight=100
-    	objWeight=self.currentWeight-newWeight
+    	objWeight=-(self.currentWeight-newWeight)
 
     	
         if (debug):
@@ -92,8 +95,10 @@ class stowHandler:
 
     	if objWeight<10:
             return []
-        elif objWeight<22:
-    		return ["expo_dry_erase_board_eraser","scotch_bubble_mailer","oral_b_toothbrush_green", "oral_b_toothbrush_red"]
+        elif objWeight<21:
+            return ["oral_b_toothbrush_green", "oral_b_toothbrush_red"]
+        elif objWeight<23:
+    		return ["expo_dry_erase_board_eraser","scotch_bubble_mailer"]
     	elif objWeight<28:
     		return ["fiskars_scissors_red"]
     	elif objWeight<37:
@@ -152,5 +157,7 @@ class stowHandler:
 if __name__ == "__main__":
     FILE_NAME="apc_stow_task.json"
     a=stowHandler(FILE_NAME)
-    print a.pickWhichObj()
+    while(1):
+        time.sleep(4)
+        print a.pickWhichObj()
 
