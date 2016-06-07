@@ -65,8 +65,8 @@ from Group2Helper import stowHandler
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -611,10 +611,12 @@ class PickingController:
         self.bin_content_cloud = None
         self.bin_render_downsample_rate = 5
         self.bin_render_ptsize = 1
+        self.pick_pick_pos = None
+
         self.tote_cloud = None
         self.tote_render_downsample_rate = 5
         self.tote_render_ptsize = 1
-        self.pick_pos = None
+        self.stow_pick_pos = None
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -688,11 +690,6 @@ class PickingController:
             min_local_bound, max_local_bound = local_bound
             min_global_bound = se3.apply(knowledge.shelf_xform, min_local_bound)
             max_global_bound = se3.apply(knowledge.shelf_xform, max_local_bound)
-            
-            # if SHOW_BIN_BOUNDS:
-            # # for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:
-            # for letter in ['F']:
-            #     draw_wire_box(*map(lambda p:se3.apply(knowledge.shelf_xform, p), apc.bin_bounds['bin_'+letter]))
 
             if min_global_bound[0] < max_global_bound[0]:
                 min_global_x = min_global_bound[0]
@@ -713,8 +710,6 @@ class PickingController:
             else:
                 min_global_z = max_global_bound[2]
                 max_global_z = min_global_bound[2]
-            print 'min:', min_global_bound
-            print 'max:', max_global_bound
             self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
                 bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]])
             self.bin_render_downsample_rate = 1
@@ -738,10 +733,47 @@ class PickingController:
             self.tote_render_downsample_rate = 1
             self.tote_render_ptsize = 5
 
+    def getPickPositionForPick(self, bin_letter, limb='left'):
+        local_bound = apc.bin_bounds['bin_'+bin_letter]
+        min_local_bound, max_local_bound = local_bound
+        min_global_bound = se3.apply(knowledge.shelf_xform, min_local_bound)
+        max_global_bound = se3.apply(knowledge.shelf_xform, max_local_bound)
+        
+        if min_global_bound[0] < max_global_bound[0]:
+            min_global_x = min_global_bound[0]
+            max_global_x = max_global_bound[0]
+        else:
+            min_global_x = max_global_bound[0]
+            max_global_x = min_global_bound[0]
+        if min_global_bound[1] < max_global_bound[1]:
+            min_global_y = min_global_bound[1]
+            max_global_y = max_global_bound[1]
+        else:
+            min_global_y = max_global_bound[1]
+            max_global_y = min_global_bound[1]
+        
+        if min_global_bound[2] < max_global_bound[2]:
+            min_global_z = min_global_bound[2]
+            max_global_z = max_global_bound[2]
+        else:
+            min_global_z = max_global_bound[2]
+            max_global_z = min_global_bound[2]
+
+        pos, cloud = perceiver.get_picking_position_for_stowing(bin_letter, *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
+            bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]])
+        
+        print 'Picking position is:', pos
+        self.pick_pick_pos = pos
+        self.bin_content_cloud = cloud
+        self.bin_render_downsample_rate = 1
+        self.bin_render_ptsize = 5
+
+        
+
     def getPickPositionForStow(self, limb='left'):
         pos, cloud = perceiver.get_picking_position_for_stowing(*self.getCameraToWorldXform(limb), limb=limb, fit=True, return_tote_content_cloud=True)
         print 'Picking position is:', pos
-        self.pick_pos = pos
+        self.stow_pick_pos = pos
         self.tote_cloud = cloud
         self.tote_render_downsample_rate = 1
         self.tote_render_ptsize = 5
@@ -772,7 +804,7 @@ class PickingController:
 
             #take a picture and get a position to move back
 
-            #global x,y = self.pick_pos
+            #global x,y = self.stow_pick_pos
 
     def prepGraspFromToteAction(self, limb):
 
@@ -792,7 +824,7 @@ class PickingController:
 
         #x = forward
         #y = left
-        goalXY = self.pick_pos
+        goalXY = self.stow_pick_pos
         # goalXY = [0.5,-0.5]
         startZ = 1
         endZ = .1
@@ -3035,17 +3067,20 @@ class PickingController:
 
 
         if not readConstants:
+            print "total", len(path), "milestones in path"
             for j in xrange(0, len(path)):
+                print "moving to milestone #", j
             # for q in path[1:]:
-                for i in [23,30,31,43,50,51,54]:
-                    # print i, qmin[i], q[i], qmax[i]
-                    path[j][i] = 0
+                #for i in [23,30,31,43,50,51,54]:
+                #    # print i, qmin[i], q[i], qmax[i]
+                #    path[j][i] = 0
 
-                if clearRightArm:
-                    q[35] = -0.3
+                #if clearRightArm:
+                #    q[35] = -0.3
 
                 #q = self.clampJointLimits(q,qmin,qmax)
 
+                print "PHYSICAL_SIMULATION=",PHYSICAL_SIMULATION
                 if not PHYSICAL_SIMULATION:
                     self.controller.controller.setVelocity([1]*61,0.1)
                     self.controller.appendMilestone(path[j])
@@ -3072,15 +3107,17 @@ class PickingController:
         # print "reached"
         if PHYSICAL_SIMULATION:
             i = 0
-            endIndex = len(path)
+            endIndex = len(path)            
             if endIndex==1:
                 q=path[0]
                 path[0]=self.robot.getConfig()
+                path.append(q)
 
             counter = 0
 
             path.append(path[-1])
-            
+            endIndex = len(path)
+        
             while i <endIndex-1:
                 # print i, endIndex
                 q = path[i]
@@ -3112,6 +3149,7 @@ class PickingController:
             elif limb == 'right':
                 self.controller.appendMilestoneRight(path[-1])
             else:
+                print "blah"
                 self.controller.appendMilestone(path[-1])
             # print 'Done with moving'
 
@@ -3504,14 +3542,18 @@ class MyGLViewer(GLRealtimeProgram):
             points = self.picking_controller.bin_content_cloud
             if points is not None:
                 self.glShowPointCloud(points, self.picking_controller.bin_render_downsample_rate, self.picking_controller.bin_render_ptsize)
+            pick_pick_pos = self.picking_controller.pick_pick_pos
+            if pick_pick_pos is not None:
+                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [pick_pick_pos[0], pick_pick_pos[1], pick_pick_pos[2]]), 0.5, 0.01, fancy=False)
+                pass
 
         if SHOW_TOTE_CONTENT:
             points = self.picking_controller.tote_cloud
             if points is not None:
                 self.glShowPointCloud(points, self.picking_controller.tote_render_downsample_rate, self.picking_controller.tote_render_ptsize)
-            pick_pos = self.picking_controller.pick_pos
-            if pick_pos is not None:
-                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [pick_pos[0], pick_pos[1], -0.1]), 1, 0.01, fancy=False)
+            stow_pick_pos = self.picking_controller.stow_pick_pos
+            if stow_pick_pos is not None:
+                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [stow_pick_pos[0], stow_pick_pos[1], -0.1]), 1, 0.01, fancy=False)
                 pass
                 
         if SHOW_BIN_BOUNDS:
@@ -3908,6 +3950,18 @@ def run_controller(controller,command_queue):
                     print 'compute time', time.time() - a
                 else:
                     controller.renderToteContent(flag=='1', limb=DEFAULT_LIMB)
+            elif c=='j':
+                print 'Get Pick Position for Single Item Bin - Press Bin Letter on GUI. Press X to cancel'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if bin_letter.lower()=='x':
+                    print 'Canceled'
+                    continue
+                if not ( ('a'<=bin_letter.lower()<='l') or bin_letter.lower()=='t' ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue
+                controller.getPickPositionForPick(bin_letter, limb=DEFAULT_LIMB)
             elif c=='l':
                 controller.getPickPositionForStow(limb=DEFAULT_LIMB)
             elif c=='v':

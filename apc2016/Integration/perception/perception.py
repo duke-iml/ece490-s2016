@@ -92,7 +92,7 @@ class Perceiver(object):
 		print 'subtract_model: keep %i points out of %i points'%(len(keep_idxs), len(all_idxs))
 		return list(keep_idxs)
 
-	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, colorful=True, fit=False, threshold=0.01,
+	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, colorful=True, fit=True, threshold=0.01,
 		crop=False, bin_bound=None, perturb_xform=None):
 		'''
 		return a point cloud (either colored or not) of the current bin content in the global frame. shelf is removed. 
@@ -149,7 +149,6 @@ class Perceiver(object):
 		if perturb_xform is None:
 			perturb_xform = [[1,0,0,0,1,0,0,0,1],[0,0,0]] # identity xform
 		cloud_xyz = cloud[:,0:3]
-		print perturb_xform
 		inv_perturb_R, inv_perturb_t = se3.inv(perturb_xform)
 		inv_perturb_R = np.array(inv_perturb_R).reshape(3,3).T
 		inv_perturb_t = np.array(inv_perturb_t)
@@ -197,6 +196,45 @@ class Perceiver(object):
 			pcl_float = rgb_to_pcl_float(r, g, b)
 			cropped_cloud_with_color[idxs, 3] = pcl_float
 		return cropped_cloud_with_color
+
+	def get_picking_position_for_single_item_bin(self, bin_letter, cur_camera_R, cur_camera_t, limb, 
+		colorful=True, fit=False, threshold=0.01, crop=False, bin_bound=None, perturb_xform=None, return_bin_content_cloud=False):
+	#   get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, colorful=True, fit=True, threshold=0.01, crop=False, bin_bound=None, perturb_xform=None)
+		'''
+		physical pre-condition: place the camera to the hard-coded tote-viewing position. 
+
+		return (x,y,z) coordinate in global frame of position that has something to suck. 
+		'''
+		bin_content_cloud = get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, 
+			colorful=colorful, fit=fit, threshold=threshold, crop=crop, bin_bound=bin_bound, perturb_xform=None)
+		xs = bin_content_cloud[:,0]
+		ys = bin_content_cloud[:,1]
+		zs = bin_content_cloud[:,2]
+		'''
+		ASSUMING UP IS Z DIRECTION
+		'''
+		xs_sorted = sorted(list(xs.flat))
+		ys_sorted = sorted(list(ys.flat))
+		zs_sorted = sorted(list(zs.flat))
+		N = len(xs_sorted)
+		xmin, xmax = xs_sorted[int(N*0.05)], xs_sorted[int(N*0.95)] # in the unit of meter
+		ymin, ymax = ys_sorted[int(N*0.05)], ys_sorted[int(N*0.95)]
+		zmin, zmax = zs_sorted[int(N*0.05)], zs_sorted[int(N*0.95)]
+		x_inrange = np.logical_and(xs >= xmin, xs <= xmax)
+		y_inrange = np.logical_and(ys >= ymin, ys <= ymax)
+		z_inrange = np.logical_and(zs >= zmin, zs <= zmax)
+		inrange = reduce(np.logical_and, [x_inrange, y_inrange, z_inrange])
+		bin_content_cloud_inrange = bin_content_cloud[inrange, :]
+		cloud_inrange_xy = bin_content_cloud_inrange[:, 0:2]
+		gaussian_kernel = gaussian_kde(cloud_inrange_xy.T)
+		x_grid, y_grid, z_grid = np.meshgrid(np.linspace(xmin, xmax, 100), np.linspace(ymin, ymax, 100), np.linspace(zmin, zmax, 100), indexing='ij')
+		positions = np.vstack([x_grid.ravel(), y_grid.ravel(), z_grid.ravel()])
+		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
+		max_idx = densities.argmax()
+		if not return_bin_content_cloud:
+			return x_grid.flatten()[max_idx], y_grid.flatten()[max_idx], z_grid.flatten()[max_idx]
+		else:
+			return (x_grid.flatten()[max_idx], y_grid.flatten()[max_idx], z_grid.flatten()[max_idx]), bin_content_cloud
 
 	def get_current_point_cloud(self, cur_camera_R, cur_camera_t, limb, colorful=False, tolist=True):
 		'''
