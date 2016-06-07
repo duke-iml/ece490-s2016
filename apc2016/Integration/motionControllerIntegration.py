@@ -108,7 +108,7 @@ if REAL_JSON:
     (binList, orderList, singleItemList) = binOrderParser.workBinOrder("../JSON_FILES/apc_pick_task.json")
 
 
-perceiver = perception.Perceiver(REAL_CAMERA)
+perceiver = perception.Perceiver()
 
 # # NOTE: Arduino stuff
 # # import Pressure_Comms
@@ -660,7 +660,7 @@ class PickingController:
         #assumes you are already at the location where you want to do the transformation
         # try:
             # sends the camera transform so that perceiver can send back the shelf transform in world frame
-        self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *self.getCameraToWorldXform(limb))
+        self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *self.getCameraToWorldXform(limb), limb=limb)
         print self.perceptionTransform
         self.perceptionTransformInv = se3.inv(self.perceptionTransform)
         knowledge.shelf_xform = self.perceptionTransform
@@ -671,23 +671,29 @@ class PickingController:
 
     def saveCanonicalBinPointCloud(self, bin_letter, limb='left'):
         print 'Saving canonical point cloud for bin', bin_letter
-        perceiver.save_canonical_bin_point_cloud(bin_letter, *self.getCameraToWorldXform(limb))
+        perceiver.save_canonical_bin_point_cloud(bin_letter, *self.getCameraToWorldXform(limb), limb=limb)
 
     def saveCanonicalTotePointCloud(self, limb='left'):
         print 'Saving canonical point cloud for tote'
-        perceiver.save_canonical_tote_cloud(*self.getCameraToWorldXform(limb))
+        perceiver.save_canonical_tote_cloud(*self.getCameraToWorldXform(limb), limb=limb)
 
     def renderBinContent(self, bin_letter, render_type, limb='left'):
         print 'Render bin content for bin %s. render_type: %s - %s'%(bin_letter, render_type, ['none', 'full', 'content', 'cc'][int(render_type)])
         if render_type in ['full', '1']:
-            self.bin_content_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), colorful=True)
+            self.bin_content_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb, colorful=True)
             self.bin_render_downsample_rate = 50
             self.bin_render_ptsize = 5
         elif render_type in ['content', '2']:
-            local_bound = self.getBounds('bin_'+bin_letter)
+            local_bound = apc.bin_bounds['bin_'+bin_letter]
             min_local_bound, max_local_bound = local_bound
             min_global_bound = se3.apply(knowledge.shelf_xform, min_local_bound)
             max_global_bound = se3.apply(knowledge.shelf_xform, max_local_bound)
+            
+            # if SHOW_BIN_BOUNDS:
+            # # for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:
+            # for letter in ['F']:
+            #     draw_wire_box(*map(lambda p:se3.apply(knowledge.shelf_xform, p), apc.bin_bounds['bin_'+letter]))
+
             if min_global_bound[0] < max_global_bound[0]:
                 min_global_x = min_global_bound[0]
                 max_global_x = max_global_bound[0]
@@ -707,12 +713,14 @@ class PickingController:
             else:
                 min_global_z = max_global_bound[2]
                 max_global_z = min_global_bound[2]
-            self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), colorful=True, crop=True, 
+            print 'min:', min_global_bound
+            print 'max:', max_global_bound
+            self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
                 bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]])
             self.bin_render_downsample_rate = 1
             self.bin_render_ptsize = 5
         elif render_type in ['cc', '3']:
-            self.bin_content_cloud = perceiver.get_current_bin_content_cc_cloud(bin_letter, *self.getCameraToWorldXform(limb))
+            self.bin_content_cloud = perceiver.get_current_bin_content_cc_cloud(bin_letter, *self.getCameraToWorldXform(limb), limb=limb)
             self.bin_render_downsample_rate = 1
             self.bin_render_ptsize = 5
 
@@ -722,16 +730,16 @@ class PickingController:
         '''
         print 'Render tote content. Also rendering tote?', including_tote
         if including_tote:
-            self.tote_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb))
+            self.tote_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb)
             self.tote_render_downsample_rate = 50
             self.tote_render_ptsize = 5
         else:
-            self.tote_cloud = perceiver.get_current_tote_content_cloud(*self.getCameraToWorldXform(limb))
+            self.tote_cloud = perceiver.get_current_tote_content_cloud(*self.getCameraToWorldXform(limb), limb=limb)
             self.tote_render_downsample_rate = 1
             self.tote_render_ptsize = 5
 
     def getPickPositionForStow(self, limb='left'):
-        pos, cloud = perceiver.get_picking_position_for_stowing(self.getCameraToWorldXform(limb)[0], self.getCameraToWorldXform(limb)[1], fit=True, return_tote_content_cloud=True)
+        pos, cloud = perceiver.get_picking_position_for_stowing(*self.getCameraToWorldXform(limb), limb=limb, fit=True, return_tote_content_cloud=True)
         print 'Picking position is:', pos
         self.pick_pos = pos
         self.tote_cloud = cloud
@@ -982,7 +990,7 @@ class PickingController:
                         self.waitForMove()
                         return True
                     else:
-                        print 'Error in placeInTotalAction'
+                        print 'Error in placeInToteAction'
                         return False
                 else:
                     print 'Error in graspFromBinAction'
@@ -1027,13 +1035,19 @@ class PickingController:
                 print 'Error in viewTote action can\'t move with no limb'
                 return False
 
-    def prepGraspFromBinAction(self, limb):
+    def prepGraspFromBinAction(self, limb, b=None):
+
+        if limb == 'left':
+            b = self.left_bin
+        elif limb == 'right':
+            b = self.right_bin
 
         if LOAD_PHYSICAL_TRAJECTORY:
             if eval('self.'+limb+'_bin') in apc.bin_names:
                 path_name = 'VIEW_TO_GRASP_' + b[4].upper() + '_' + limb.upper()
                 #EX: 'GRASP_TO_STOW_B_RIGHT'
-                if self.moveArm(limb, statusConditional = 'viewBin', path_name=path_name, final_state = 'graspPrepped'):
+
+                if self.moveArm(limb, statusConditional = 'scan', path_name=path_name, finalState = 'graspPrepped'):
                     self.waitForMove()
                     return True
                 else:
@@ -1044,14 +1058,15 @@ class PickingController:
                 return False
 
 
-    def graspFromBinAction(self, limb, bin):
+    def graspFromBinAction(self, limb, bin=None):
         #Method to be called after we've scanned and know where we want to go to grasp
         
         #Ideally move to the bin we're aiming for unless perception tells us that we can't grasp it
         self.waitForMove()
 
         if bin is None:
-            bin = 'self.'+limb+'_bin'
+            bin = eval('self.'+limb+'_bin')
+            print bin
 
         if bin in apc.bin_names:
 
@@ -1082,6 +1097,12 @@ class PickingController:
                     print 'Error perception code for point not set up'
 
                 if self.moveToObjectInBinFromTop(position=position, limb=limb, step=-1):
+
+                    if limb == 'left':
+                        self.stateLeft = 'grasp'
+                    elif limb == 'right':
+                        self.stateRight = 'grasp' 
+
                     return True
 
                 else:
@@ -1095,6 +1116,14 @@ class PickingController:
                     print 'Error perception code for point not set up'
 
                 if self.moveToObjectInBinFromSide(position=position, limb=limb, step=-1):
+
+
+
+                    if limb == 'left':
+                        self.stateLeft = 'grasp'
+                    elif limb == 'right':
+                        self.stateRight = 'grasp' 
+
                     return True
                 else: 
                     print 'Grasp Unsuccessful'
@@ -1106,27 +1135,34 @@ class PickingController:
             print 'Invalid bin', eval('self.'+limb+'_bin')
 
 
-    def placeInToteAction(self, limb):
+    def placeInToteAction(self, limb, b = None):
         #method to be called once we've grasped an object and wish to place it in the tote
         self.waitForMove()
+        if b == None:
+            b = eval('self.'+limb+'_bin')
+
+
 
         if LOAD_PHYSICAL_TRAJECTORY:
             if eval('self.'+limb+'_bin') in apc.bin_names:
                 path_name = 'GRASP_TO_STOW_' + b[4].upper() + '_' + limb.upper()
                 #EX: 'GRASP_TO_STOW_B_RIGHT'
-                if self.moveArm(limb, statusConditional = 'viewBin', path_name=path_name, final_state = 'graspPrepped'):
+                stow_name = 'Q_STOW_' + limb.upper()
+                if self.moveArm(limb, statusConditional = 'grasp', path_name=path_name, finalState = 'stow'):
                     self.waitForMove()
 
-                    try:
-                        time.sleep(2)
-                        #wait for two seconds
-                        #maybe forcewait until it's in stow state
-                        vacuumController.change_vacuum_state(0)
-                    except:
-                        print 'Error in vacuum Controller'
-
-
-                    return True
+                    if self.moveArm(limb, statusConditional = 'stow', path_name = stow_name, finalState = 'done'):
+                        self.waitForMove()
+                        try:
+                            time.sleep(2)
+                            #wait for two seconds
+                            #maybe forcewait until it's in stow state
+                            vacuumController.change_vacuum_state(0)
+                        except:
+                            print 'Error in vacuum Controller'
+                            return True
+                    else:
+                        print 'Error in moving to stow location'
                 else:
                     print 'Error in moveArm (from prepGraspFromBinAction)'
                     return False
@@ -2548,6 +2584,12 @@ class PickingController:
                 len(path[0])
             except:
                 #path is a single milestone
+                if path ==[]:
+                    if finalState is not None:
+                        self.stateLeft = finalState
+                    return True
+
+                print 'Hit path exception for single milestones or empty paths'
                 path=[path]
                 path.append(path[0])
                 qAdd = None
@@ -2605,6 +2647,12 @@ class PickingController:
                 len(path[0])
             except:
                 #path is a single milestone
+                if path == []:
+                    if finalState is not None:
+                        self.stateRight = finalState
+                    return True
+
+                print 'Hit path exception for single milestones or empty paths'
                 path=[path]
                 path.append(path[0])
 
@@ -2630,6 +2678,8 @@ class PickingController:
             # ^Hyunsoo's code - delinked the arms from moving simultaneously
 
             for milestone in path:
+
+                print milestone
                 self.controller.appendMilestoneRight(milestone, 1)
                 #move to the milestone in 1 second
 
@@ -2754,7 +2804,7 @@ class PickingController:
                 time.sleep(5)
                 if singleItemList[binIndex]:
                     print "Single object..."
-                    xyPos = perceiver.perceive_single_object()
+                    # xyPos = perceiver.perceive_single_object() OLD CODE
                     if xyPos == None:
                         print "Failed to detect object"
                         return False
@@ -2762,7 +2812,7 @@ class PickingController:
                     yPos = xyPos[1]
                 else:
                     print "Multiple objects..."
-                    xyPos = perceiver.perceive(orderList[binIndex])
+                    # xyPos = perceiver.perceive(orderList[binIndex]) OLD CODE
                     if xyPos == None:
                         print "Failed to detect object"
                         return False
@@ -3235,7 +3285,7 @@ class PickingController:
 
             print self.cameraTransform
 
-            current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), tolist=False)
+            current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb, tolist=False)
             self.points = current_cloud.tolist()
 
     def calibrateVacuum(self, limb='left'):
@@ -3465,7 +3515,8 @@ class MyGLViewer(GLRealtimeProgram):
                 pass
                 
         if SHOW_BIN_BOUNDS:
-            for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:
+            # for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:
+            for letter in ['F']:
                 draw_wire_box(*map(lambda p:se3.apply(knowledge.shelf_xform, p), apc.bin_bounds['bin_'+letter]))
         # draw the shelf and floor
         # if self.simworld.numTerrains()==0:
@@ -3763,7 +3814,7 @@ def draw_oriented_wire_box(xform,bmin,bmax):
 
 
 def run_controller(controller,command_queue):
-    DEFAULT_LIMB = 'left'
+    DEFAULT_LIMB = 'right'
     while True:
         c = command_queue.get()
         if c != None:
@@ -3900,7 +3951,19 @@ def run_controller(controller,command_queue):
 
             elif c == '2':
                 controller.moveToRestConfig()
-                controller.fulfillOrderAction(orderList)
+                controller.waitForMove()
+                #controller.fulfillOrderAction(orderList)
+
+                print 'Do complete pick task - Press Bin Letter. Press X to cancel'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if bin_letter.lower()=='x':
+                    print 'Canceled'
+                    continue
+
+                controller.runPickFromBin(limb = DEFAULT_LIMB, bin='bin_'+bin_letter.upper())
+
 
                 print "================================"
                 print "Bin Order:", binList
