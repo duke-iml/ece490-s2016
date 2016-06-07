@@ -42,7 +42,6 @@ from Motion import motion
 from Motion import config
 from Motion import motion_debouncer
 
-from Sensors import scale
 
 from Group2Helper import apc
 from Group2Helper.baxter import *
@@ -50,13 +49,12 @@ from Group2Helper.motionPlanner import *
 from Group2Helper import binOrder
 
 
-import baxter_interface
+# import baxter_interface
 
 # Perception
 from perception import perception
 
 from Group2Helper import Vacuum_Comms
-from Group2Helper import stowHandler
 #================================================================
 # End of Imports
 
@@ -93,8 +91,10 @@ SHELF_STATIONARY = False
 visualizer = None
 
 if REAL_SCALE:
-     myScale = scale.Scale()
-     stowHandler = stowHandler.stowHandler()
+    from Sensors import scale
+    from Group2Helper import stowHandler
+    myScale = scale.Scale()
+    stowHandler = stowHandler.stowHandler()
 
 if REAL_JSON:
     # JSON parser
