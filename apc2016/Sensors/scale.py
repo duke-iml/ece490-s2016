@@ -5,10 +5,6 @@ import math
 
 
 
-
-
-
-
 class Scale_Measurement:
 	def __init__(self):
 		self.VENDOR_ID = 0x0922
