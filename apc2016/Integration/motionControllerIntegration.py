@@ -68,13 +68,13 @@ PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 1 or ALL_ARDUINOS
+VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
 REAL_SCALE = False
 REAL_CAMERA = True
-REAL_JSON = True
+REAL_JSON = False
 REAL_PRESSURE = False
 
 CALIBRATE = True
@@ -1055,7 +1055,7 @@ class PickingController:
                             self.moveToOffset(limb, q_name = scan_name)                    
 
                             time.sleep(5)
-                            self.getPickPositionForPick(bin_letter=b[4], limb=limb)
+                            #self.getPickPositionForPick(bin_letter=b[4], limb=limb)
                             
                             if limb == 'left':
                                 self.left_bin = b
@@ -2439,11 +2439,16 @@ class PickingController:
                 # self.moveToLeftRest()
                 # print 'moving to right'
                 # self.moveToRightRest()
-                pathL = [eval('Q_DEFAULT_LEFT')]
-                pathR = [eval('Q_DEFAULT_RIGHT')]
+                pathL = self.getLeftRestPath()
+                pathR = self.getRightRestPath()
 
-                self.moveBothArms(pathL =pathL,pathR = pathR, finalState = 'ready')
+                print pathL
+                print pathR
 
+                self.moveBothArms(pathL =pathL,pathR = pathR, finalState = 'ready', INCREMENTAL=True)
+
+                self.left_bin=None
+                self.right_bin = None
 
             elif limb == 'left':
                 self.moveToLeftRest()
@@ -2488,6 +2493,40 @@ class PickingController:
         self.moveLeftArm(path_name = 'Q_DEFAULT_LEFT', finalState = 'ready')
         self.left_bin = None
 
+    def getLeftRestPath(self):
+        path = []
+
+        if(self.stateLeft == 'scan'):
+            lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
+            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
+
+            if lPath !=[]:
+                for milestone in lPath:
+                    path.append(milestone)
+      
+        elif(self.stateLeft == 'grasp' ):
+            #not set up yet
+            # go to store then rest
+            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT')
+
+            if lPath !=[]:
+                for milestone in lPath:
+                    path.append(milestone)
+
+        elif self.stateLeft == 'stow':
+            #go right ahead through the code
+            pass
+
+        else:
+            #not set up yet
+            #find the nearest milestone and follow the path back
+            pass
+
+        path.append(eval('Q_DEFAULT_LEFT'))
+        self.left_bin = None
+
+        return path
+
     def moveToRightRest(self):
         if(self.stateRight == 'scan'):
             rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
@@ -2516,6 +2555,38 @@ class PickingController:
         self.moveRightArm(path_name = 'Q_DEFAULT_RIGHT', finalState = 'ready')
         self.right_bin = None
 
+    def getRightRestPath(self):
+        path = []
+
+        if(self.stateRight == 'scan'):
+            rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
+            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
+            if rPath !=[]:
+                for milestone in rPath:
+                    path.append(milestone)
+      
+        elif(self.stateRight == 'grasp' ):
+            #not set up yet
+            # go to store then rest
+            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()[4]+'_RIGHT')
+            if rPath != []:
+                for milestone in rPath:
+                    path.append(milestone)
+
+        elif self.stateRight == 'stow':
+            #go right ahead through the code
+            pass
+
+        else:
+            #not set up yet
+            #find the nearest milestone and follow the path back
+            pass
+
+        path.append(eval('Q_DEFAULT_RIGHT'))
+        self.right_bin = None
+
+        return path
+
     def moveArm(self, limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
         if limb == 'left':
             if self.moveLeftArm(statusConditional, path_name, path, finalState, reverse):
@@ -2536,7 +2607,7 @@ class PickingController:
         print 'Error with move'+limb+'arm'
         return False
 
-    def moveBothArms(self, statusConditional=None, path_nameL=None, pathL=None, path_nameR=None, pathR = None, finalState=None, reverseL=False, reverseR=False):
+    def moveBothArms(self, statusConditional=None, path_nameL=None, pathL=None, path_nameR=None, pathR = None, finalState=None, reverseL=False, reverseR=False, INCREMENTAL=True):
 
         dummyConfig = [0.0]*self.robot.numLinks()
 
@@ -2581,11 +2652,16 @@ class PickingController:
             #path is a single milestone                
             pathR=[pathR]
 
-        while len(pathL) > len(pathR):
+        print 'pathR before appends = ',pathR
+
+        while len(pathL) < len(pathR):
             pathL.append(pathL[-1])
+            
     
-        while len(pathR) > len(pathL):
+        while len(pathR) < len(pathL):
             pathR.append(pathR[-1])
+
+        print 'pathR after appends =', pathR
 
         realPath = []
         realConfig = [v for v in dummyConfig]
@@ -2594,10 +2670,10 @@ class PickingController:
                 realConfig[self.left_arm_indices[i]] = pathL[j][i]
             for i in range(len(self.right_arm_indices)):
                 realConfig[self.right_arm_indices[i]] = pathR[j][i]                
-            realPath.append(realConfig)
+            realPath.append([v for v in realConfig])
 
         print "realPath =", realPath
-        self.sendPath(realPath)
+        self.sendPath(path = realPath, INCREMENTAL=INCREMENTAL)
 
         if finalState is not None:
             self.stateLeft = finalState
@@ -2714,7 +2790,7 @@ class PickingController:
 
             for milestone in path:
 
-                print milestone
+                #print milestone
                 self.controller.appendMilestoneRight(milestone, 1)
                 #move to the milestone in 1 second
 
@@ -3072,7 +3148,7 @@ class PickingController:
         if not readConstants:
             print "total", len(path), "milestones in path"
             for j in xrange(0, len(path)):
-                print "moving to milestone #", j
+                #print "moving to milestone #", j
             # for q in path[1:]:
                 #for i in [23,30,31,43,50,51,54]:
                 #    # print i, qmin[i], q[i], qmax[i]
@@ -3118,10 +3194,10 @@ class PickingController:
 
             counter = 0
 
-            path.append(path[-1])
-            endIndex = len(path)
+            #path.append(path[-1])
+            #endIndex = len(path)
         
-            print 'myPath = ', path
+            #print 'myPath = ', path
 
             while i <endIndex-1:
                 # print i, endIndex
@@ -3133,7 +3209,7 @@ class PickingController:
                 # if the distance between the two is big
 
                 # Note: might want to make dt bigger for arm movements (only 7 configurations vs 52)
-                if dt>0.5:
+                if dt>0.1:
                     qInterp = vectorops.div(vectorops.add(q, qNext), 2)
                     path.insert(i+1, qInterp)
                     endIndex +=1
@@ -3154,7 +3230,6 @@ class PickingController:
             elif limb == 'right':
                 self.controller.appendMilestoneRight(path[-1])
             else:
-                print "blah"
                 self.controller.appendMilestone(path[-1])
             # print 'Done with moving'
 
