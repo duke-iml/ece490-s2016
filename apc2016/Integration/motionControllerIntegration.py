@@ -3950,15 +3950,14 @@ def run_controller(controller,command_queue):
                 print 'H: Help (Show this text)'
                 print 'E: View Bin'
                 print 'Y: Prepare Pick for Bin'
+                print 'X: Grasp Action from Tote or Bin'
+                print 'P: Place in Tote or Bin'
                 print 'I: Save Canonical Point Cloud for Bin/Tote'
                 print 'A: Render Bin Content'
                 print 'T: Render Tote Content'
                 print 'L: Get Pick Position for Stow'
                 print 'V: Change Default Limb'
                 print 'R: Move to Rest Configuration'
-                print 'X: Grasp Action'
-                print 'U: Ungrasp Action'
-                print 'P: Place in Tote'
                 print 'M: Move Gripper to Center'
                 print '`: Run ICP to Find Transformation of Perturbed Shelf'
                 print 'S: Calibrate Canonical (Unperturbed) Shelf Transformation'
@@ -3978,21 +3977,65 @@ def run_controller(controller,command_queue):
                 while bin_letter is None:
                     print bin_letter
                     bin_letter = command_queue.get()
+
+                if bin_letter.lower()=='t':
+                    controller.viewToteAction(limb=DEFAULT_LIMB)
                 if bin_letter.lower()=='x':
                     print 'Canceled'
+                    continue
+                if not ( ('a'<=bin_letter.lower()<='l') ):
+                    print 'Unrecognized Letter. Canceled'
                     continue
                 # bin_letter = raw_input('View Bin - Enter Bin Letter in Terminal: ')
                 controller.viewBinAction('bin_'+bin_letter.upper(), limb=DEFAULT_LIMB)
             elif c=='y':
-                print 'Prepare Pick for Bin - Press Bin Letter on GUI. Press X to cancel'
+                print 'Prepare Pick for Bin or Tote - Press Bin Letter on GUI or T for Tote. Press X to cancel'
                 bin_letter = command_queue.get()
                 while bin_letter is None:
                     bin_letter = command_queue.get()
+                if bin_letter.lower()=='t':
+                    print 'preparing grasp from tote'
+                    controller.prepGraspFromToteAction(limb=DEFAULT_LIMB)
                 if bin_letter.lower()=='x':
                     print 'Canceled'
                     continue
-                # bin_letter = raw_input('Prepare Pick for Bin - Enter Bin Letter in Terminal: ')
-                controller.preparePickBinAction('bin_'+bin_letter.upper(), limb=DEFAULT_LIMB)
+                if not ( ('a'<=bin_letter.lower()<='l') ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue                
+                controller.prepGraspFromBinAction( limb=DEFAULT_LIMB,b=bin_letter.upper())
+            elif c == 'x':
+                #controller.graspAction()
+                print 'Grasp Object for Bin or Tote - Press Bin Letter on GUI or T for Tote. Press X to cancel'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if bin_letter.lower()=='t':
+                    print 'Grasping from tote'
+                    controller.graspFromToteAction(limb=DEFAULT_LIMB)
+                if bin_letter.lower()=='x':
+                    print 'Canceled'
+                    continue
+
+                if not ( ('a'<=bin_letter.lower()<='l') ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue
+                controller.graspFromBinAction(limb= DEFAULT_LIMB, bin='bin_'+ bin_letter.upper())          
+            elif c == 'p':
+                print 'Place object in Tote (from Bin) or Bin (from Tote) - Press Bin Letter on GUI or T for Tote. Press X to cancel'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if bin_letter.lower()=='t':
+                    print 'Putting object in tote (from bin)'
+                    controller.placeInToteAction(limb=DEFAULT_LIMB)
+                if bin_letter.lower()=='x':
+                    print 'Canceled'
+                    continue
+                if not ( ('a'<=bin_letter.lower()<='l') ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue
+                controller.placeInBinAction(limb=DEFAULT_LIMB, bin=bin_letter.upper())
+
             elif c=='i':
                 print 'Save Canonical Point Cloud for Bin/Tote - Press Bin Letter on GUI. Press T to save tote. Press X to cancel. '
                 bin_letter = command_queue.get()
@@ -4055,15 +4098,6 @@ def run_controller(controller,command_queue):
                 print 'Limb is now ' + DEFAULT_LIMB
             elif c == 'r':
                 controller.moveToRestConfig()
-            elif c == 'x':
-                #controller.graspAction()
-                controller.graspFromBinAction(DEFAULT_LIMB, bin='bin_H')
-            elif c == 'u':
-                controller.ungraspAction()
-            elif c == 'p':
-                #controller.placeInOrderBinAction()
-                controller.graspFromToteAction(DEFAULT_LIMB)
-                #controller.placeInToteAction(DEFAULT_LIMB)
             elif c == 'm':
                 controller.move_gripper_to_center()
             elif c == '`':
