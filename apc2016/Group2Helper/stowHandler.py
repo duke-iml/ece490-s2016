@@ -62,8 +62,11 @@ import json_parser_stow
 
 class stowHandler:
     def __init__(self,filename=None):
+        self.counter = 0
         self.parser=json_parser_stow.json_parser_stow()
         
+        self.bin_dict = {}
+
         self.scale = None
         self.currentWeight = 100
         # try:
@@ -84,7 +87,7 @@ class stowHandler:
         print newWeight
         # newWeight=self.scale.readData(10)
         #newWeight=100
-    	objWeight=-(self.currentWeight-newWeight)
+    	objWeight=abs((self.currentWeight-newWeight))
 
     	
         if (debug):
@@ -93,57 +96,71 @@ class stowHandler:
 
         self.currentWeight=newWeight
 
+        item = []
+
     	if objWeight<10:
             return []
         elif objWeight<21:
-            return ["oral_b_toothbrush_green", "oral_b_toothbrush_red"]
+            item =  ["oral_b_toothbrush_green", "oral_b_toothbrush_red"]
         elif objWeight<23:
-    		return ["expo_dry_erase_board_eraser","scotch_bubble_mailer"]
+    		item = ["expo_dry_erase_board_eraser","scotch_bubble_mailer"]
     	elif objWeight<28:
-    		return ["fiskars_scissors_red"]
+    		item = ["fiskars_scissors_red"]
     	elif objWeight<37:
-    		return ["cloud_b_plush_bear","womens_knit_gloves"]
+    		item = ["cloud_b_plush_bear","womens_knit_gloves"]
     	elif objWeight<47:
-    		return ["safety_first_outlet_plugs","platinum_pets_dog_bowl"]
+    		item = ["safety_first_outlet_plugs","platinum_pets_dog_bowl"]
     	elif objWeight<55:
-    		return ["kyjen_squeakin_eggs_plush_puppies"]
+    		item = ["kyjen_squeakin_eggs_plush_puppies"]
     	elif objWeight<60:
-    		return ["cherokee_easy_tee_shirt"]
+    		item = ["cherokee_easy_tee_shirt"]
     	elif objWeight<66:
-    		return ["cool_shot_glue_sticks"]
+    		item = ["cool_shot_glue_sticks"]
     	elif objWeight<73:
-    		return ["dr_browns_bottle_brush","soft_white_lightbulb"]
+    		item = ["dr_browns_bottle_brush","soft_white_lightbulb"]
     	elif objWeight<90:
-    		return ["ticonderoga_12_pencils","barkely_hide_bones","laugh_out_loud_joke_book","command_hooks","jane_eyre_dvd"]
+    		item = ["ticonderoga_12_pencils","barkely_hide_bones","laugh_out_loud_joke_book","command_hooks","jane_eyre_dvd"]
     	elif objWeight<105:
-    		return ["rolodex_jumbo_pencil_cup","creativity_chenille_stems"]
+    		item = ["rolodex_jumbo_pencil_cup","creativity_chenille_stems"]
     	elif objWeight<116:
-    		return ["i_am_a_bunny_book"]
+    		item = ["i_am_a_bunny_book"]
     	elif objWeight<125:
-    		return ["dove_beauty_bar","staples_index_cards"]
+    		item = ["dove_beauty_bar","staples_index_cards"]
     	elif objWeight<132:
-    		return ["crayola_24_ct"]
+    		item = ["crayola_24_ct"]
     	elif objWeight<137:
-    		return ["easter_turtle_sippy_cup","woods_extension_cord"]
+    		item = ["easter_turtle_sippy_cup","woods_extension_cord"]
     	elif objWeight<156:
-    		return ["rawlings_baseball","clorox_utility_brush","elmers_washable_no_run_school_glue","scotch_duct_tape"]
+    		item = ["rawlings_baseball","clorox_utility_brush","elmers_washable_no_run_school_glue","scotch_duct_tape"]
     	elif objWeight<211:
-    		return ["kleenex_tissue_box"]
+    		item = ["kleenex_tissue_box"]
     	elif objWeight<262:
-    		return ["peva_shower_curtain_liner"]
+    		item = ["peva_shower_curtain_liner"]
     	elif objWeight<296:
-    		return ["up_glucose_bottle"]
+    		item = ["up_glucose_bottle"]
     	elif objWeight<354:
-    		return ["kleenex_paper_towels"]
+    		item = ["kleenex_paper_towels"]
     	elif objWeight<402:
-    		return ["folgers_classic_roast_coffee"]
+    		item = ["folgers_classic_roast_coffee"]
     	elif objWeight<514:
-    		return ["hanes_tube_socks"]
+    		item = ["hanes_tube_socks"]
     	elif objWeight<998:
-    		return ["dasani_water_bottle"]
+    		item = ["dasani_water_bottle"]
     	else:
-    		return ["fitness_gear_3lb_dumbbell"]
+    		item = ["fitness_gear_3lb_dumbbell"]
 
+        self.counter = self.counter+1
+
+        for element in item:
+            print element
+            if not element in self.bin_dict:
+                self.bin_dict[element] = chr(self.counter%12 + ord('A'))
+
+        return item
+
+    def getBin(self, item):
+        print self.bin_dict
+        return self.bin_dict[item[0]]
 
     def updateTote(self,objRemoved):
         if objRemoved in self.toteContents: 

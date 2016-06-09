@@ -72,7 +72,7 @@ VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
-REAL_SCALE = False # True
+REAL_SCALE = True
 REAL_CAMERA = True
 REAL_JSON = False
 REAL_PRESSURE = False
@@ -90,12 +90,15 @@ SHELF_STATIONARY = False
 #TASK = 'pick'
 TASK = 'stow'
 
+PICK_TIME = 9000
+STOW_TIME = 9000
+
+
 visualizer = None
 
 if REAL_SCALE:
     from Sensors import scale
     from Group2Helper import stowHandler
-    myScale = scale.Scale()
     stowHandler = stowHandler.stowHandler()
 
 if REAL_JSON:
@@ -136,7 +139,7 @@ order_bin_bounds = ([-0.2,-0.4,0],[0.2,0.4,0.7])
 
 SCAN_STATE = 'scan'
 GRASP_STATE = 'grasp'
-GRASP_PREPPED_STATe = 'graspPrepped'
+GRASP_PREPPED_STATE = 'graspPrepped'
 REST_STATE = 'ready'
 STOW_STATE = 'stow'
 
@@ -226,9 +229,9 @@ class KnowledgeBase:
         return [minPoint, maxPoint]
 
     def getBinFrontCenterTop(self, bin_name):
-
+        #center of the front face of the bin near the top of the bin
         minMax = self.getGlobalBounds(bin_name)
-        #get the midpoint of x, 
+        #get the min of  x, 
         #get the midpoint of y
         #get close to the top of z
         pointX = minMax[0][0]
@@ -248,6 +251,31 @@ class KnowledgeBase:
         pointZ = minMax[0][2]*.2+minMax[1][2]*.8
 
         return [pointX, pointY, pointZ]
+
+    def getBinFrontCenter(self, bin_name):
+        #center of the front face of the bin
+        minMax = self.getGlobalBounds(bin_name)
+        #get the min of  x, 
+        #get the midpoint of y
+        #get the midpoint of z
+        pointX = minMax[0][0]
+        pointY = minMax[0][1]*.5 + minMax[1][1]*.5
+        pointZ = minMax[0][2]*.5+minMax[1][2]*.5
+
+        return [pointX, pointY, pointZ]
+
+    def getBinTrueCenter(self, bin_name):
+        #get the very center of the bin
+        minMax = self.getGlobalBounds(bin_name)
+        #get the midpoint of  x, 
+        #get the midpoint of y
+        #get the midpoint of z
+        pointX = minMax[0][0]*.5 + minMax[1][0]*.5
+        pointY = minMax[0][1]*.5 + minMax[1][1]*.5
+        pointZ = minMax[0][2]*.5+minMax[1][2]*.5
+
+        return [pointX, pointY, pointZ]
+
     def applyShelfXform(self, point):
         return se3.apply(knowledge.shelf_xform, point)
 
@@ -639,6 +667,10 @@ class PickingController:
         self.left_arm_indices = left_arm_geometry_indices
         self.right_arm_indices = right_arm_geometry_indices
 
+        self.pickBin = None
+        self.pickedObject = None
+        #for use in picking
+
         # frames to draw
         self.frames = []
 
@@ -793,7 +825,22 @@ class PickingController:
 
     improve path for placeInBinAction 
     '''
+    def runStowingTask(self):
+        #
+        startTime = time.clock()
+        #print startTime
+        endTime = time.clock()
 
+        toteContents = []
+
+
+        while (endTime - startTime > STOW_TIME and toteContents is not []):
+
+            #bestLimb = evalBestLimb()
+            runPickFromTote(bestLimb)
+            endTime = time.clock()
+
+        #print out bin contents
 
 
     def runPickFromTote(self, limb):
@@ -806,8 +853,10 @@ class PickingController:
                 if self.graspFromToteAction(limb=limb):
                     self.waitForMove()
                     if self.evaluateObjectAction():
+                        #self.pickedObject should be populated
+                        #self.pickBin should be populated
                         self.waitForMove()
-                        if self.placeInBinAction(limb=limb):
+                        if self.placeInBinAction(limb=limb, bin=self.pickBin):
                             #place successful
                             #update result
                             print 'Place successful'
@@ -865,7 +914,7 @@ class PickingController:
         #y = left
         goalXY = self.stow_pick_pos
         # goalXY = [0.5,-0.5]
-        startZ = 1
+        startZ = .5
         endZ = .1
         points = 20.0
 
@@ -957,11 +1006,20 @@ class PickingController:
 
     def evaluateObjectAction(self):
         if REAL_SCALE:
-            items = stowHandler.pickWhichObject()
+            items = stowHandler.pickWhichObj(True)
+            
             if len(items)>1:
                 print 'More than One Item'
-            else:
+                self.pickBin = stowHandler.getBin(items)
+            elif len(items)==1:
                 print 'Item picked is:', items
+                self.pickBin = stowHandler.getBin(items)
+            else: 
+                print 'got no Item'
+                return False
+            print items
+            print self.pickBin
+            return True
         else:
             return True
 
@@ -986,22 +1044,92 @@ class PickingController:
         path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
 
         if self.moveArm(limb = limb, path_name =path_name ,reverse=True):
-            self.waitForMove()
 
-            #then actually move into bin a bit
+
+            if self.moveObjectIntoBin(limb = limb, bin = bin):
+
+                return True
+            else:
+                print 'Error in moving into the bin'
+
+            #then actually move into bin a bi
+        else:
+            print 'Error in moving from grasping tote object to stowing tote object'
+            return False
+
+    def moveObjectIntoBin(self, limb=None, bin=None):
+
+        step1 = []
+        step2 = []
+        path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
+        
+        if bin == None:
+            if limb =='left':
+                bin = self.left_bin
+            elif limb =='right':
+                bin = self.right_bin
+                
+            step = 1
+
+            if step==1:
+                #move to the top center of the bin
+                target1 = knowledge.getBinFrontCenter(bin)
+                self.debugPoints.append(target1)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
+                #ik to top center of bin, normal to the shelf
+                #use ik seed and knowledge of shelf
+                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+                print target
+                print 'trying step1 ik'
+                step1 = self.simpleIK(limb=limb, goal=ikGoal)
+                if step1 == []:
+                    #failed
+                    #check pressure sensor for limb
+                    # if still on, return to tote
+                    # if off, return to tote - turn vacuum off
+
+                    self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
+                    time.sleep(2)
+                    try:
+                        vacuumController.change_vacuum_state(0)
+                    except:
+                        print 'Error in vacuum Comms'
+                    return False
+                
+                self.sendPath(path=step1, limb=limb)
+                #self.sendPath(path=step1, limb = limb)
+                time.sleep(2)
+
+                step =2
+
+            if step==2: 
+                target2 = knowledge.getBinTrueCenter(bin)
+                self.debugPoints.append(target2)
+                ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
+
+                print 'trying step2 ik'
+                step2 = self.simpleIK(limb=limb, goal=ikGoal)
+                if step2 == []:
+                    #failed
+                    #check pressure sensor for limb
+                    # if still on, return to tote
+                    self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
+                    time.sleep(2)
+                    try:
+                        vacuumController.change_vacuum_state(0)
+                    except:
+                        print 'Error in vacuum Comms'
+                    return False
+
+                self.sendPath(path = step2, limb = limb)
 
             #turn vacuum off
+            time.sleep(2)
             try:
                 vacuumController.change_vacuum_state(0)
             except:
                 print 'Error in vacuum Comms'
                 return False
-
-            return True
-        else:
-            print 'Error in moving from grasping tote object to stowing tote object'
-            return False
-
 
     #================================================
     # Process for picking
@@ -1025,9 +1153,23 @@ class PickingController:
 
     def runPickingTask(self):
         #
-        pass
+        startTime = time.clock()
+        #print startTime
+        endTime = time.clock()
+
+        binQueue = []
+        armQueue = []
+
+
+        while (endTime - startTime > PICK_TIME and pickQueue is not []):
+
+            runPickFromBin(bin = binQueue.pop(0), limb = binQueue.pop(0))
+            endTime = time.clock()
 
     def runPickFromBin(self, bin, limb):
+
+        self.moveToRestConfig()
+        self.waitForMove()
         if self.viewBinAction(b=bin, limb = limb):
             self.waitForMove()
             if self.prepGraspFromBinAction(limb=limb):
@@ -1041,12 +1183,18 @@ class PickingController:
                         print 'Error in placeInToteAction'
                         return False
                 else:
+                    binQueue.append(eval('self.'+limb+'_bin'))
+                    armQueue.append(limb)
                     print 'Error in graspFromBinAction'
                     return False
             else:
+                binQueue.append(eval('self.'+limb+'_bin'))
+                armQueue.append(limb)
                 print 'Error in prepGraspFromBinAction'
                 return False
         else:
+            binQueue.append(eval('self.'+limb+'_bin'))
+            armQueue.append(limb)
             print 'Error in View Bin Action'
             return False
 
@@ -3173,7 +3321,7 @@ class PickingController:
 
                 #q = self.clampJointLimits(q,qmin,qmax)
 
-                print "PHYSICAL_SIMULATION=",PHYSICAL_SIMULATION
+                #print "PHYSICAL_SIMULATION=",PHYSICAL_SIMULATION
                 if not PHYSICAL_SIMULATION:
                     self.controller.controller.setVelocity([1]*61,0.1)
                     self.controller.appendMilestone(path[j])
@@ -3983,8 +4131,10 @@ def run_controller(controller,command_queue):
                 print 'B: Get the Bounds of Bin A'
                 print '/: Get the global position of the end effector' 
                 print 'Q: Quit'
-                print '1: Fully Autonomous Stow Run'
-                print '2: Fully Autonomous Pick Run'
+                print '1: Run Stow Task and stow object in selected bin (current default = H)'
+                print '2: Run Pick Task for selected bin'
+                print '+: Fully Autonomous Pick Run'
+                print '=: Fully Autonomous Stow Run'
             elif c=='e':
                 print 'View Bin - Press Bin Letter on GUI. Press X to cancel'
                 bin_letter = command_queue.get()
@@ -4149,7 +4299,11 @@ def run_controller(controller,command_queue):
 
                 controller.runPickFromBin(limb = DEFAULT_LIMB, bin='bin_'+bin_letter.upper())
 
+            elif c =='+':
+                controller.runPickingTask()
 
+            elif c =='=':
+                controller.runStowingTask()
                 print "================================"
                 print "Bin Order:", binList
                 print "Object Order:", orderList
