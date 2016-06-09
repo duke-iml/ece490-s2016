@@ -72,7 +72,7 @@ VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
-REAL_SCALE = False
+REAL_SCALE = False # True
 REAL_CAMERA = True
 REAL_JSON = False
 REAL_PRESSURE = False
@@ -87,6 +87,8 @@ LOAD_TRAJECTORY_DEFAULT = False
 LOAD_PHYSICAL_TRAJECTORY = True
 FORCE_WAIT = False
 SHELF_STATIONARY = False
+#TASK = 'pick'
+TASK = 'stow'
 
 visualizer = None
 
@@ -591,8 +593,13 @@ class PickingController:
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.013904755755343905, 0.9994709798204462, 0.029400990870081654, 0.008185473524082682, 0.02951662704126083, -0.9995307732887939, -0.9998698194217949, -0.013657570240181879, -0.008591564733139484], [-0.14500000000000005, -0.03, 0.075])
 
-        #self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.010000000000000002, 0.02, 0.55]) #straight
-        self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.04, 0.035, 0.51])                 #90 degrees
+        
+        self.vacuumTransform = []
+
+        if TASK == 'stow':
+            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.010000000000000002, 0.02, 0.55])
+        else:
+            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.04, 0.035, 0.51])                 #90 degrees
 
 
         #transform to end effector
@@ -787,6 +794,36 @@ class PickingController:
     improve path for placeInBinAction 
     '''
 
+
+
+    def runPickFromTote(self, limb):
+
+        #bin = getKnowledgeFromParser   
+        if self.viewToteAction(limb=limb):
+            self.waitForMove()
+            if self.prepGraspFromToteAction(limb=limb):
+                self.waitForMove()
+                if self.graspFromToteAction(limb=limb):
+                    self.waitForMove()
+                    if self.evaluateObjectAction():
+                        self.waitForMove()
+                        if self.placeInBinAction(limb=limb):
+                            #place successful
+                            #update result
+                            print 'Place successful'
+                            return True
+                        else:
+                            print 'Place In Bin Action Failed'
+                    else:
+                        print 'Evaluating the object Failed'
+                else:
+                    print 'Grasp From Tote Action Failed'
+            else:
+                print 'Prep Grasp From Tote Action Failed'
+        else:
+            print 'View action failed'
+
+        return False
     def viewToteAction(self,limb ):
 
         if LOAD_PHYSICAL_TRAJECTORY:
@@ -965,34 +1002,7 @@ class PickingController:
             print 'Error in moving from grasping tote object to stowing tote object'
             return False
 
-    def runPickFromTote(self, limb):
 
-        #bin = getKnowledgeFromParser   
-        if self.viewToteAction(limb=limb):
-            self.waitForMove()
-            if self.prepGraspFromToteAction(limb=limb):
-                self.waitForMove()
-                if self.graspFromToteAction(limb=limb):
-                    self.waitForMove()
-                    if self.evaluateObjectAction():
-                        self.waitForMove()
-                        if self.placeInBinAction(limb=limb):
-                            #place successful
-                            #update result
-                            print 'Place successful'
-                            return True
-                        else:
-                            print 'Place In Bin Action Failed'
-                    else:
-                        print 'Evaluating the object Failed'
-                else:
-                    print 'Grasp From Tote Action Failed'
-            else:
-                print 'Prep Grasp From Tote Action Failed'
-        else:
-            print 'View action failed'
-
-        return False
     #================================================
     # Process for picking
     '''TODO
@@ -1012,6 +1022,10 @@ class PickingController:
     Update Output files
 
     '''
+
+    def runPickingTask(self):
+        #
+        pass
 
     def runPickFromBin(self, bin, limb):
         if self.viewBinAction(b=bin, limb = limb):
