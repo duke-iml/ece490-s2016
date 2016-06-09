@@ -5,7 +5,7 @@ from realsense_utils.client import RemoteCamera
 from realsense_utils.common_utils import render_3d_scatter
 from realsense_utils import colorize_point_cloud
 # def colorize_point_cloud(cloud, color, depth_uv, rgb_table=None)
-import struct, icp, sys, threading, colorsys
+import struct, icp, sys, threading, colorsys, time
 from scipy.spatial import KDTree
 from scipy.sparse import dok_matrix
 from scipy.stats import gaussian_kde
@@ -439,12 +439,18 @@ class Perceiver(object):
 
 
 	def read_once(self, limb, unit='meter', Nx3_cloud=False, clean=None):
-		if limb=='right':
-			camera = RemoteCamera(RIGHT_CAMERA_IP, 30000)
-		elif limb=='left':
-			camera = RemoteCamera(LEFT_CAMERA_IP, 30000)
-		else:
-			raise Exception('Unrecognized limb '+str(limb))
+		while True:
+			try:
+				if limb=='right':
+					camera = RemoteCamera(RIGHT_CAMERA_IP, 30000)
+				elif limb=='left':
+					camera = RemoteCamera(LEFT_CAMERA_IP, 30000)
+				else:
+					raise Exception('Unrecognized limb '+str(limb))
+				break
+			except:
+				print 'Camera Connection Error. Reconnect in 1 second...'
+				time.sleep(1)
 		color, cloud, depth_uv, color_uv = camera.read()
 		camera.close()
 		if unit in ['meter', 'm']:
@@ -684,4 +690,3 @@ def save_bin():
 
 if __name__ == '__main__':
 	test_tote_subtraction()
-
