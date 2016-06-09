@@ -72,7 +72,7 @@ VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
-REAL_SCALE = True
+REAL_SCALE = False
 REAL_CAMERA = True
 REAL_JSON = False
 REAL_PRESSURE = False
@@ -837,7 +837,7 @@ class PickingController:
         while (endTime - startTime > STOW_TIME and toteContents is not []):
 
             #bestLimb = evalBestLimb()
-            runPickFromTote(bestLimb)
+            runPickFromTote(limb='right')
             endTime = time.clock()
 
         #print out bin contents
@@ -846,6 +846,9 @@ class PickingController:
     def runPickFromTote(self, limb):
 
         #bin = getKnowledgeFromParser   
+        self.moveToRestConfig()
+        self.waitForMove()
+
         if self.viewToteAction(limb=limb):
             self.waitForMove()
             if self.prepGraspFromToteAction(limb=limb):
@@ -1043,11 +1046,12 @@ class PickingController:
 
         path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
 
-        if self.moveArm(limb = limb, path_name =path_name ,reverse=True):
+        if self.moveArm(limb = limb, path_name =path_name ,reverse=True, finalState ='placeInBin'):
 
 
             if self.moveObjectIntoBin(limb = limb, bin = bin):
-
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready')
+                self.waitForMove()
                 return True
             else:
                 print 'Error in moving into the bin'
@@ -1069,68 +1073,69 @@ class PickingController:
             elif limb =='right':
                 bin = self.right_bin
                 
-            step = 1
+        step = 1
 
-            if step==1:
-                #move to the top center of the bin
-                target1 = knowledge.getBinFrontCenter(bin)
-                self.debugPoints.append(target1)
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
-                #ik to top center of bin, normal to the shelf
-                #use ik seed and knowledge of shelf
-                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                print target
-                print 'trying step1 ik'
-                step1 = self.simpleIK(limb=limb, goal=ikGoal)
-                if step1 == []:
-                    #failed
-                    #check pressure sensor for limb
-                    # if still on, return to tote
-                    # if off, return to tote - turn vacuum off
+        if step==1:
+            #move to the top center of the bin
+            target1 = knowledge.getBinFrontCenter('bin_'+bin)
+            self.debugPoints.append(target1)
+            ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
+            #ik to top center of bin, normal to the shelf
+            #use ik seed and knowledge of shelf
+            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+            print target1
+            print 'trying step1 ik'
+            step1 = self.simpleIK(limb=limb, goal=ikGoal)
+            if step1 == []:
+                #failed
+                #check pressure sensor for limb
+                # if still on, return to tote
+                # if off, return to tote - turn vacuum off
 
-                    self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
-                    time.sleep(2)
-                    try:
-                        vacuumController.change_vacuum_state(0)
-                    except:
-                        print 'Error in vacuum Comms'
-                    return False
-                
-                self.sendPath(path=step1, limb=limb)
-                #self.sendPath(path=step1, limb = limb)
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
                 time.sleep(2)
-
-                step =2
-
-            if step==2: 
-                target2 = knowledge.getBinTrueCenter(bin)
-                self.debugPoints.append(target2)
-                ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
-
-                print 'trying step2 ik'
-                step2 = self.simpleIK(limb=limb, goal=ikGoal)
-                if step2 == []:
-                    #failed
-                    #check pressure sensor for limb
-                    # if still on, return to tote
-                    self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
-                    time.sleep(2)
-                    try:
-                        vacuumController.change_vacuum_state(0)
-                    except:
-                        print 'Error in vacuum Comms'
-                    return False
-
-                self.sendPath(path = step2, limb = limb)
-
-            #turn vacuum off
+                try:
+                    vacuumController.change_vacuum_state(0)
+                except:
+                    print 'Error in vacuum Comms'
+                return False
+            
+            self.sendPath(path=step1, limb=limb)
+            #self.sendPath(path=step1, limb = limb)
             time.sleep(2)
-            try:
-                vacuumController.change_vacuum_state(0)
-            except:
-                print 'Error in vacuum Comms'
+
+            step =2
+
+        if step==2: 
+            target2 = knowledge.getBinTrueCenter('bin_'+bin)
+            self.debugPoints.append(target2)
+            ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
+
+            print 'trying step2 ik'
+            step2 = self.simpleIK(limb=limb, goal=ikGoal)
+            if step2 == []:
+                #failed
+                #check pressure sensor for limb
+                # if still on, return to tote
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
+                time.sleep(2)
+                try:
+                    vacuumController.change_vacuum_state(0)
+                except:
+                    print 'Error in vacuum Comms'
                 return False
 
+            self.sendPath(path = step2, limb = limb)
+
+        #turn vacuum off
+        time.sleep(2)
+        try:
+            vacuumController.change_vacuum_state(0)
+        except:
+            print 'Error in vacuum Comms'
+
+        self.sendPath(path = step1, limb=limb)
+        return True
     #================================================
     # Process for picking
     '''TODO
@@ -4213,6 +4218,16 @@ def run_controller(controller,command_queue):
                     controller.saveCanonicalBinPointCloud(bin_letter.upper(), limb=DEFAULT_LIMB)
                 else:
                     controller.saveCanonicalTotePointCloud(limb=DEFAULT_LIMB)
+            elif c=='j':
+                print 'Reach into bin. Press X to cancel. '
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if bin_letter.lower()=='x':
+                    print 'Canceled'
+                    continue
+
+                controller.moveObjectIntoBin(limb=DEFAULT_LIMB, bin = bin_letter.upper())
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
                 bin_letter = command_queue.get()
