@@ -954,16 +954,23 @@ class PickingController:
 
             goalXY = self.stow_pick_pos
         else:
-            myInput = None
-            while( len(myInput) != 2):
-                myInput = raw_input("Where would you like to pick? - separated by commmas")
+            myInts = []
+            while( 1):
+                myInput = raw_input("Where would you like to pick? (separated by commmas) ")
+                if myInput == 'skip':
+                    self.stow_pick_pos = [0.5, 0, 0]
+                    break
+
                 myInput = myInput.split(',')
-                self.stow_pick_pos = myInput
-                response = raw_input("Continue? y/n")
-                if response == 'y':
+                for el in myInput:
+                    myInts.append(float(el))     
+                print myInts
+                self.stow_pick_pos = myInts
+                response = raw_input("Continue? y/n ")
+                if response == 'y' and len(myInts)==3:
                     break
                 else:
-                    myInput = None
+                    myInts = []
                     self.stow_pick_pos = None
 
         # goalXY = [0.5,-0.5]
@@ -996,25 +1003,23 @@ class PickingController:
         # print link.getName(), link
         # print 'link_xform', link.getTransform()
         while goalZ > endZ:
-            global1 = [goalXY[0], goalXY[1], goalZ]
-            global2 = [goalXY[0],goalXY[1], goalZ-0.5]
+            global1 = [self.stow_pick_pos[0], self.stow_pick_pos[1], goalZ]
+            global2 = [self.stow_pick_pos[0],self.stow_pick_pos[1], goalZ-0.5]
 
             goal  = ik.objective(link,local=[local1,local2],world=[global1,global2])
             #goal1 = ik.objective(link,local=local1,world=global1)
             #goal2 = ik.objective(link,local=local2,world=global2)
 
 
-            for i in range(1000):
 
-                self.simworld.robot(0).setConfig([conf for conf in q_start])
+            self.simworld.robot(0).setConfig([conf for conf in q_start])
 
-                #if ik.solve([goal1, goal2], tol=1e-3):
-                if self.simpleIK(goal = goal, limb = limb):
-                    sortedSolutions.append([conf for conf in self.simworld.robot(0).getConfig()])
-                    print 'Goal Z = ', goalZ, ' solved at ', i
-                    break
-            else:
-                print "all failed for %f"%goalZ
+            #if ik.solve([goal1, goal2], tol=1e-3):
+            if self.simpleIK(goal = goal, limb = limb):
+                sortedSolutions.append([conf for conf in self.simworld.robot(0).getConfig()])
+                print 'Goal Z = ', goalZ, ' solved at ', i
+
+
 
             goalZ+=incZ
 
@@ -1033,29 +1038,41 @@ class PickingController:
             except:
                 print 'Error in vacuum Controller'
 
+            reversePath = []
+
             if REAL_PRESSURE:
                 index = 0
 
                 pressureDrop = False
+                print 'length of path is ', len(path)
+
 
                 while (not pressureDrop) and index < len(path):
                     print "milestone #",index
                     if i == 0:
+                        self.waitForMove()
                         self.sendPath([path[index]])
                     else:
-                        self.sendPath([path[index-1], path[index]])
+                        self.sendPath([path[index-1], path[index]], INCREMENTAL=True)
                     self.waitForMove()
                     #getPressureReading
                     #reevaluate noPressureDrop                    
 
                     pressureDrop = readPressure()
+                    print pressureDrop
                     time.sleep(0.5)
 
                     if pressureDrop:
                         #we did grab something 
                         #lift back out the reverse path
+                        self.waitForMove()
+
                         self.sendPath(path[::-1], limb=limb)
                         self.waitForMove()
+
+                        return True
+                    else:
+                        reversePath.append(path[index])
                     index= index+1
                 else:
                     #we didn't grab anything
@@ -2076,8 +2093,7 @@ class PickingController:
         sortedSolutions = []
         for solution in ikSolutions:
             # this line was buggy: the sortedSolutions only had one entry after the sort !!
-            # sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolutions])
-
+            # sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolution
             # Add initial joint values to additional joints
             n = len(solution[0])
             if len(initialConfig) < n:
@@ -2299,28 +2315,17 @@ class PickingController:
         path = [q_canonical]
         #path = [q_start]
 
-        for i in range(1000):
+        q_next = self.simpleIK(q_seed = q_canonical, limb = limb, goal=goal)
 
-            self.robot.setConfig([conf for conf in q_canonical])
-
-            if ik.solve(goal, tol=1e-3):
-                #path.append([conf for conf in self.simworld.robot(0).getConfig()])
-                path.append([conf for conf in self.robot.getConfig()])
-
-                #print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
-                #print 'Solved at ', i
-                break
+        if q_next:
+            path.append(q_next)
         else:
-            print "all failed for ik in moveToOffset"
+            print 'ik failed in moveToOffset'
             return False
-
+       
 
 
         self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
-
-        print path
-
-
 
         self.sendPath(path=path, limb=limb)
 
@@ -2480,35 +2485,9 @@ class PickingController:
                 return True
 
         else:
-            bin = None
-            if limb =='left':
-                bin = self.left_bin
-            elif limb =='right':
-                bin = self.right_bin
-
-            if step==1:
-                
-                target = knowledge.getBinFrontCenterTop(bin)
-                ikGoal = buildIKGoalSuctionDown(limb = limb, target=target)
-                #ik to top center of bin, normal to the shelf
-                #use ik seed and knowledge of shelf
-                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-
-
-                for i in range(1000):
-
-                    self.simworld.robot(0).setConfig([conf for conf in q_seed])
-
-                    if ik.solve(goal, tol=1e-4):
-                        step1.append([conf for conf in self.simworld.robot(0).getConfig()])
-                        print 'Found Transform is ', self.simworld.robot(0).link(limb+'_wrist').getTransform()
-                        print 'Solved at ', i
-                        break
-                else:
-                    print "all failed for ik in step1 of picking an object from the top"
-                    return False
-
-                self.sendPath(path=step1, limb = limb)
+           
+            if step == 1:
+                pass
 
             elif step==2:
                 #step 2: enter along vacuum/wrist axis until far enough in
@@ -3162,9 +3141,10 @@ class PickingController:
 
         return ik.objective(self.robot.link(limb+'_wrist'), local = [vacuumPoint, vacuumOffset, vacuumAxisOffset], world=[target, targetZOffset, targetAxisConstraint])
 
-    def simpleIK(self, numIter=1000, q_seed=None, tol=1e-4, limb=None, goal=None):
+    def simpleIK(self, numIter=1000, q_seed=None, tol=1e-4, limb=None, goal=None, oneSolution=True):
 
-        path = []
+        ikSolutions = []
+        sortedSolutions = []
 
         if q_seed is None:
             q_seed = [q for q in self.simworld.robot(0).getConfig()]
@@ -3177,14 +3157,45 @@ class PickingController:
 
 
             if ik.solve(goal, tol=tol):
-                path.append([conf for conf in self.robot.getConfig()])
+                ikSolutions.append([conf for conf in self.robot.getConfig()])
                 #print 'Found Transform is ', self.robot.link(limb+'_wrist').getTransform()
                 #print 'Solved at ', i
                 #self.sendPath(path=path, limb=limb)
-                return path
-        else:
+                
+        # TODO: sort path by distance from current config, and return the first one
+
+        if ikSolutions == None:
             print "all failed for ik"
             return False
+
+        for solution in ikSolutions:
+        # this line was buggy: the sortedSolutions only had one entry after the sort !!
+        # sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolution
+        # Add initial joint values to additional joints
+            print solution
+            # n = len(solution[0])
+            # if len(initialConfig) < n:
+            #     initialConfig += [0.0]*(n-len(initialConfig))
+            #     print "# links in qcmd < # links in ik solution"
+
+            dist = vectorops.distanceSquared(solution,q_seed)
+            config = solution
+            ind = solution[1]
+            sortedSolutions.append( ((dist), (config, ind)) )
+
+
+        sortedSolutions = sorted(sortedSolutions, key=itemgetter(0))
+
+        # s[0] contains the distance-sqaured values
+        # s[1] contains the ikSolution, which has [0]: config and [1]: index
+
+        if oneSolution:
+            return [s[1][0] for s in sortedSolution]
+        else:
+            return sortedSolutions
+
+
+
 
     #######################################################################################
     #Old Movement Functions
@@ -3914,8 +3925,6 @@ class MyGLViewer(GLRealtimeProgram):
             for point in self.picking_controller.debugPoints:
                 glVertex3f(*point)
             
-            if self.picking_controller.stow_pick_pos is not None:
-                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [self.picking_controller.stow_pick_pos[0], self.picking_controller.stow_pick_pos[1]]),5, 1)
 
             if self.picking_controller.pick_pick_pos is not None:
                 glVertex3f(*self.picking_controller.pick_pick_pos)
@@ -4581,7 +4590,7 @@ def load_apc_world():
 def readPressure():
     with open(PRESSURE_FILE, "rb") as f:
         valList = pickle.load(f)
-        pressureAverage = valList[0]
+        pressureAverage = float(valList[0])
         print "Vacuum Pressure: ",pressureAverage, "Threshold:", PRESSURE_THRESHOLD 
         if pressureAverage <= PRESSURE_THRESHOLD:
             "pressure dropped below threshold"
