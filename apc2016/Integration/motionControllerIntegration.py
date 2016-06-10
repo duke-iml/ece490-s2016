@@ -72,10 +72,10 @@ VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
-REAL_SCALE = True
-REAL_CAMERA = True
+REAL_SCALE = False
+REAL_CAMERA = False
 REAL_JSON = False
-REAL_PRESSURE = False
+REAL_PRESSURE = True
 
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
@@ -89,6 +89,8 @@ FORCE_WAIT = False
 SHELF_STATIONARY = False
 #TASK = 'pick'
 TASK = 'stow'
+
+PRESSURE_FILE = "../Sensors/pressureReading.pkl"
 
 PICK_TIME = 9000
 STOW_TIME = 9000
@@ -619,13 +621,13 @@ class PickingController:
         self.perceptionTransformInv =  ([1,0,0,0,1,0,0,0,1], [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
-        self.cameraTransform = ([-0.013904755755343905, 0.9994709798204462, 0.029400990870081654, 0.008185473524082682, 0.02951662704126083, -0.9995307732887939, -0.9998698194217949, -0.013657570240181879, -0.008591564733139484], [-0.14500000000000005, -0.03, 0.075])
+        self.cameraTransform = ([-0.018413903172000288, 0.9997129126747357, -0.015330375121676166, -0.09940946303721014, -0.01708761023976607, -0.994899880508058, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, 0.009999999999999983, 0.024999999999999994])
 
         
         self.vacuumTransform = []
 
         if TASK == 'stow':
-            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.010000000000000002, 0.02, 0.55])
+            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.01, -0.01, 0.55])
         else:
             self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.04, 0.035, 0.51])                 #90 degrees
 
@@ -653,7 +655,7 @@ class PickingController:
         self.tote_cloud = None
         self.tote_render_downsample_rate = 5
         self.tote_render_ptsize = 1
-        self.stow_pick_pos = None
+        self.stow_pick_pos = [0.5, 0, 0]
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -671,6 +673,8 @@ class PickingController:
         self.pickedObject = None
         #for use in picking
 
+        self.toteContents = []
+        self.binContents = []
         # frames to draw
         self.frames = []
 
@@ -831,13 +835,13 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-        toteContents = []
-
+        self.toteContents = []
+        #get toteContents 
 
         while (endTime - startTime > STOW_TIME and toteContents is not []):
 
             #bestLimb = evalBestLimb()
-            runPickFromTote(bestLimb)
+            runPickFromTote(limb='right')
             endTime = time.clock()
 
         #print out bin contents
@@ -846,6 +850,9 @@ class PickingController:
     def runPickFromTote(self, limb):
 
         #bin = getKnowledgeFromParser   
+        self.moveToRestConfig()
+        self.waitForMove()
+
         if self.viewToteAction(limb=limb):
             self.waitForMove()
             if self.prepGraspFromToteAction(limb=limb):
@@ -881,7 +888,8 @@ class PickingController:
 
                         self.waitForMove()
                         time.sleep(5)
-                        self.getPickPositionForStow(limb)
+                        if REAL_CAMERA:
+                            self.getPickPositionForStow(limb)
                         return True
                 else:
                     print "Error in moveArm (from viewToteAction)"
@@ -915,8 +923,8 @@ class PickingController:
         goalXY = self.stow_pick_pos
         # goalXY = [0.5,-0.5]
         startZ = .5
-        endZ = .1
-        points = 20.0
+        endZ = .15
+        points = 15.0
 
         incZ = (endZ-startZ)/points
 
@@ -978,19 +986,34 @@ class PickingController:
 
             if REAL_PRESSURE:
                 index = 0
-                while (noPressureDrop) and index < len(path):
-                    self.sendPath(path[index])
+
+                pressureDrop = False
+                reversePath = []
+
+                while (not pressureDrop) and index < len(path):
+                    print path[index]
+                    self.sendPath([path[index]])
                     #getPressureReading
                     #reevaluate noPressureDrop
-                    reversePath.append(path[index])
-                
-                if noPressureDrop:
-                    # we didn't grab anything
-                    return False
+                    reversePath.append([v for v in path[index]])
+                    
+
+                    with open(PRESSURE_FILE, "rb") as f:
+                        valList = pickle.load(f)
+                        val = valList[0]
+                        print "Vacuum sensor state:", val, "Pressure:", valList[1]
+                        if val == 0:
+                            pressureDrop = True
+
+                    if pressureDrop:
+                        #we did grab something 
+                        #lift back out the reverse path
+                        self.sendPath(reversePath, limb=limb)
+                    index= index+1
                 else:
-                    #we did grab something 
-                    #lift back out the reverse path
-                    self.sendPath(path[::-1], limb=limb)
+                    #we didn't grab anything
+                    print 'Didn\'t grab anything'
+                    return False
 
             else:
                 self.sendPath(path, limb=limb)
@@ -1042,13 +1065,16 @@ class PickingController:
             #like bin_A
             bin = bin[4]
 
+        self.moveArm(limb = limb, path_name = 'PREP_TOTE_STOW_'+limb.upper())
+
         path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
 
-        if self.moveArm(limb = limb, path_name =path_name ,reverse=True):
+        if self.moveArm(limb = limb, path_name =path_name ,reverse=True, finalState ='placeInBin'):
 
 
             if self.moveObjectIntoBin(limb = limb, bin = bin):
-
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready')
+                self.waitForMove()
                 return True
             else:
                 print 'Error in moving into the bin'
@@ -1070,68 +1096,82 @@ class PickingController:
             elif limb =='right':
                 bin = self.right_bin
                 
-            step = 1
+        step = 1
 
-            if step==1:
-                #move to the top center of the bin
-                target1 = knowledge.getBinFrontCenter(bin)
-                self.debugPoints.append(target1)
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
-                #ik to top center of bin, normal to the shelf
-                #use ik seed and knowledge of shelf
-                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                print target
-                print 'trying step1 ik'
-                step1 = self.simpleIK(limb=limb, goal=ikGoal)
-                if step1 == []:
-                    #failed
-                    #check pressure sensor for limb
-                    # if still on, return to tote
-                    # if off, return to tote - turn vacuum off
-
-                    self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
-                    time.sleep(2)
-                    try:
-                        vacuumController.change_vacuum_state(0)
-                    except:
-                        print 'Error in vacuum Comms'
+        if REAL_PRESSURE:
+            with open(PRESSURE_FILE, "rb") as f:
+                valList = pickle.load(f)
+                val = valList[0]
+                print "Vacuum sensor state:", val, "Pressure:", valList[1]
+                if val == 0:
+                    pressureDrop = True
+                else:
+                    # we dropped the object
+                    print 'object was dropped'
                     return False
-                
-                self.sendPath(path=step1, limb=limb)
-                #self.sendPath(path=step1, limb = limb)
+
+
+        if step==1:
+            #move to the top center of the bin
+            target1 = knowledge.getBinFrontCenter('bin_'+bin)
+            self.debugPoints.append(target1)
+            ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
+            #ik to top center of bin, normal to the shelf
+            #use ik seed and knowledge of shelf
+            # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
+            print target1
+            print 'trying step1 ik'
+            step1 = self.simpleIK(limb=limb, goal=ikGoal)
+            if step1 == []:
+                #failed
+                #check pressure sensor for limb
+                # if still on, return to tote
+                # if off, return to tote - turn vacuum off
+
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
                 time.sleep(2)
-
-                step =2
-
-            if step==2: 
-                target2 = knowledge.getBinTrueCenter(bin)
-                self.debugPoints.append(target2)
-                ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
-
-                print 'trying step2 ik'
-                step2 = self.simpleIK(limb=limb, goal=ikGoal)
-                if step2 == []:
-                    #failed
-                    #check pressure sensor for limb
-                    # if still on, return to tote
-                    self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
-                    time.sleep(2)
-                    try:
-                        vacuumController.change_vacuum_state(0)
-                    except:
-                        print 'Error in vacuum Comms'
-                    return False
-
-                self.sendPath(path = step2, limb = limb)
-
-            #turn vacuum off
+                try:
+                    vacuumController.change_vacuum_state(0)
+                except:
+                    print 'Error in vacuum Comms'
+                return False
+            
+            self.sendPath(path=step1, limb=limb)
+            #self.sendPath(path=step1, limb = limb)
             time.sleep(2)
-            try:
-                vacuumController.change_vacuum_state(0)
-            except:
-                print 'Error in vacuum Comms'
+
+            step =2
+
+        if step==2: 
+            target2 = knowledge.getBinTrueCenter('bin_'+bin)
+            self.debugPoints.append(target2)
+            ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
+
+            print 'trying step2 ik'
+            step2 = self.simpleIK(limb=limb, goal=ikGoal)
+            if step2 == []:
+                #failed
+                #check pressure sensor for limb
+                # if still on, return to tote
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
+                time.sleep(2)
+                try:
+                    vacuumController.change_vacuum_state(0)
+                except:
+                    print 'Error in vacuum Comms'
                 return False
 
+            self.sendPath(path = step2, limb = limb)
+
+        #turn vacuum off
+        time.sleep(2)
+        try:
+            vacuumController.change_vacuum_state(0)
+        except:
+            print 'Error in vacuum Comms'
+
+        self.sendPath(path = step1, limb=limb)
+        return True
     #================================================
     # Process for picking
     '''TODO
@@ -4214,6 +4254,16 @@ def run_controller(controller,command_queue):
                     controller.saveCanonicalBinPointCloud(bin_letter.upper(), limb=DEFAULT_LIMB)
                 else:
                     controller.saveCanonicalTotePointCloud(limb=DEFAULT_LIMB)
+            elif c=='j':
+                print 'Reach into bin. Press X to cancel. '
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if bin_letter.lower()=='x':
+                    print 'Canceled'
+                    continue
+
+                controller.moveObjectIntoBin(limb=DEFAULT_LIMB, bin = bin_letter.upper())
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
                 bin_letter = command_queue.get()
