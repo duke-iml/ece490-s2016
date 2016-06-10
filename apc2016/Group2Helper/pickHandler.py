@@ -1,6 +1,6 @@
 import json
 import json_parser_pick
-from bin_select_pick import binSelector
+# from bin_select_pick import binSelector
 CONST_BIN_NAMES = ['bin_A',
 'bin_B',
 'bin_C',
@@ -13,8 +13,8 @@ CONST_BIN_NAMES = ['bin_A',
 'bin_J',
 'bin_K',
 'bin_L']
-CONST_ITEM_NAMES = ["i_am_a_bunny_book",
-"laugh_out_loud_joke_book",
+CONST_ITEM_NAMES = [["i_am_a_bunny_book"],
+["laugh_out_loud_joke_book",
 "scotch_bubble_mailer",
 "scotch_bubble_mailer",
 "up_glucose_bottle",
@@ -58,7 +58,7 @@ CONST_ITEM_NAMES = ["i_am_a_bunny_book",
 "jane_eyre_dvd",
 "dove_beauty_bar",
 "staples_index_cards",
-"staples_index_cards"]
+"staples_index_cards"]]
 CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
 6, 11.3, 4, 4, 16, 2,
 1, 11.8, 3.2, 4, 3.2,
@@ -73,20 +73,44 @@ class pickHandler:
         self.parser=json_parser_pick.json_parser_pick()
         (self.binMap, self.workOrder)=self.parser.readInFile(filename)
         self.targetOrder=[]
+        self.easyTargetOrder=[]
+        self.hardTargetOrder=[]
+        self.easyBinInd=[]
+        self.hardBinInd=[]
+
         for i in range(len(CONST_BIN_NAMES)):
             self.targetOrder.append(self.workOrder[i]["item"])
-        self.binSelector=binSelector()
-        self.binSelector.initialize(filename)
+            if(CONST_ITEM_NAMES[0].count(self.workOrder[i]["item"])==0):
+                self.hardTargetOrder.append(self.workOrder[i]["item"])
+                self.hardBinInd.append(i)
+            else:
+                print self.workOrder[i]["item"]
+                print i
+                self.easyTargetOrder.append(self.workOrder[i]["item"])
+                self.easyBinInd.append(i)
+        # self.binSelector=binSelector()
+        # self.binSelector.initialize(filename)
     def workBinOrder(self):
         # filenames=['pickA.json','pickB.json','pickC.json','pickD.json','pickE.json']
         # for l in range(5):
         BinOrder=CONST_BIN_NAMES
         # filename=filenames[l]
         numObject=[len(self.binMap[BinOrder[i]]) for i in range(len(BinOrder))]
-        sortedNumInd=sorted(range(len(numObject)), key=lambda k: numObject[k])
-        sortedBinOrder=[BinOrder[sortedNumInd[i]] for i in range(len(sortedNumInd))]
-        sortedTargetOrder=[self.targetOrder[sortedNumInd[i]] for i in range(len(sortedNumInd))]
-        sortedRight=[sortedNumInd[i]%3!=0 for i in range(len(sortedNumInd))]
+        easyNumObject=[numObject[self.easyBinInd[i]] for i in range(len(self.easyBinInd))]
+        hardNumObject=[numObject[self.hardBinInd[i]] for i in range(len(self.hardBinInd))]
+        print easyNumObject
+        print hardNumObject
+        sortedEasyNumInd=sorted(range(len(easyNumObject)), key=lambda k: easyNumObject[k])
+        sortedHardNumInd=sorted(range(len(hardNumObject)), key=lambda k: hardNumObject[k])
+        sortedEasyBinOrder=[BinOrder[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
+        sortedHardBinOrder=[BinOrder[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
+        sortedBinOrder=sortedEasyBinOrder+sortedHardBinOrder
+        sortedEasyTargetOrder=[self.easyTargetOrder[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
+        sortedHardTargetOrder=[self.hardTargetOrder[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
+        sortedTargetOrder=sortedEasyTargetOrder+sortedHardTargetOrder
+        sortedEasyRight=[sortedEasyNumInd[i]%3!=0 for i in range(len(sortedEasyNumInd))]
+        sortedHardRight=[sortedHardNumInd[i]%3!=0 for i in range(len(sortedHardNumInd))]
+        sortedRight=sortedEasyRight+sortedHardRight
         # objectWeight=dict()
         # binWeightDict=dict()
         # binWeight=[]
