@@ -68,12 +68,12 @@ PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 0 or ALL_ARDUINOS
+VACUUM = 1 or ALL_ARDUINOS
 
 SPEED = 3
 
-REAL_SCALE = False
-REAL_CAMERA = False
+REAL_SCALE = True
+REAL_CAMERA = True
 REAL_JSON = False
 REAL_PRESSURE = True
 
@@ -82,7 +82,6 @@ SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceive
 SHOW_TOTE_CONTENT = True # setting this to True will show tote content as perceived by camera
 SHOW_BIN_BOUNDS = True # setting this to True will draw bin bounds
 
-CAMERA_TRANSFORM = ([1,0,0,0,1,0,0,0,1], [0,0,0])
 LOAD_TRAJECTORY_DEFAULT = False
 LOAD_PHYSICAL_TRAJECTORY = True
 FORCE_WAIT = False
@@ -91,6 +90,10 @@ SHELF_STATIONARY = False
 TASK = 'stow'
 
 PRESSURE_FILE = "../Sensors/pressureReading.pkl"
+JSON_STOW_OUTPUT_FILE = "../JSON_FILES/JSON_stow_file_output.json"
+JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
+JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
+JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
 PICK_TIME = 9000
 STOW_TIME = 9000
@@ -101,7 +104,9 @@ visualizer = None
 if REAL_SCALE:
     from Sensors import scale
     from Group2Helper import stowHandler
-    stowHandler = stowHandler.stowHandler()
+    if TASK == 'stow':
+        stowHandler = stowHandler.stowHandler(JSON_STOW_INPUT_FILE)
+        print stowHandler.getToteContents()
 
 if REAL_JSON:
     # JSON parser
@@ -835,16 +840,23 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-        self.toteContents = stowHandler.getToteContents()
+        toteContents = stowHandler.getToteContents()
         #get toteContents 
 
-        while (endTime - startTime > STOW_TIME and toteContents is not []):
+        print toteContents
+        print endTime - startTime 
+
+        print toteContents == []
+
+        while (endTime - startTime < STOW_TIME and not toteContents == []):
 
             #bestLimb = evalBestLimb()
-            runPickFromTote(limb='right')
-            self.toteContents = stowHandler.getToteContents()
+            self.runPickFromTote(limb='right')
+            toteContents = stowHandler.getToteContents()
             endTime = time.clock()
-
+            print (endTime - startTime)
+        
+        stowHandler.jsonOutput(JSON_STOW_OUTPUT_FILE)
         #print out bin contents
 
 
@@ -852,6 +864,12 @@ class PickingController:
 
         #bin = getKnowledgeFromParser   
         self.moveToRestConfig()
+
+        if limb == 'left':
+            self.moveArmAway('right')
+        elif limb == 'right':
+            self.moveArmAway('left')
+
         self.waitForMove()
 
         if self.viewToteAction(limb=limb):
@@ -2811,6 +2829,12 @@ class PickingController:
         print 'Error with move'+limb+'arm'
         return False
 
+    def moveArmAway(self, limb):
+        if limb == 'left':
+            self.moveLeftArm(path_name = 'Q_AWAY_LEFT', finalState = 'away')
+        else:
+            self.moveRightArm(path_name = 'Q_AWAY_RIGHT', finalState = 'away')
+
     def moveBothArms(self, statusConditional=None, path_nameL=None, pathL=None, path_nameR=None, pathR = None, finalState=None, reverseL=False, reverseR=False, INCREMENTAL=True):
 
         dummyConfig = [0.0]*self.robot.numLinks()
@@ -4356,17 +4380,19 @@ def run_controller(controller,command_queue):
 
             elif c =='=':
                 controller.runStowingTask()
-                print "================================"
-                print "Bin Order:", binList
-                print "Object Order:", orderList
-                print "Single Item?:", singleItemList
-                print "================================\n"
 
 
-                #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
-                global binIndex 
-                binIndex = 0
-                # for i in range(len(binList)):
+                # print "================================"
+                # print "Bin Order:", binList
+                # print "Object Order:", orderList
+                # print "Single Item?:", singleItemList
+                # print "================================\n"
+
+
+                # #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
+                # global binIndex 
+                # binIndex = 0
+                # # for i in range(len(binList)):
                 #     controller.viewBinAction(binList[i])
                 #     controller.scoopAction()
                 #     controller.move_spatula_to_center()
