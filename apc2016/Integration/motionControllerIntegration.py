@@ -660,7 +660,7 @@ class PickingController:
         self.tote_cloud = None
         self.tote_render_downsample_rate = 5
         self.tote_render_ptsize = 1
-        self.stow_pick_pos = [0.5, 0, 0]
+        self.stow_pick_pos = None
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -939,7 +939,22 @@ class PickingController:
 
         #x = forward
         #y = left
-        goalXY = self.stow_pick_pos
+        if REAL_CAMERA:
+
+            goalXY = self.stow_pick_pos
+        else:
+            myInput = None
+            while( len(myInput) != 2):
+                myInput = raw_input("Where would you like to pick? - separated by commmas")
+                myInput = myInput.split(',')
+                self.stow_pick_pos = myInput
+                response = raw_input("Continue? y/n")
+                if response == 'y':
+                    break
+                else:
+                    myInput = None
+                    self.stow_pick_pos = None
+
         # goalXY = [0.5,-0.5]
         startZ = .5
         endZ = .15
@@ -972,7 +987,6 @@ class PickingController:
             global2 = [goalXY[0],goalXY[1], goalZ-0.5]
 
             goal1 = ik.objective(link,local=local1,world=global1)
-            # goal1 = ik.objective(link,local=[0,0,0],world=[0.5782783724582089, 0.39504104980613364, 1.1248255095980265])
             goal2 = ik.objective(link,local=local2,world=global2)
 
             for i in range(1000):
@@ -1191,6 +1205,12 @@ class PickingController:
 
         self.sendPath(path = step1, limb=limb)
         return True
+    
+    # Stowing Debug
+
+    def moveToTote():
+
+
     #================================================
     # Process for picking
     '''TODO
@@ -3835,8 +3855,13 @@ class MyGLViewer(GLRealtimeProgram):
             glBegin(GL_POINTS)
             for point in self.picking_controller.debugPoints:
                 glVertex3f(*point)
+            
+            if self.stow_pick_pos is not None:
+                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [self.picking_controller.stow_pick_pos[0], self.picking_controller.stow_pick_pos[1]]),5, 1)
+
             glEnd()
             glEnable(GL_LIGHTING)
+
 
 
             # if self.picking_controller.getPerceivedPoints() is not None:
@@ -4197,6 +4222,8 @@ def run_controller(controller,command_queue):
                 print 'B: Get the Bounds of Bin A'
                 print '/: Get the global position of the end effector' 
                 print 'Q: Quit'
+
+                print 'D: '
                 print '1: Run Stow Task and stow object in selected bin (current default = H)'
                 print '2: Run Pick Task for selected bin'
                 print '+: Fully Autonomous Pick Run'
