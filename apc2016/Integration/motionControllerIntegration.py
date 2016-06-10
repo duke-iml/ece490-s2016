@@ -283,6 +283,18 @@ class KnowledgeBase:
 
         return [pointX, pointY, pointZ]
 
+    def getBinWorldPosition(self, bin_name, localPoint):
+        minMax = self.getGlobalBounds(bin_name)
+
+        se3.apply(knowledge.shelf_xform, localPoint)
+
+        if  minMax[0][0] <= localPoint[0] <= minMax[1][0] and minMax[0][1] <= localPoint[1] <= minMax[1][1] and minMax[0][2] <= localPoint[2] <= minMax[1][2]:
+            return localPoint
+        else:
+            print 'Error localPoint is outside bin'
+            return False
+
+
     def applyShelfXform(self, point):
         return se3.apply(knowledge.shelf_xform, point)
 
@@ -1208,7 +1220,8 @@ class PickingController:
     
     # Stowing Debug
 
-    def moveToTote():
+    def moveToTote(self):
+        pass
 
 
     #================================================
@@ -1340,6 +1353,7 @@ class PickingController:
         #Ideally move to the bin we're aiming for unless perception tells us that we can't grasp it
         self.waitForMove()
 
+        position = None
         if bin is None:
             bin = eval('self.'+limb+'_bin')
             print bin
@@ -1366,7 +1380,6 @@ class PickingController:
 
 
             if graspDirection[0] == 'up':
-                position = [0.5, 0.5, 0.5]
                 try:
                     position = perception.getPickPositionForPick()
                 except:
@@ -1385,7 +1398,6 @@ class PickingController:
                     print 'Grasp Unsuccessful'
                     return False
             elif graspDirection[0] =='side':
-                position = [0.5, 0.5, 0.5]
                 try:
                     position = perception.getPickPositionForPick()
                 except:
@@ -2335,8 +2347,22 @@ class PickingController:
                 target = self.pick_pick_pos
                 assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
             except:
-                print 'perception not set up yet'
-                target = DEFAULT_GOAL
+                myInput = None
+                while( len(myInput) != 3):
+                    myInput = raw_input("Where would you like to pick? - separated by commmas")
+                    myInput = myInput.split(',')
+                    self.pick_pick_pos = myInput
+                    #if not knowledge.getBinWorldPosition(point=target):
+                    #we failed
+                    #    target = None
+                    response = raw_input("Continue? y/n")
+                    if response == 'y':
+                        break
+                    else:
+                        myInput = None
+                        self.pick_pick_pos = None
+
+            target = self.pick_pick_pos
 
 
             step = 1;
@@ -3856,8 +3882,11 @@ class MyGLViewer(GLRealtimeProgram):
             for point in self.picking_controller.debugPoints:
                 glVertex3f(*point)
             
-            if self.stow_pick_pos is not None:
+            if self.picking_controller.stow_pick_pos is not None:
                 gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [self.picking_controller.stow_pick_pos[0], self.picking_controller.stow_pick_pos[1]]),5, 1)
+
+            if self.picking_controller.pick_pick_pos is not None:
+                glVertex3f(*self.picking_controller.pick_pick_pos)
 
             glEnd()
             glEnable(GL_LIGHTING)
