@@ -84,8 +84,6 @@ class pickHandler:
                 self.hardTargetOrder.append(self.workOrder[i]["item"])
                 self.hardBinInd.append(i)
             else:
-                print self.workOrder[i]["item"]
-                print i
                 self.easyTargetOrder.append(self.workOrder[i]["item"])
                 self.easyBinInd.append(i)
         # self.binSelector=binSelector()
@@ -102,15 +100,15 @@ class pickHandler:
         print hardNumObject
         sortedEasyNumInd=sorted(range(len(easyNumObject)), key=lambda k: easyNumObject[k])
         sortedHardNumInd=sorted(range(len(hardNumObject)), key=lambda k: hardNumObject[k])
-        sortedEasyBinOrder=[BinOrder[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
-        sortedHardBinOrder=[BinOrder[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
-        sortedBinOrder=sortedEasyBinOrder+sortedHardBinOrder
+        sortedEasyBinInd=[self.easyBinInd[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
+        sortedHardBinInd=[self.hardBinInd[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
+        sortedBinInd=sortedEasyBinInd+sortedHardBinInd
+        print sortedBinInd
+        sortedBinOrder=[BinOrder[sortedBinInd[i]] for i in range(len(sortedBinInd))]
         sortedEasyTargetOrder=[self.easyTargetOrder[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
         sortedHardTargetOrder=[self.hardTargetOrder[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
         sortedTargetOrder=sortedEasyTargetOrder+sortedHardTargetOrder
-        sortedEasyRight=[sortedEasyNumInd[i]%3!=0 for i in range(len(sortedEasyNumInd))]
-        sortedHardRight=[sortedHardNumInd[i]%3!=0 for i in range(len(sortedHardNumInd))]
-        sortedRight=sortedEasyRight+sortedHardRight
+        sortedRight=[sortedBinInd[i]%3!=0 for i in range(len(sortedBinInd))]
         # objectWeight=dict()
         # binWeightDict=dict()
         # binWeight=[]
