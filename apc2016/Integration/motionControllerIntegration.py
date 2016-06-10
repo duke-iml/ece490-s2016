@@ -75,7 +75,7 @@ SPEED = 3
 REAL_SCALE = False
 REAL_CAMERA = False
 REAL_JSON = False
-REAL_PRESSURE = False
+REAL_PRESSURE = 1
 
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
@@ -97,7 +97,7 @@ JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
 PICK_TIME = 9000
 STOW_TIME = 9000
-PRESSURE_THRESHOLD = 850
+PRESSURE_THRESHOLD = 865
 
 visualizer = None
 
@@ -1011,18 +1011,23 @@ class PickingController:
                 pressureDrop = False
 
                 while (not pressureDrop) and index < len(path):
-                    print path[index]
-                    self.sendPath([path[index]])
+                    print "milestone #",index
+                    if i == 0:
+                        self.sendPath([path[index]])
+                    else:
+                        self.sendPath([path[index-1], path[index]])
                     self.waitForMove()
                     #getPressureReading
                     #reevaluate noPressureDrop                    
 
                     pressureDrop = readPressure()
+                    time.sleep(0.5)
 
                     if pressureDrop:
                         #we did grab something 
                         #lift back out the reverse path
                         self.sendPath(path[::-1], limb=limb)
+                        self.waitForMove()
                     index= index+1
                 else:
                     #we didn't grab anything
@@ -4204,8 +4209,8 @@ def run_controller(controller,command_queue):
             print "Running command", c
             if c=='h':
                 print 'H: Help (Show this text)'
-                print 'E: View Bin'
-                print 'Y: Prepare Pick for Bin'
+                print 'E: View Bin or Tote'
+                print 'Y: Prepare Pick for Bin or Tote'
                 print 'X: Grasp Action from Tote or Bin'
                 print 'P: Place in Tote or Bin'
                 print 'I: Save Canonical Point Cloud for Bin/Tote'
@@ -4222,7 +4227,8 @@ def run_controller(controller,command_queue):
                 print 'F: Transform Shelf from Canonical to Perturbed Pose'
                 print 'G: Transform Shelf from Perturbed to Canonical Pose'
                 print 'C: See(C) the Tote'
-                print 'B: Get the Bounds of Bin A'
+                print 'B: Get the Bounds of a Bin'
+                print 'D: Read Pressure'
                 print '/: Get the global position of the end effector' 
                 print 'Q: Quit'
                 print '1: Run Stow Task and stow object in selected bin (current default = H)'
@@ -4368,6 +4374,9 @@ def run_controller(controller,command_queue):
                 else:
                     DEFAULT_LIMB='left'
                 print 'Limb is now ' + DEFAULT_LIMB
+            elif c =='d':
+                readPressure()
+
             elif c == 'r':
                 controller.moveToRestConfig()
             elif c == 'm':
@@ -4514,8 +4523,9 @@ def readPressure():
     with open(PRESSURE_FILE, "rb") as f:
         valList = pickle.load(f)
         pressureAverage = valList[0]
-        print "Vacuum Pressure: ",pressureAverage 
+        print "Vacuum Pressure: ",pressureAverage, "Threshold:", PRESSURE_THRESHOLD 
         if pressureAverage <= PRESSURE_THRESHOLD:
+            "pressure dropped below threshold"
             return True
         return False
 
