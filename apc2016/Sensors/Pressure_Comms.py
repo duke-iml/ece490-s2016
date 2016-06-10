@@ -12,7 +12,7 @@ class CommPressure:
 
     # initialize the serial comm
     # def __init__(self, port="COM5"):
-    def __init__(self, port="/dev/ttyACM1"):
+    def __init__(self, port="/dev/ttyACM0"):
         # on linux use port="/dev/ttyUSB2"
         # attempt to connect
         while True:
@@ -33,12 +33,13 @@ class CommPressure:
 
     # read the pressure
     def read_pressure(self):
-        self.com.reset_input_buffer()
-        self.com.reset_output_buffer()
+        #self.com.reset_input_buffer()
+        #self.com.reset_output_buffer()
         time.sleep(self.message_time)
         msg_length = 2
         msg = self.com.readline()
         m = re.search('<([\d,]+)>', msg)
+        print msg
         if m:
             feedback = m.group(1)
             feedback = str.split(feedback, ",")
@@ -53,7 +54,7 @@ if __name__ == "__main__":
     foundPort = False
     for p in ports:
         print p
-        if "Arduino Micro" in p[1]:
+        if "USB VID:PID=2341:8037" in p[2]:
             print "Port =", p[0]
             compress = CommPressure(port = p[0])
             foundPort = True

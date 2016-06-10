@@ -26,9 +26,9 @@ class CommVacuum:
                 foundPort = True
         if foundPort == False:
 
-            portArray.append('/dev/ttyACM0')
+            portArray.append('/dev/ttyACM1')
             print "No Port Found (Arduino Mega)"
-            print "Attempting to input dev/ttyACM0"
+            print "Attempting to input dev/ttyACM1"
 
 
 

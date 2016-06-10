@@ -63,11 +63,12 @@ class stowHandler:
         self.scale = None
         # self.currentWeight = 100
         # try:
-        # self.scale=scale.Scale_Measurement()
-        # self.currentWeight=float(self.scale.readData(10).split(' ')[0])
-        # print 'Initial Reading', self.currentWeight
-        # # self.currentWeight = self.currentWeight.split(' ')[0]
-        # print 'Numeric Reading', self.currentWeight
+
+        self.scale=scale.Scale_Measurement()
+        self.currentWeight=float(self.scale.readData(10).split(' ')[0])
+        print 'Initial Reading', self.currentWeight
+        # self.currentWeight = self.currentWeight.split(' ')[0]
+        print 'Numeric Reading', self.currentWeight
     # except:
         # print 'Scale not connected'
 
@@ -95,13 +96,13 @@ class stowHandler:
         
 
     def pickWhichObj(self, debug=False):
-    	# newWeight = float(self.scale.readData(10).split(' ')[0])
 
-        # newWeight=self.scale.readData(10)
-        newWeight=100
-    	objWeight=abs((self.currentWeight-newWeight))
-        objWeight=100
-    	
+        newWeight = float(self.scale.readData(10).split(' ')[0])
+
+        #newWeight=self.scale.readData(10)
+        #newWeight=100
+        objWeight=abs((self.currentWeight-newWeight))
+        
         if (debug):
             print "Object Weight is ",objWeight
             print "Because old weight was ", self.currentWeight, " & new weight is ", newWeight
@@ -111,7 +112,7 @@ class stowHandler:
         item = []
         classidx=0
 
-    	if objWeight<10:
+        if objWeight<10:
             return []
         elif objWeight<21:
             classidx=0
@@ -119,76 +120,74 @@ class stowHandler:
         elif objWeight<23:
             classidx=1
             item = self.overlap[1]
-    	elif objWeight<28:
+        elif objWeight<28:
             classidx=2
             item = self.overlap[2]
-    	elif objWeight<37:
+        elif objWeight<37:
             classidx=3
             item = self.overlap[3]
         elif objWeight<47:
             classidx=4
             item = self.overlap[4]
-    	elif objWeight<55:
+        elif objWeight<55:
             classidx=5
             item = self.overlap[5]
-    	elif objWeight<60:
+        elif objWeight<60:
             classidx=6
             item = self.overlap[6]
-    	elif objWeight<66:
+        elif objWeight<66:
             classidx=7
             item = self.overlap[7]
-    	elif objWeight<73:
+        elif objWeight<73:
             classidx=8
             item = self.overlap[8]
-    	elif objWeight<90:
+        elif objWeight<90:
             classidx=9
             item = self.overlap[9]
-    	elif objWeight<105:
+        elif objWeight<105:
             classidx=10
             item = self.overlap[10]
-    	elif objWeight<116:
+        elif objWeight<116:
             classidx=11
             item = self.overlap[11]
-    	elif objWeight<125:
+        elif objWeight<125:
             classidx=12
             item = self.overlap[12]
-    	elif objWeight<132:
+        elif objWeight<132:
             classidx=13
             item = self.overlap[13]
-    	elif objWeight<137:
+        elif objWeight<137:
             classidx=14
             item = self.overlap[14]
-    	elif objWeight<156:
+        elif objWeight<156:
             classidx=15
             item = self.overlap[15]
-    	elif objWeight<211:
+        elif objWeight<211:
             classidx=16
             item = self.overlap[16]
-    	elif objWeight<262:
+        elif objWeight<262:
             classidx=17
             item = self.overlap[17]
-    	elif objWeight<296:
+        elif objWeight<296:
             classidx=18
             item = self.overlap[18]
-    	elif objWeight<354:
+        elif objWeight<354:
             classidx=19
             item = self.overlap[19]
-    	elif objWeight<402:
+        elif objWeight<402:
             classidx=20
             item = self.overlap[20]
-    	elif objWeight<514:
+        elif objWeight<514:
             classidx=21
             item = self.overlap[21]
-    	elif objWeight<998:
+        elif objWeight<998:
             classidx=22
             item = self.overlap[22]
-    	else:
+        else:
             classidx=23
             item = self.overlap[23]
-
         self.counter = self.counter+1
-        self.candidates=list(set(item)&set(self.toteContents))
-        print self.candidates
+
         if (len(item))>0:
             if self.bin[classidx]==None:
                 (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0])
@@ -209,13 +208,11 @@ class stowHandler:
         # print self.bin
         print self.overlap
         print self.toteContents
-
         return item, self.bin[classidx]
 
-    def getBin(self, item):
-        print self.bin_dict
-        (target_bin,target_shelf) = self.binSelector.chooseBin(item[0]);
-        return target_bin
+
+    def getToteContents(self):
+        return self.toteContents
 
     def updateBin(self, bin, item):
         self.binContents[bin].append(item)
@@ -229,11 +226,11 @@ class stowHandler:
     def jsonOutput(self, filename):
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
-if __name__ == "__main__":
-    FILE_NAME="apc_stow_task.json"
-    a=stowHandler(FILE_NAME)
-    a.pickWhichObj()
-    # while(1):
-    #     time.sleep(4)
-    #     print a.pickWhichObj()
 
+# if __name__ == "__main__":
+#     FILE_NAME="apc_stow_task.json"
+#     a=stowHandler(FILE_NAME)
+#     a.pickWhichObj()
+#     # while(1):
+#     #     time.sleep(4)
+#     #     print a.pickWhichObj()
