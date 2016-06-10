@@ -283,6 +283,18 @@ class KnowledgeBase:
 
         return [pointX, pointY, pointZ]
 
+    def getBinWorldPosition(self, bin_name, localPoint):
+        minMax = self.getGlobalBounds(bin_name)
+
+        se3.apply(knowledge.shelf_xform, localPoint)
+
+        if  minMax[0][0] <= localPoint[0] <= minMax[1][0] and minMax[0][1] <= localPoint[1] <= minMax[1][1] and minMax[0][2] <= localPoint[2] <= minMax[1][2]:
+            return localPoint
+        else:
+            print 'Error localPoint is outside bin'
+            return False
+
+
     def applyShelfXform(self, point):
         return se3.apply(knowledge.shelf_xform, point)
 
@@ -659,7 +671,7 @@ class PickingController:
         self.tote_cloud = None
         self.tote_render_downsample_rate = 5
         self.tote_render_ptsize = 1
-        self.stow_pick_pos = [0.5, 0, 0]
+        self.stow_pick_pos = None
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -938,7 +950,22 @@ class PickingController:
 
         #x = forward
         #y = left
-        goalXY = self.stow_pick_pos
+        if REAL_CAMERA:
+
+            goalXY = self.stow_pick_pos
+        else:
+            myInput = None
+            while( len(myInput) != 2):
+                myInput = raw_input("Where would you like to pick? - separated by commmas")
+                myInput = myInput.split(',')
+                self.stow_pick_pos = myInput
+                response = raw_input("Continue? y/n")
+                if response == 'y':
+                    break
+                else:
+                    myInput = None
+                    self.stow_pick_pos = None
+
         # goalXY = [0.5,-0.5]
         startZ = .5
         endZ = .15
@@ -975,6 +1002,7 @@ class PickingController:
             goal  = ik.objective(link,local=[local1,local2],world=[global1,global2])
             #goal1 = ik.objective(link,local=local1,world=global1)
             #goal2 = ik.objective(link,local=local2,world=global2)
+
 
             for i in range(1000):
 
@@ -1215,6 +1243,13 @@ class PickingController:
         time.sleep(5)
         self.sendPath(path = step1, limb=limb)
         return True
+    
+    # Stowing Debug
+
+    def moveToTote(self):
+        pass
+
+
     #================================================
     # Process for picking
     '''TODO
@@ -1341,6 +1376,7 @@ class PickingController:
         #Ideally move to the bin we're aiming for unless perception tells us that we can't grasp it
         self.waitForMove()
 
+        position = None
         if bin is None:
             bin = eval('self.'+limb+'_bin')
             print bin
@@ -1367,7 +1403,6 @@ class PickingController:
 
 
             if graspDirection[0] == 'up':
-                position = [0.5, 0.5, 0.5]
                 try:
                     position = perception.getPickPositionForPick()
                 except:
@@ -1386,7 +1421,6 @@ class PickingController:
                     print 'Grasp Unsuccessful'
                     return False
             elif graspDirection[0] =='side':
-                position = [0.5, 0.5, 0.5]
                 try:
                     position = perception.getPickPositionForPick()
                 except:
@@ -2338,8 +2372,22 @@ class PickingController:
                 target = self.pick_pick_pos
                 assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
             except:
-                print 'perception not set up yet'
-                target = DEFAULT_GOAL
+                myInput = None
+                while( len(myInput) != 3):
+                    myInput = raw_input("Where would you like to pick? - separated by commmas")
+                    myInput = myInput.split(',')
+                    self.pick_pick_pos = myInput
+                    #if not knowledge.getBinWorldPosition(point=target):
+                    #we failed
+                    #    target = None
+                    response = raw_input("Continue? y/n")
+                    if response == 'y':
+                        break
+                    else:
+                        myInput = None
+                        self.pick_pick_pos = None
+
+            target = self.pick_pick_pos
 
 
             step = 1;
@@ -3865,11 +3913,20 @@ class MyGLViewer(GLRealtimeProgram):
             glBegin(GL_POINTS)
             for point in self.picking_controller.debugPoints:
                 glVertex3f(*point)
+            
+            if self.picking_controller.stow_pick_pos is not None:
+                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [self.picking_controller.stow_pick_pos[0], self.picking_controller.stow_pick_pos[1]]),5, 1)
+
+            if self.picking_controller.pick_pick_pos is not None:
+                glVertex3f(*self.picking_controller.pick_pick_pos)
+
             glVertex3f(*[1.21986850464577, -0.03790091164790879, 1.3999290005916654])
             glVertex3f(*[1.0113589055602523, -0.03790091164790879, 1.3999290005916654])
 
+
             glEnd()
             glEnable(GL_LIGHTING)
+
 
 
             # if self.picking_controller.getPerceivedPoints() is not None:
@@ -4231,6 +4288,8 @@ def run_controller(controller,command_queue):
                 print 'D: Read Pressure'
                 print '/: Get the global position of the end effector' 
                 print 'Q: Quit'
+
+                print 'D: '
                 print '1: Run Stow Task and stow object in selected bin (current default = H)'
                 print '2: Run Pick Task for selected bin'
                 print '+: Fully Autonomous Pick Run'
