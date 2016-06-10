@@ -924,7 +924,7 @@ class PickingController:
         # goalXY = [0.5,-0.5]
         startZ = .5
         endZ = .15
-        points = 20.0
+        points = 15.0
 
         incZ = (endZ-startZ)/points
 

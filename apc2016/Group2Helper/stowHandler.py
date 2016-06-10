@@ -151,10 +151,11 @@ class stowHandler:
 
         self.counter = self.counter+1
 
+        val = random.randint(0, 11)
         for element in item:
             print element
             if not element in self.bin_dict:
-                self.bin_dict[element] = chr(self.counter%12 + ord('A'))
+                self.bin_dict[element] = chr(val + ord('A'))
 
         return item
 
