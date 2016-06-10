@@ -835,13 +835,14 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-        self.toteContents = []
+        self.toteContents = stowHandler.getToteContents()
         #get toteContents 
 
         while (endTime - startTime > STOW_TIME and toteContents is not []):
 
             #bestLimb = evalBestLimb()
             runPickFromTote(limb='right')
+            self.toteContents = stowHandler.getToteContents()
             endTime = time.clock()
 
         #print out bin contents
@@ -1029,17 +1030,18 @@ class PickingController:
 
     def evaluateObjectAction(self):
         if REAL_SCALE:
-            items = stowHandler.pickWhichObj(True)
-            
-            if len(items)>1:
-                print 'More than One Item'
-                self.pickBin = stowHandler.getBin(items)
-            elif len(items)==1:
-                print 'Item picked is:', items
-                self.pickBin = stowHandler.getBin(items)
-            else: 
-                print 'got no Item'
-                return False
+            (items, self.pickBin) = stowHandler.pickWhichObj(True)
+            if self.pickBin==None:
+                print "No target object in the weight range"
+            # if len(items)>1:
+            #     print 'More than One Item'
+            #     self.pickBin = stowHandler.getBin(items)
+            # elif len(items)==1:
+            #     print 'Item picked is:', items
+            #     self.pickBin = stowHandler.getBin(items)
+            # else:
+            #     print 'got no Item'
+            #     return False
             print items
             print self.pickBin
             return True
