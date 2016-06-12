@@ -17,6 +17,8 @@ import sys, struct, time
 sys.path.insert(0, "../../common")
 sys.path.insert(0, "..")
 
+#sys.path.insert(0, "/home/hpb3/Klampt/Python")
+
 from klampt import robotsim
 from klampt.glprogram import *
 from klampt import vectorops, se3, so3, loader, gldraw, ik
@@ -63,8 +65,8 @@ from Group2Helper import Vacuum_Comms
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -294,6 +296,46 @@ class KnowledgeBase:
             print 'Error localPoint is outside bin'
             return False
 
+    def sampleBin(self, bin_name, sample=None, xPoints=3, yPoints=3, zPoints=3, startRatio = 0.1, endRatio = 0.9):
+        minMax = self.getGlobalBounds(bin_name)
+
+        if sample != None:
+            try:
+                assert(len(sample)==3)
+            except:
+                print 'error in sample size - should be a list of 3 integers'
+                return False
+            xPoints = sample[0]
+            yPoints = sample[1]
+            zPoints = sample[2]
+
+        #defaultRange = 0.1 - 0.9
+        incX = (endRatio-startRatio)/xPoints
+        incY = (endRatio-startRatio)/yPoints
+        incZ = (endRatio-startRatio)/zPoints
+
+        startX = startRatio
+
+        endX = endRatio
+        endY = endRatio
+        endZ = endRatio
+
+        returnPoints = []
+
+        while startX < endX:
+            startY = startRatio
+            while startY < endY:
+                startZ = startRatio
+                while startZ < endZ:
+                    x = startX * minMax[0][0] + (1-startX)*minMax[1][0]
+                    y = startY*minMax[0][1] + (1-startY)*minMax[1][1]
+                    z = startZ*minMax[0][2] + (1-startZ)*minMax[1][2]
+                    returnPoints.append([x,y,z])
+                    startZ = startZ + incZ
+                startY = startY +incY
+            startX = startX + incX
+
+        return returnPoints
 
     def applyShelfXform(self, point):
         return se3.apply(knowledge.shelf_xform, point)
@@ -840,6 +882,35 @@ class PickingController:
         self.tote_render_ptsize = 5
 
     #====================================================
+    '''
+    DEBUG methods
+    '''
+
+    def testIK(self, limb='right'):
+        for bin in apc.bin_names:
+            self.viewBinAction(b=bin, limb=limb)
+            self.waitForMove()
+            self.prepGraspFromBinAction(b=bin, limb=limb)
+            self.waitForMove()
+            points = knowledge.sampleBin(bin_name=bin)
+            
+            for point in points:
+
+                self.waitForMove()
+                #self.moveToObjectInBinFromSide()
+                if self.moveToObjectInBinFromTop(position=point, limb=limb):
+                    print point, 'Successful for ', bin
+                else:
+                    print point, 'Unsuccessful for ', bin
+            self.waitForMove()
+            self.moveToRestConfig()
+
+    #preprepGraspFromBinAction(self, limb, b=None)
+    #viewBinAction(self,b, limb)  
+    #moveToObjectInBinFromTop(self, position=None, limb=None, step=None, naiive=True)
+
+    #=======================================================
+
     # Process for stowing:
     '''TODO
 
@@ -1220,7 +1291,9 @@ class PickingController:
                     print '\tError in vacuum Comms'
                 return False
             
-            self.sendPath(path=step1, limb=limb)
+            #ik returns a configuration
+
+            self.sendPath(path=[step1], limb=limb)
             #self.sendPath(path=step1, limb = limb)
             time.sleep(0.5)
 
@@ -1246,7 +1319,7 @@ class PickingController:
                     print '\tError in vacuum Comms'
                 return False
 
-            self.sendPath(path = step2, limb = limb)
+            self.sendPath(path = [step2], limb = limb)
 
         #turn vacuum off
         self.waitForMove()
@@ -1258,7 +1331,7 @@ class PickingController:
 
         print "waiting for object to be released"
         time.sleep(5)
-        self.sendPath(path = step1, limb=limb)
+        self.sendPath(path = [step1], limb=limb)
         return True
     
     # Stowing Debug
@@ -2253,6 +2326,7 @@ class PickingController:
 
         assert (q_name is not None) or (milestone is not None), 'Either q_name or milestone must not be None'
 
+        self.waitForMove()
         q_start = [conf for conf in self.simworld.robot(0).getConfig()]
         #timing issues?
 
@@ -2317,6 +2391,8 @@ class PickingController:
 
         q_next = self.simpleIK(q_seed = q_canonical, limb = limb, goal=goal)
 
+        #print 'q_next is : ', q_next, 'this is the value returned from simpleIK'
+
         if q_next:
             path.append(q_next)
         else:
@@ -2364,8 +2440,9 @@ class PickingController:
         step4 = []
         step5 = []
 
-        target = []
-
+        #target = []
+        if position != None:
+            self.pick_pick_pos = position
         # print 'physical simulation is off'
         # PHYSICAL_SIMULATION = 0
 
@@ -2378,7 +2455,7 @@ class PickingController:
                 assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
             except:
                 myInput = None
-                while( len(myInput) != 3):
+                while( 1):
                     myInput = raw_input("Where would you like to pick? - separated by commmas")
                     myInput = myInput.split(',')
                     self.pick_pick_pos = myInput
@@ -2412,9 +2489,13 @@ class PickingController:
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
                 print target
-                print 'trying step1 ik'
+                #print 'trying step1 ik'
                 step1 = self.simpleIK(limb=limb, goal=ikGoal)
-                self.sendPath(path=step1, limb=limb)
+                if step1 is None:
+                    print 'ik failed in step1 of moveToObjectInBinFromTop'
+                    return False
+
+                self.sendPath(path=[step1], limb=limb)
                 #self.sendPath(path=step1, limb = limb)
                 time.sleep(2)
 
@@ -2449,7 +2530,12 @@ class PickingController:
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
                 print 'trying step3 ik'
                 step3 = self.simpleIK(limb=limb, goal=ikGoal)
-                self.sendPath(path=step3, limb=limb)
+                if step3 is None:
+                    print 'ik failed in step3 of moveToObjectInBinFromTop'
+                    return False
+
+
+                self.sendPath(path=[step3], limb=limb)
                 time.sleep(2)
                 step=4
 
@@ -2467,18 +2553,23 @@ class PickingController:
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                print 'trying step4 ik'
+                #print 'trying step4 ik'
                 step4 = self.simpleIK(limb=limb, goal=ikGoal)
-                self.sendPath(path=step4, limb = limb)
-                print 'Got to step 4'
+                if step4 is None:
+                    print 'ik failed in step4 of moveToObjectInBinFromTop'
+                    self.sendPath(path=[step1], limb=limb)
+                    return False
+
+                self.sendPath(path=[step4], limb = limb)
+                #print 'Got to step 4'
 
                 step = 5
 
             if step==5:
                 #pull back out
 
-                self.sendPath(path=step3, limb=limb)
-                self.sendPath(path=step1, limb=limb)
+                self.sendPath(path=[step3], limb=limb)
+                self.sendPath(path=[step1], limb=limb)
 
 
                 #check that object is still held
@@ -2610,7 +2701,7 @@ class PickingController:
                 print target
                 print 'trying step2 ik'
                 step1 = self.simpleIK(limb=limb, goal=ikGoal)
-                self.sendPath(path=step1, limb=limb)
+                self.sendPath(path=[step1], limb=limb)
                 time.sleep(2)
 
                 step =3
@@ -2627,7 +2718,7 @@ class PickingController:
                 ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target3, normal = vectorops.unit(normal), normalDisplacement = 0.05)
                 print 'trying step3 ik'
                 step3 = self.simpleIK(limb=limb, goal=ikGoal)
-                self.sendPath(path=step3, limb=limb)
+                self.sendPath(path=[step3], limb=limb)
                 time.sleep(2)
                 step=4
 
@@ -2649,16 +2740,16 @@ class PickingController:
                 print 'trying step4 ik'
                 step4 = self.simpleIK(limb=limb, goal=ikGoal)
 
-                self.sendPath(path=step4, limb = limb)
+                self.sendPath(path=[step4], limb = limb)
 
                 print 'Got to step 4'
 
                 step = 5
 
             if step ==5:
-                self.sendPath(path = step3, limb=limb)
-                self.sendPath(path = step2, limb = limb)
-                self.sendPath(path=step1, limb=limb)
+                self.sendPath(path = [step3], limb=limb)
+                self.sendPath(path = [step2], limb = limb)
+                self.sendPath(path=[step1], limb=limb)
                 #check that object is still held
 
                 return True
@@ -3164,38 +3255,44 @@ class PickingController:
                 
         # TODO: sort path by distance from current config, and return the first one
 
-        if ikSolutions == None:
+        if ikSolutions is None or ikSolutions ==[]:
             print "all failed for ik"
-            return False
+            return None
+
 
         for solution in ikSolutions:
         # this line was buggy: the sortedSolutions only had one entry after the sort !!
         # sortedSolutions = sorted([(vectorops.distanceSquared(solution[0],initialConfig),solution) for solution in ikSolution
         # Add initial joint values to additional joints
-            print solution
+            #print solution
             # n = len(solution[0])
             # if len(initialConfig) < n:
             #     initialConfig += [0.0]*(n-len(initialConfig))
             #     print "# links in qcmd < # links in ik solution"
 
             dist = vectorops.distanceSquared(solution,q_seed)
-            config = solution
+            config = [v for v in solution]
             ind = solution[1]
             sortedSolutions.append( ((dist), (config, ind)) )
 
 
-        sortedSolutions = sorted(sortedSolutions, key=itemgetter(0))
+        #print 'this is the length of ikSolutions', len(ikSolutions)
 
+        sortedSolutions = sorted(sortedSolutions, key=itemgetter(0))
+        #print 'this is the length of sorted solutions (should be 2)', len(sortedSolutions)
+        #print 'this is the length of the second index of sortedSolutions (should also be 2)', len(sortedSolutions[1])
+        #print 'this is the length of the 0\'th entry to sortedSolutions[1]', len(sortedSolutions[1][0])
         # s[0] contains the distance-sqaured values
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
 
         if oneSolution:
-            return [s[1][0] for s in sortedSolution]
+            #print 'solution 1 = ', sortedSolutions[0][1][0]
+            # get the first entry, the second part of that (config, ind) and then the first of those (config)
+            #print sortedSolutions
+            #print sortedSolutions[0]
+            return sortedSolutions[0][1][0]
         else:
             return sortedSolutions
-
-
-
 
     #######################################################################################
     #Old Movement Functions
@@ -3429,8 +3526,11 @@ class PickingController:
                 # if we're reading a path from the milestones
                 pass
             else:
+                
+                print path
                 if len(path[i])<n:
                     path[i] += [0.0]*(n-len(path[i]))
+                #pass
 
 
 
@@ -3463,7 +3563,7 @@ class PickingController:
 
 
         if not readConstants:
-            print "\ttotal", len(path), "milestones in path"
+            #print "\ttotal", len(path), "milestones in path"
             for j in xrange(0, len(path)):
                 #print "moving to milestone #", j
             # for q in path[1:]:
@@ -4393,8 +4493,12 @@ def run_controller(controller,command_queue):
                 if bin_letter.lower()=='x':
                     print 'Canceled'
                     continue
-
                 controller.moveObjectIntoBin(limb=DEFAULT_LIMB, bin = bin_letter.upper())
+
+            elif c=='d':
+                print 'Run Debug method - currently testing IK'
+                controller.testIK(limb=DEFAULT_LIMB)    
+
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
                 bin_letter = command_queue.get()
