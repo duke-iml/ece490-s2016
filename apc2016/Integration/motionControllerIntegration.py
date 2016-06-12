@@ -65,8 +65,8 @@ from Group2Helper import Vacuum_Comms
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -102,6 +102,9 @@ STOW_TIME = 9000
 PRESSURE_THRESHOLD = 865
 
 visualizer = None
+
+
+INIT_DEGREE_OFFSET = 7
 
 if REAL_SCALE:
     from Sensors import scale
@@ -675,8 +678,9 @@ class PickingController:
         self.current_bin = None
         self.held_object = None
 
-        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0.0,0.0])
-        self.perceptionTransformInv =  ([1,0,0,0,1,0,0,0,1], [0,0,0])
+        #self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0.0,0.0])
+        self.perceptionTransform = ( so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
+        self.perceptionTransform = ( so3.rotation([0,0,1], -1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.018413903172000288, 0.9997129126747357, -0.015330375121676166, -0.09940946303721014, -0.01708761023976607, -0.994899880508058, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, 0.009999999999999983, 0.024999999999999994])
@@ -694,6 +698,7 @@ class PickingController:
 
         self.left_bin = None
         self.right_bin = None
+
 
         #these may be helpful
         self.left_camera_link = self.robot.link(left_camera_link_name)
@@ -4092,9 +4097,6 @@ class MyGLViewer(GLRealtimeProgram):
             if self.picking_controller.pick_pick_pos is not None:
                 glVertex3f(*self.picking_controller.pick_pick_pos)
 
-            glVertex3f(*[1.21986850464577, -0.03790091164790879, 1.3999290005916654])
-            glVertex3f(*[1.0113589055602523, -0.03790091164790879, 1.3999290005916654])
-
 
             glEnd()
             glEnable(GL_LIGHTING)
@@ -4744,8 +4746,12 @@ def load_apc_world():
     world.terrain(0).geometry().transform( newTransform[0], newTransform[1])
     world.terrain(0).geometry().transform(calibration[0], calibration[1])
 
+    testingTransform = (so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
+    world.terrain(0).geometry().transform(*testingTransform)
+
     #knowledge.shelf_xform = se3.mul(reorient, calibration)
     knowledge.shelf_xform = se3.mul(calibration, reorient)
+    knowledge.shelf_xform = se3.mul(testingTransform, knowledge.shelf_xform)
 
 
     # world.terrain(0).geometry().transform(*perceptionTransform)
