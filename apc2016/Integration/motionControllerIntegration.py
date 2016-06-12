@@ -65,12 +65,12 @@ from Group2Helper import Vacuum_Comms
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 1 or ALL_ARDUINOS
+VACUUM = 0 or ALL_ARDUINOS
 
 SPEED = 3
 
@@ -886,8 +886,14 @@ class PickingController:
     DEBUG methods
     '''
 
-    def testIK(self, limb='right'):
-        for bin in apc.bin_names:
+    def testBinIKHelper(self, limb='right', bin='bin_A'):
+        if bin in apc.bin_names:
+            if limb == 'left':
+                self.moveArmaAway('right')
+            if limb == 'right':
+                self.moveArmAway('left')
+            self.waitForMove()
+
             self.viewBinAction(b=bin, limb=limb)
             self.waitForMove()
             self.prepGraspFromBinAction(b=bin, limb=limb)
@@ -902,12 +908,58 @@ class PickingController:
                     print point, 'Successful for ', bin
                 else:
                     print point, 'Unsuccessful for ', bin
+            if limb == 'left':
+                self.stateLeft = 'grasp'
+            if limb == 'right':
+                self.stateRight = 'grasp'
+                #prepGraspFromBinAction makes the states graspPrepped
+
             self.waitForMove()
             self.moveToRestConfig()
+            self.waitForMove()
 
     #preprepGraspFromBinAction(self, limb, b=None)
     #viewBinAction(self,b, limb)  
     #moveToObjectInBinFromTop(self, position=None, limb=None, step=None, naiive=True)
+
+    def testBinIK(self, limb='right', bin='all'):
+        if bin == 'all':
+            for bin in apc.bin_names:
+                testBinIKHelper(limb=limb, bin=bin)
+        else:
+            testBinIKHelper(limb=limb, bin=bin)
+
+    def testStowIK(self, limb='right', sample=None, sliceX=3, sliceY=3, sliceZ=3):
+        #use / to find these relative to the vacuum gripper
+        minX = a
+        minY = a
+        minZ = a
+        maxX = a
+        maxY = a
+        maxZ = a
+
+        totePoints = []
+
+        while curX < maxX:
+            startY = startRatio
+            while curY < maxY:
+                curZ = startRatio
+                while curZ < endZ:
+                    x = startX * minMax[0][0] + (1-startX)*minMax[1][0]
+                    y = startY*minMax[0][1] + (1-startY)*minMax[1][1]
+                    z = startZ*minMax[0][2] + (1-startZ)*minMax[1][2]
+                    returnPoints.append([x,y,z])
+                    startZ = startZ + incZ
+                startY = startY +incY
+            startX = startX + incX
+
+        self.viewBinAction(b=bin, limb=limb)
+        self.waitForMove()
+        self.prepGraspFromBinAction(b=bin, limb=limb)
+        self.waitForMove()
+        points = knowledge.sampleBin(bin_name=bin)
+            
+
 
     #=======================================================
 
@@ -2497,7 +2549,7 @@ class PickingController:
 
                 self.sendPath(path=[step1], limb=limb)
                 #self.sendPath(path=step1, limb = limb)
-                time.sleep(2)
+                self.waitForMove()
 
                 step =3
 
@@ -2536,7 +2588,7 @@ class PickingController:
 
 
                 self.sendPath(path=[step3], limb=limb)
-                time.sleep(2)
+                self.waitForMove()
                 step=4
 
             if step==4 :           
@@ -2561,6 +2613,7 @@ class PickingController:
                     return False
 
                 self.sendPath(path=[step4], limb = limb)
+                self.waitForMove()
                 #print 'Got to step 4'
 
                 step = 5
@@ -2568,9 +2621,10 @@ class PickingController:
             if step==5:
                 #pull back out
 
+                self.waitForMove()
                 self.sendPath(path=[step3], limb=limb)
+                self.waitForMove()
                 self.sendPath(path=[step1], limb=limb)
-
 
                 #check that object is still held
                 return True
@@ -2867,7 +2921,7 @@ class PickingController:
                 for milestone in lPath:
                     path.append(milestone)
       
-        elif(self.stateLeft == 'grasp' ):
+        elif(self.stateLeft == 'grasp' or self.stateLeft == 'graspPrepped' ):
             #not set up yet
             # go to store then rest
             lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT')
@@ -2928,7 +2982,7 @@ class PickingController:
                 for milestone in rPath:
                     path.append(milestone)
       
-        elif(self.stateRight == 'grasp' ):
+        elif(self.stateRight == 'grasp' or self.stateRight == 'graspPrepped'):
             #not set up yet
             # go to store then rest
             rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()[4]+'_RIGHT')
@@ -3495,6 +3549,15 @@ class PickingController:
             print "sending empty path"
             return False
 
+
+        try:
+            len(path[i])
+        except:
+            #if we can't do it, it's because we received an empty array or path is one milestone
+            if path is None or path == []:
+                print 'sending empty path'
+                return False
+            path = [path]
 
         # if INCREMENTAL:
         #     assert(len(path)==2)
