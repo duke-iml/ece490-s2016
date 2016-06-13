@@ -723,6 +723,7 @@ class PickingController:
         self.tote_render_downsample_rate = 5
         self.tote_render_ptsize = 1
         self.stow_pick_pos = None
+        self.all_stow_pick_poss = None
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
@@ -883,9 +884,17 @@ class PickingController:
         
 
     def getPickPositionForStow(self, limb='left'):
-        pos, cloud = perceiver.get_picking_position_for_stowing(*self.getCameraToWorldXform(limb), limb=limb, fit=True, return_tote_content_cloud=True)
-        print 'Picking position is:', pos
-        self.stow_pick_pos = pos
+        res = perceiver.get_candidate_picking_positions_for_stowing(*self.getCameraToWorldXform(limb), limb=limb, fit=True, return_tote_content_cloud=True)
+        if res is None:
+            print 'Perception Failed for Getting Picking Position for Stowing'
+            return
+        poss, cloud = res
+        print 'All picking positions are:', poss
+        if len(poss)==0:
+            print 'No valid picking position. Empty poss list'
+            return
+        self.stow_pick_pos = poss[0]
+        self.all_stow_pick_poss = poss[0:5]
         self.tote_cloud = cloud
         self.tote_render_downsample_rate = 1
         self.tote_render_ptsize = 5
@@ -962,7 +971,7 @@ class PickingController:
                 totePoints.append([curX, curY])
                 curY = curY + (maxY-minY)*1.0/sliceY
 
-                print 'x, y is : ', curX, ' ',curY
+                # print 'x, y is : ', curX, ' ',curY
             curX = curX + (maxX-minX)*1.0/sliceX
 
         self.viewToteAction(limb=limb)
@@ -1166,6 +1175,7 @@ class PickingController:
             self.simworld.robot(0).setConfig([conf for conf in q_start])
 
             #if ik.solve([goal1, goal2], tol=1e-3):
+            print 'For x, y: ', self.stow_pick_pos[0], ' ',self.stow_pick_pos[1]
             if self.simpleIK(goal = goal, limb = limb):
                 sortedSolutions.append([conf for conf in self.simworld.robot(0).getConfig()])
                 print 'Goal Z = ', goalZ, ' solved at ', i
@@ -1199,7 +1209,7 @@ class PickingController:
 
 
                 while (not pressureDrop) and index < len(path):
-                    print "milestone #",index
+                    # print "milestone #",index
                     if i == 0:
                         self.waitForMove()
                         self.sendPath([path[index]])
@@ -1209,7 +1219,7 @@ class PickingController:
                     #getPressureReading
                     #reevaluate noPressureDrop                    
 
-                    pressureDrop = readPressure()
+                    # pressureDrop = readPressure()
                     print pressureDrop
                     time.sleep(0.5)
 
@@ -4174,9 +4184,14 @@ class MyGLViewer(GLRealtimeProgram):
             if points is not None:
                 self.glShowPointCloud(points, self.picking_controller.tote_render_downsample_rate, self.picking_controller.tote_render_ptsize)
             stow_pick_pos = self.picking_controller.stow_pick_pos
+            all_stow_pick_poss = self.picking_controller.all_stow_pick_poss
             if stow_pick_pos is not None:
                 gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [stow_pick_pos[0], stow_pick_pos[1], -0.1]), 1, 0.01, fancy=False)
                 pass
+            if all_stow_pick_poss is not None:
+                for stow_pick_pos in all_stow_pick_poss:
+                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [stow_pick_pos[0], stow_pick_pos[1], -0.1]), 0.5, 0.1, fancy=False)
+                
                 
         if SHOW_BIN_BOUNDS:
             # for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:

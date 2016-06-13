@@ -167,10 +167,9 @@ class Perceiver(object):
 		print 'Cropped cloud from %i points to %i points'%(cloud.shape[0], cropped_cloud.shape[0])
 		return cropped_cloud
 
-	def crop_and_segment(self, bin_content_cloud, bin_bound=None, perturb_xform=None, threshold=0.01):
-		cropped_cloud = self.crop_cloud(bin_content_cloud, bin_bound)
-		N = cropped_cloud.shape[0]
-		cloud_xyz = cropped_cloud[:,0:3]
+	def segment_cloud(self, bin_content_cloud, threshold=0.01):
+		N = bin_content_cloud.shape[0]
+		cloud_xyz = bin_content_cloud[:,0:3]
 		print 'Begin making sparse adjacency matrix...'
 		adj_matrix = dok_matrix((N, N), dtype='bool_')
 		for i in xrange(N):
@@ -181,64 +180,144 @@ class Perceiver(object):
 		print 'Done. Start computing connected component... '
 		n_components, labels = connected_components(adj_matrix, directed=False, return_labels=True)
 		print 'Done. Found %d components. '%n_components
+		return labels, n_components
+
+	def crop_and_segment(self, bin_content_cloud, bin_bound=None, perturb_xform=None, threshold=0.01):
+		cropped_cloud = self.crop_cloud(bin_content_cloud, bin_bound=bin_bound, perturb_xform=perturb_xform)
+		labels, n_components = self.segment_cloud(cropped_cloud, threshold=threshold)
 		return cropped_cloud, labels, n_components
 
-	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, bin_bound=None, 
-		perturb_xform=None, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.01):
+	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, crop=False, bin_bound=None, 
+		perturb_xform=None, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, n=None):
 		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
-			colorful=False, fit=fit, threshold=shelf_subtraction_threshold)
-		cropped_cloud, labels, n_components = self.crop_and_segment(bin_content_cloud, bin_bound, perturb_xform, cc_threshold)
-		cropped_cloud_with_color = np.hstack( (cropped_cloud, np.zeros( (cropped_cloud.shape[0],1) ) ) )
-		for i in xrange(n_components):
-			h = i / n_components
+			colorful=False, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
+		labels, n_components = self.segment_cloud(bin_content_cloud, cc_threshold)
+		sizes = [len(np.where(labels==i)[0]) for i in xrange(n_components)]
+		sorted_idxs = [ i for _,i in sorted([(v,i) for i,v in enumerate(sizes)]) ][::-1]
+		if n is None:
+			n = float('inf')
+		cc_cloud = np.zeros((0,4))
+		for i in xrange(min(n, n_components)):
+			cur_idx = sorted_idxs[i]
+			h = i / min(n, n_components)
 			r, g, b = map(lambda x: int(x*255), colorsys.hsv_to_rgb(h, 1, 1))
-			idxs = np.where(labels==i)[0]
+			idxs = np.where(labels==cur_idx)[0]
+			print 'CC %i has %i points'%(i, len(idxs))
 			pcl_float = rgb_to_pcl_float(r, g, b)
-			cropped_cloud_with_color[idxs, 3] = pcl_float
-		return cropped_cloud_with_color
+			cur_cc_cloud = np.hstack( [ bin_content_cloud[idxs,:], np.ones((len(idxs), 1))*pcl_float ] )
+			cc_cloud = np.vstack( [cc_cloud, cur_cc_cloud] )
+		return cc_cloud
 
 	def get_picking_position_for_single_item_bin(self, bin_letter, cur_camera_R, cur_camera_t, limb, 
-		colorful=True, fit=False, threshold=0.01, crop=False, bin_bound=None, perturb_xform=None, return_bin_content_cloud=False):
-	#   get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, colorful=True, fit=True, threshold=0.01, crop=False, bin_bound=None, perturb_xform=None)
+		colorful=True, fit=False, threshold=0.01, crop=False, bin_bound=None, perturb_xform=None, 
+		return_bin_content_cloud=False, return_normal=False):
 		'''
 		physical pre-condition: place the camera to the hard-coded tote-viewing position. 
 
 		return (x,y,z) coordinate in global frame of position that has something to suck. 
 		'''
 		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
-			colorful=colorful, fit=fit, threshold=threshold, crop=crop, bin_bound=bin_bound, perturb_xform=None)
-		xs = bin_content_cloud[:,0]
-		ys = bin_content_cloud[:,1]
-		zs = bin_content_cloud[:,2]
-		'''
-		ASSUMING UP IS Z DIRECTION
-		'''
-		xs_sorted = sorted(list(xs.flat))
-		ys_sorted = sorted(list(ys.flat))
-		zs_sorted = sorted(list(zs.flat))
-		N = len(xs_sorted)
-		xmin, xmax = xs_sorted[int(N*0.05)], xs_sorted[int(N*0.95)] # in the unit of meter
-		ymin, ymax = ys_sorted[int(N*0.05)], ys_sorted[int(N*0.95)]
-		zmin, zmax = zs_sorted[int(N*0.05)], zs_sorted[int(N*0.95)]
-		x_inrange = np.logical_and(xs >= xmin, xs <= xmax)
-		y_inrange = np.logical_and(ys >= ymin, ys <= ymax)
-		z_inrange = np.logical_and(zs >= zmin, zs <= zmax)
-		inrange = reduce(np.logical_and, [x_inrange, y_inrange, z_inrange])
-		bin_content_cloud_inrange = bin_content_cloud[inrange, :]
-		cloud_inrange_xyz = bin_content_cloud_inrange[:, 0:3]
-		gaussian_kernel = gaussian_kde(cloud_inrange_xyz.T)
-		print 'making grid'
-		x_grid, y_grid, z_grid = np.meshgrid(np.linspace(xmin, xmax, 30), np.linspace(ymin, ymax, 30), np.linspace(zmin, zmax, 30), indexing='ij')
-		positions = np.vstack([x_grid.ravel(), y_grid.ravel(), z_grid.ravel()])
-		print 'calculating density'
-		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
-		print 'argmax-ing'
-		max_idx = densities.argmax()
-		print 'done'
-		if not return_bin_content_cloud:
-			return x_grid.flatten()[max_idx], y_grid.flatten()[max_idx], z_grid.flatten()[max_idx]
+			colorful=colorful, fit=fit, threshold=threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
+		pos = self.find_max_density_3d(bin_content_cloud)
+		bin_content_tree = KDTree(bin_content_cloud[:,0:3])
+		neighbor_idxs = bin_content_tree.query_ball_point(pos, r=0.002)
+		print 'neighbor_idxs is of type', neighbor_idxs.__class__
+		if len(neighbor_idxs)==0:
+			print 'no neighbors!'
+			normal = [-1,0,0]
 		else:
-			return (x_grid.flatten()[max_idx], y_grid.flatten()[max_idx], z_grid.flatten()[max_idx]), bin_content_cloud
+			pts = bin_content_tree[neighbor_idxs,0:3]
+			normal = get_normal(pts)
+		return_list = [pos]
+		if return_bin_content_cloud:
+			return_list += [bin_content_cloud]
+		if return_normal:
+			return_list += [normal]
+		if len(return_list)==1:
+			return return_list[0]
+		else:
+			return return_list
+
+	def get_normal(self, pts):
+		pts = np.array(pts)
+		assert pts.shape[1]==3, 'pts must have shape N x 3'
+		return [-1,0,0]
+
+	def get_picking_position_for_multi_item_bin(self, target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb, 
+		colorful=True, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, crop=False, bin_bound=None, perturb_xform=None, return_bin_content_cloud=False):
+		'''
+		return (x,y,z) coordinate in global frame of position that has something to suck. 
+		'''
+		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
+			colorful=True, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
+		assert bin_content_cloud.shape[1]==4, 'Color channel seems to be missing'
+		labels, n_components = self.segment_cloud(bin_content_cloud, cc_threshold)
+
+		'''
+		Naive way: among largest n+1 components, find the closest match to 
+		the item historgram of request, disregarding match/mismatch of other candidates
+		'''
+		sizes = [len(np.where(labels==i)[0]) for i in xrange(n_components)]
+		sorted_idxs = [ i for _,i in sorted([(v,i) for i,v in enumerate(sizes)]) ][::-1]
+		sorted_idxs = sorted_idxs[0:min(n_components, len(possible_items))]
+		target_uv_hist = self.load_uv_hist_for_item(target_item)
+		best_score = None
+		best_cloud = None
+		for i in sorted_idxs:
+			cur_idxs = np.where(labels==i)[0]
+			cur_cloud = bin_content_cloud[cur_idxs, :]
+			cur_uv_hist = self.make_uv_hist_from_cloud(cur_cloud)
+			score = self.calculate_uv_matching(cur_uv_hist, target_uv_hist, suppress_center=True)
+			if best_score is None or score > best_score:
+				best_score = score
+				best_cloud = cur_cloud
+		return cur_cloud
+
+	def rgb_to_uv(rgb):
+		r, g, b = rgb
+		u = 128 -.168736*r -.331364*g + .5*b
+		v = 128 +.5*r - .418688*g - .081312*b
+		return u, v
+
+	def make_uv_hist_from_cloud(self, cloud, binsize=4):
+		assert cloud.shape[1]==4, 'cloud must have size N x 4'
+		colors = cloud[:,3]
+		rgbs = map(pcl_float_to_rgb, colors.tolist())
+		vals = map(rgb_to_uv, rgbs)
+		hist = np.zeros((int(256/binsize), int(256/binsize)))
+		try:
+			vals = vals.tolist()
+		except:
+			pass
+		for val in vals:
+			hist[int(val[0]/binsize), int(val[1]/binsize)] += 1
+		hist = hist / len(vals)
+		return hist
+
+	def calculate_uv_matching(self, hist1, hist2, suppress_center=False):
+		'''
+		size of intersection of normalized histogram
+		if suppress_center is True, the center of the histogram (corresponding to mostly black region) is erased to 0
+		'''
+		assert hist1.shape==hist2.shape, 'Shape not equal!'
+		if suppress_center:
+			hist1[29:35, 29:35] = 0
+			hist2[29:35, 29:35] = 0
+		sum1 = hist1.sum()
+		sum2 = hist2.sum()
+		hist1 = hist1 / sum1
+		hist2 = hist2 / sum2
+		min_hist = np.minimum(hist1, hist2)
+		return min_hist.sum()
+
+	def load_uv_hist_for_item(self, item):
+		filename = self.prefix + 'uv_hist/%s.npy'%item
+		try:
+			hist = np.load(filename)
+			return hist
+		except:
+			print 'Cannot find uv hist for %s at %s'%(item, filename)
+			return None
 
 	def get_current_point_cloud(self, cur_camera_R, cur_camera_t, limb, colorful=False, tolist=True):
 		'''
@@ -285,19 +364,28 @@ class Perceiver(object):
 		'''
 		physical pre-condition: place the camera to the hard-coded tote-viewing position. 
 
-		return (x,y,z) coordinate in global frame of position that has something to suck. 
+		return (x,y) coordinate in global frame of position that has something to suck. 
+		'''
+		tote_content_cloud = self.get_current_tote_content_cloud(cur_camera_R, cur_camera_t, limb, fit=fit)
+		tote_content_cloud = self.crop_tote_cloud(tote_content_cloud)
+		return self.find_max_density_xy(tote_content_cloud, return_tote_content_cloud)
+
+	def get_candidate_picking_positions_for_stowing(self, cur_camera_R, cur_camera_t, limb, fit=False, return_tote_content_cloud=False):
+		'''
+		physical pre-condition: place the camera to the hard-coded tote-viewing position. 
+
+		return a list of (x,y) coordinate in global frame of position that has something to suck. 
 		'''
 		tote_content_cloud = self.get_current_tote_content_cloud(cur_camera_R, cur_camera_t, limb, fit=fit)
 		tote_content_cloud = self.crop_tote_cloud(tote_content_cloud)
 		xs = tote_content_cloud[:,0]
 		ys = tote_content_cloud[:,1]
-		zs = tote_content_cloud[:,2]
-		'''
-		ASSUMING UP IS Z DIRECTION
-		'''
 		xs_sorted = sorted(list(xs.flat))
 		ys_sorted = sorted(list(ys.flat))
 		N = len(xs_sorted)
+		if N==0:
+			print 'No points in cloud! '
+			return None
 		xmin, xmax = xs_sorted[int(N*0.1)], xs_sorted[int(N*0.9)] # in the unit of meter
 		ymin, ymax = ys_sorted[int(N*0.1)], ys_sorted[int(N*0.9)]
 		x_inrange = np.logical_and(xs >= xmin, xs <= xmax)
@@ -309,11 +397,39 @@ class Perceiver(object):
 		x_grid, y_grid = np.meshgrid(np.linspace(xmin, xmax, 100), np.linspace(ymin, ymax, 100), indexing='ij')
 		positions = np.vstack([x_grid.ravel(), y_grid.ravel()])
 		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
-		max_idx = densities.argmax()
+		all_idxs = self.get_all_local_maxima(densities)
+		# all_idxs = sorted(all_idxs, key=lambda idx:-densities[idx[0], idx[1]]) # sort in descending order of density
+		all_locs = [[x_grid[x_idx], y_grid[y_idx]] for x_idx,y_idx in all_idxs]
 		if not return_tote_content_cloud:
-			return x_grid.flatten()[max_idx], y_grid.flatten()[max_idx]
+			return all_locs
 		else:
-			return (x_grid.flatten()[max_idx], y_grid.flatten()[max_idx]), tote_content_cloud
+			return all_locs, tote_content_cloud
+
+	def remove_local_max(self, mat, x, y):
+		h, w = mat.shape
+		if x<=0 or x>=h-1 or y<=0 or y>=w-1:
+			return
+		if mat[x,y]==-1:
+			return
+		if mat[x,y]<max(mat[x-1,y], mat[x+1,y], mat[x,y-1], mat[x,y+1]):
+			return
+		mat[x,y] = -1
+		self.remove_local_max(mat, x-1, y)
+		self.remove_local_max(mat, x+1, y)
+		self.remove_local_max(mat, x, y-1)
+		self.remove_local_max(mat, x, y+1)
+
+	def get_all_local_maxima(self, mat):
+		h, w = mat.shape
+		new_mat = np.zeros((h+2, w+2))
+		new_mat[1:h+1, 1:w+1] = mat
+		mat = new_mat
+		all_locs = []
+		while (mat==-1).sum()!=(mat.shape[0]-2)*(mat.shape[1]-2):
+			max_loc = np.unravel_index(mat.argmax(), mat.shape)
+			all_locs.append([max_loc[0]-1, max_loc[1]-1])
+			self.remove_local_max(mat, *max_loc)
+		return all_locs
 
 	def get_current_tote_content_cloud(self, cur_camera_R, cur_camera_t, limb, scene_cloud=None, threshold=0.02, fit=False):
 		'''
@@ -449,7 +565,7 @@ class Perceiver(object):
 					raise Exception('Unrecognized limb '+str(limb))
 				break
 			except:
-				print 'Camera Connection Error. Reconnect in 1 second...'
+				print 'Camera Connection Error. Retry in 1 second...'
 				time.sleep(1)
 		color, cloud, depth_uv, color_uv = camera.read()
 		camera.close()
@@ -492,7 +608,7 @@ class Perceiver(object):
 		It will return None, but the model will be saved upon return
 		'''
 		assert isinstance(R, list), 'R must be a list but now it is '+str(R.__class__)
-		assert isinstance(t, list), 't must be a list but now it is '+str(R.__class__)
+		assert isinstance(t, list), 't must be a list but now it is '+str(t.__class__)
 		bin_letter = bin_letter.upper()
 		assert 'A'<=bin_letter<='L', 'bin_letter must be between "A" and "L"'
 		_, cloud, _, _ = self.read_once(limb, unit='meter', Nx3_cloud=True, clean=True)
@@ -502,7 +618,7 @@ class Perceiver(object):
 
 	def save_canonical_tote_cloud(self, R, t, limb):
 		assert isinstance(R, list), 'R must be a list but now it is '+str(R.__class__)
-		assert isinstance(t, list), 't must be a list but now it is '+str(R.__class__)
+		assert isinstance(t, list), 't must be a list but now it is '+str(t.__class__)
 		_, cloud, _, _ = self.read_once(limb, unit='meter', Nx3_cloud=True, clean=True)
 		np.save(self.get_tote_cloud_path(limb), cloud)
 		self.save_R_t(self.get_tote_viewing_camera_xform_path(limb), R, t)
@@ -575,6 +691,66 @@ class Perceiver(object):
 		return (x,y,z) coordinate of with deepest z value. useful for determining stowing location. 
 		'''
 		raise NotImplemented
+
+	def find_max_density_3d(self, cloud, return_cloud=False):
+		xs = cloud[:,0]
+		ys = cloud[:,1]
+		zs = cloud[:,2]
+		xs_sorted = sorted(list(xs.flat))
+		ys_sorted = sorted(list(ys.flat))
+		zs_sorted = sorted(list(zs.flat))
+		N = len(xs_sorted)
+		if N==0:
+			print 'No points in cloud! '
+			return None
+		xmin, xmax = xs_sorted[int(N*0.05)], xs_sorted[int(N*0.95)] # in the unit of meter
+		ymin, ymax = ys_sorted[int(N*0.05)], ys_sorted[int(N*0.95)]
+		zmin, zmax = zs_sorted[int(N*0.05)], zs_sorted[int(N*0.95)]
+		x_inrange = np.logical_and(xs >= xmin, xs <= xmax)
+		y_inrange = np.logical_and(ys >= ymin, ys <= ymax)
+		z_inrange = np.logical_and(zs >= zmin, zs <= zmax)
+		inrange = reduce(np.logical_and, [x_inrange, y_inrange, z_inrange])
+		bin_content_cloud_inrange = cloud[inrange, :]
+		cloud_inrange_xyz = bin_content_cloud_inrange[:, 0:3]
+		gaussian_kernel = gaussian_kde(cloud_inrange_xyz.T)
+		print 'making grid'
+		x_grid, y_grid, z_grid = np.meshgrid(np.linspace(xmin, xmax, 30), np.linspace(ymin, ymax, 30), np.linspace(zmin, zmax, 30), indexing='ij')
+		positions = np.vstack([x_grid.ravel(), y_grid.ravel(), z_grid.ravel()])
+		print 'calculating density'
+		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
+		print 'argmax-ing'
+		max_idx = densities.argmax()
+		print 'done'
+		if not return_cloud:
+			return x_grid.flatten()[max_idx], y_grid.flatten()[max_idx], z_grid.flatten()[max_idx]
+		else:
+			return (x_grid.flatten()[max_idx], y_grid.flatten()[max_idx], z_grid.flatten()[max_idx]), cloud
+
+	def find_max_density_xy(self, cloud, return_cloud=False):
+		xs = tote_content_cloud[:,0]
+		ys = tote_content_cloud[:,1]
+		xs_sorted = sorted(list(xs.flat))
+		ys_sorted = sorted(list(ys.flat))
+		N = len(xs_sorted)
+		if N==0:
+			print 'No points in cloud! '
+			return None
+		xmin, xmax = xs_sorted[int(N*0.1)], xs_sorted[int(N*0.9)] # in the unit of meter
+		ymin, ymax = ys_sorted[int(N*0.1)], ys_sorted[int(N*0.9)]
+		x_inrange = np.logical_and(xs >= xmin, xs <= xmax)
+		y_inrange = np.logical_and(ys >= ymin, ys <= ymax)
+		inrange = np.logical_and(x_inrange, y_inrange)
+		tote_content_cloud_inrange = tote_content_cloud[inrange, :]
+		cloud_inrange_xy = tote_content_cloud_inrange[:, 0:2]
+		gaussian_kernel = gaussian_kde(cloud_inrange_xy.T)
+		x_grid, y_grid = np.meshgrid(np.linspace(xmin, xmax, 100), np.linspace(ymin, ymax, 100), indexing='ij')
+		positions = np.vstack([x_grid.ravel(), y_grid.ravel()])
+		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
+		max_idx = densities.argmax()
+		if not return_tote_content_cloud:
+			return x_grid.flatten()[max_idx], y_grid.flatten()[max_idx]
+		else:
+			return (x_grid.flatten()[max_idx], y_grid.flatten()[max_idx]), tote_content_cloud
 
 
 def remove_invalid_points(cloud):
