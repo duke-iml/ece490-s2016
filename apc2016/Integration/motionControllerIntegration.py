@@ -104,7 +104,7 @@ PRESSURE_THRESHOLD = 865
 visualizer = None
 
 
-INIT_DEGREE_OFFSET = 0
+INIT_DEGREE_OFFSET = 7
 
 if REAL_SCALE:
     from Sensors import scale
@@ -300,7 +300,7 @@ class KnowledgeBase:
             return False
 
     def sampleBin(self, bin_name, sample=None, xPoints=3, yPoints=3, zPoints=3, startRatio = 0.1, endRatio = 0.9):
-        minMax = self.getGlobalBounds(bin_name)
+        minMax = apc.bin_bounds[bin_name]
 
         if sample != None:
             try:
@@ -330,10 +330,10 @@ class KnowledgeBase:
             while startY < endY:
                 startZ = startRatio
                 while startZ < endZ:
-                    x = startX * minMax[0][0] + (1-startX)*minMax[1][0]
-                    y = startY*minMax[0][1] + (1-startY)*minMax[1][1]
-                    z = startZ*minMax[0][2] + (1-startZ)*minMax[1][2]
-                    returnPoints.append([x,y,z])
+                    xLoc = startX * minMax[0][0] + (1-startX)*minMax[1][0]
+                    yLoc = startY*minMax[0][1] + (1-startY)*minMax[1][1]
+                    zLoc = startZ*minMax[0][2] + (1-startZ)*minMax[1][2]
+                    returnPoints.append(se3.apply(knowledge.shelf_xform, [xLoc,yLoc,zLoc]))
                     startZ = startZ + incZ
                 startY = startY +incY
             startX = startX + incX
@@ -1519,9 +1519,13 @@ class PickingController:
             if eval('self.'+limb+'_bin') in apc.bin_names:
                 path_name = 'VIEW_TO_GRASP_' + b[4].upper() + '_' + limb.upper()
                 #EX: 'GRASP_TO_STOW_B_RIGHT'
+                path = eval(path_name)
+
 
                 if self.moveArm(limb, statusConditional = 'scan', path_name=path_name, finalState = 'graspPrepped'):
                     self.waitForMove()
+
+                    self.moveToOffset(limb, milestone=path[-1])
                     return True
                 else:
                     print 'Error in moveArm (from prepGraspFromBinAction)'
@@ -2526,13 +2530,30 @@ class PickingController:
             except:
                 myInput = None
                 while( 1):
-                    myInput = raw_input("Where would you like to pick? - separated by commmas")
+                    print 'Enter a position of where you would like to pick - defaults to world'
+                    print 'If you would like to pick a location local to a bin, enter: l, x,y,z '
+                    print 'Where x, y, and z are floating point numbers < 1 that refer to a ratio related to the bin'
+                    print 'I.E. l, 0.5,0.5,0.5 picks the midde of the given bin'
+
+                    myInput = raw_input("So, where would you like to pick? (comma delimited) ")
                     myInput = myInput.split(',')
-                    self.pick_pick_pos = myInput
-                    #if not knowledge.getBinWorldPosition(point=target):
-                    #we failed
-                    #    target = None
-                    response = raw_input("Continue? y/n")
+                    
+                    if myInput[0] =='l' and len(myInput) ==4:
+                        myInts = []
+                        for i in range(1, 4):
+                            myInts.append(float(myInput[i]))
+
+                        self.pick_pick_pos = knowledge.getBinLoc(myInts)
+                    else:  
+
+                        myInts = []
+                        for el in myInput:
+                            myInts.append(float(el))
+                        #if not knowledge.getBinWorldPosition(point=target):
+                        #we failed
+                        #    target = None
+                        self.pick_pick_pos = myInts
+                    response = raw_input("Continue? y/n ")
                     if response == 'y':
                         break
                     else:
@@ -4755,7 +4776,7 @@ def load_apc_world():
 
     #knowledge.shelf_xform = se3.mul(reorient, calibration)
     knowledge.shelf_xform = se3.mul(calibration, reorient)
-    knowledge.shelf_xform = se3.mul(knowledge.shelf_xform, testingTransform)
+    knowledge.shelf_xform = se3.mul(testingTransform, knowledge.shelf_xform)
 
 
     # world.terrain(0).geometry().transform(*perceptionTransform)
