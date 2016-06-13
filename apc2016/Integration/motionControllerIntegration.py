@@ -104,7 +104,7 @@ PRESSURE_THRESHOLD = 865
 visualizer = None
 
 
-INIT_DEGREE_OFFSET = -7
+INIT_DEGREE_OFFSET = 0
 
 if REAL_SCALE:
     from Sensors import scale
@@ -934,35 +934,42 @@ class PickingController:
         else:
             self.testBinIKHelper(limb=limb, bin=bin)
 
-    def testStowIK(self, limb='right', sample=None, sliceX=3, sliceY=3, sliceZ=3):
+    def testStowIK(self, limb='right', sample=None, sliceX=60, sliceY=30, sliceZ=3):
         #use / to find these relative to the vacuum gripper
-        minX = a
-        minY = a
-        minZ = a
-        maxX = a
-        maxY = a
-        maxZ = a
+        point1 = [0.493707578811178, 0.31898193868487673, 0.2912119630803892]
+        point2 = [0.7835949216561817, -0.2311991834824173, 0.13890998061380122]
+
+
+        minX = min(point1[0], point2[0])
+        minY = min(point1[1], point2[1])
+        minZ = min(point1[2], point2[2])
+        maxX = max(point1[0], point2[0])
+        maxY = max(point1[1], point2[1])
+        maxZ = max(point1[2], point2[2])
 
         totePoints = []
 
-        while curX < maxX:
-            startY = startRatio
-            while curY < maxY:
-                curZ = startRatio
-                while curZ < endZ:
-                    x = startX * minMax[0][0] + (1-startX)*minMax[1][0]
-                    y = startY*minMax[0][1] + (1-startY)*minMax[1][1]
-                    z = startZ*minMax[0][2] + (1-startZ)*minMax[1][2]
-                    returnPoints.append([x,y,z])
-                    startZ = startZ + incZ
-                startY = startY +incY
-            startX = startX + incX
+        curX = minX
+        curY = minY
 
-        self.viewBinAction(b=bin, limb=limb)
+        while curX < maxX:
+            curY = minY
+            while curY < maxY:
+                totePoints.append([curX, curY])
+                curY = curY + (maxY-minY)*1.0/sliceY
+
+                print 'x, y is : ', curX, ' ',curY
+            curX = curX + (maxX-minX)*1.0/sliceX
+
+        self.viewToteAction(limb=limb)
         self.waitForMove()
-        self.prepGraspFromBinAction(b=bin, limb=limb)
+        self.prepGraspFromToteAction(limb=limb)
         self.waitForMove()
-        points = knowledge.sampleBin(bin_name=bin)
+        for point in totePoints:
+            self.waitForMove()
+            #self.moveToObjectInBinFromSide()
+            self.graspFromToteAction(position=point, limb=limb)
+
             
 
 
@@ -1072,34 +1079,40 @@ class PickingController:
 
             print 'Error in viewTote action can\'t move with no limb'
 
-    def graspFromToteAction(self, limb):
+    def graspFromToteAction(self, limb, position=None):
 
         #if perception has picked something
 
         #x = forward
         #y = left
+
+
         if REAL_CAMERA:
 
             goalXY = self.stow_pick_pos
         else:
-            myInts = []
-            while( 1):
-                myInput = raw_input("Where would you like to pick? (separated by commmas) ")
-                if myInput == 'skip':
-                    self.stow_pick_pos = [0.5, 0, 0]
-                    break
+            if position is None:
 
-                myInput = myInput.split(',')
-                for el in myInput:
-                    myInts.append(float(el))     
-                print myInts
-                self.stow_pick_pos = myInts
-                response = raw_input("Continue? y/n ")
-                if response == 'y' and len(myInts)==3:
-                    break
-                else:
-                    myInts = []
-                    self.stow_pick_pos = None
+                myInts = []
+                while( 1):
+                    myInput = raw_input("Where would you like to pick? (separated by commmas) ")
+                    if myInput == 'skip':
+                        self.stow_pick_pos = [0.5, 0, 0]
+                        break
+
+                    myInput = myInput.split(',')
+                    for el in myInput:
+                        myInts.append(float(el))     
+                    print myInts
+                    self.stow_pick_pos = myInts
+                    response = raw_input("Continue? y/n ")
+                    if response == 'y' and len(myInts)==3:
+                        break
+                    else:
+                        myInts = []
+                        self.stow_pick_pos = None
+            else:
+                self.stow_pick_pos = position
 
         # goalXY = [0.5,-0.5]
         startZ = .5
@@ -4449,11 +4462,10 @@ def run_controller(controller,command_queue):
                 print 'G: Transform Shelf from Perturbed to Canonical Pose'
                 print 'C: See(C) the Tote'
                 print 'B: Get the Bounds of a Bin'
-                print 'D: Read Pressure'
                 print '/: Get the global position of the end effector' 
                 print 'Q: Quit'
-
-                print 'D: '
+                print 'D: Debug method - test IK for bins'
+                print 'M: Debug method - test IK for tote'
                 print '1: Run Stow Task and stow object in selected bin (current default = H)'
                 print '2: Run Pick Task for selected bin'
                 print '+: Fully Autonomous Pick Run'
@@ -4551,8 +4563,12 @@ def run_controller(controller,command_queue):
                 controller.moveObjectIntoBin(limb=DEFAULT_LIMB, bin = bin_letter.upper())
 
             elif c=='d':
-                print 'Run Debug method - currently testing IK'
+                print 'Run Debug method - currently testing IK for Bins'
                 controller.testBinIK(limb=DEFAULT_LIMB)    
+
+            elif c=='m':
+                print 'Run Debug method - currently testing IK for Tote'
+                controller.testStowIK(limb=DEFAULT_LIMB)   
 
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
@@ -4606,8 +4622,6 @@ def run_controller(controller,command_queue):
 
             elif c == 'r':
                 controller.moveToRestConfig()
-            elif c == 'm':
-                controller.move_gripper_to_center()
             elif c == '`':
                 print 'Press Bin Letter of the Bin to Calibrate'
                 bin_letter = command_queue.get()
