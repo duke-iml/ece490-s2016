@@ -4631,7 +4631,8 @@ def run_controller(controller,command_queue):
 
             elif c=='m':
                 print 'Run Debug method - currently testing IK for Tote'
-                controller.testStowIK(limb=DEFAULT_LIMB)   
+                controller.testStowIK(limb=DEFAULT_LIMB)
+                stderr.write('Don')   
 
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
