@@ -242,27 +242,27 @@ class KnowledgeBase:
 
     def getBinFrontCenterTop(self, bin_name):
         #center of the front face of the bin near the top of the bin
-        minMax = self.getGlobalBounds(bin_name)
+        minMax = apc.bin_bounds[bin_name]
         #get the min of  x, 
         #get the midpoint of y
         #get close to the top of z
-        pointX = minMax[0][0]
-        pointY = minMax[0][1]*.5 + minMax[1][1]*.5
-        pointZ = minMax[0][2]*.2+minMax[1][2]*.8
+        pointX = minMax[0][0]*.5 + minMax[1][0]*.5
+        pointY = minMax[0][1]*.2+minMax[1][1]*.8
+        pointZ = minMax[1][2]
 
-        return [pointX, pointY, pointZ]
+        return se3.apply(knowledge.shelf_xform, [pointX, pointY, pointZ])
 
     def getBinMidCenterTop(self, bin_name):
         #center of the front face of the bin
-        minMax = self.getGlobalBounds(bin_name)
+        minMax = apc.bin_bounds[bin_name]
         #get the midpoint of x, 
         #get the midpoint of y
         #get close to the top of z
         pointX = minMax[0][0]*.5 + minMax[1][0]*.5
-        pointY = minMax[0][1]*.5 + minMax[1][1]*.5
-        pointZ = minMax[0][2]*.2+minMax[1][2]*.8
+        pointY = minMax[0][1]*.2 + minMax[1][1]*.8
+        pointZ = minMax[0][2]*.5+minMax[1][2]*.5
 
-        return [pointX, pointY, pointZ]
+        return se3.apply(knowledge.shelf_xform, [pointX, pointY, pointZ])
 
     def getBinFrontCenter(self, bin_name):
         #center of the front face of the bin
@@ -270,15 +270,15 @@ class KnowledgeBase:
         #get the min of  x, 
         #get the midpoint of y
         #get the midpoint of z
-        pointX = minMax[0][0]
+        pointX = minMax[0][0]*.5 + minMax[1][0]*.5
         pointY = minMax[0][1]*.5 + minMax[1][1]*.5
-        pointZ = minMax[0][2]*.5+minMax[1][2]*.5
+        pointZ = minMax[1][2]
 
-        return [pointX, pointY, pointZ]
+        return se3.apply(knowledge.shelf_xform, [pointX, pointY, pointZ])
 
     def getBinTrueCenter(self, bin_name):
         #get the very center of the bin
-        minMax = self.getGlobalBounds(bin_name)
+        minMax = apc.bin_bounds[bin_name]
         #get the midpoint of  x, 
         #get the midpoint of y
         #get the midpoint of z
@@ -286,17 +286,21 @@ class KnowledgeBase:
         pointY = minMax[0][1]*.5 + minMax[1][1]*.5
         pointZ = minMax[0][2]*.5+minMax[1][2]*.5
 
-        return [pointX, pointY, pointZ]
+        return se3.apply(knowledge.shelf_xform, [pointX, pointY, pointZ])
 
     def getBinWorldPosition(self, bin_name, localPoint):
-        minMax = self.getGlobalBounds(bin_name)
+        #minMax = self.getGlobalBounds(bin_name)
 
-        se3.apply(knowledge.shelf_xform, localPoint)
+        bound = apc.bin_bounds[bin_name]
 
-        if  minMax[0][0] <= localPoint[0] <= minMax[1][0] and minMax[0][1] <= localPoint[1] <= minMax[1][1] and minMax[0][2] <= localPoint[2] <= minMax[1][2]:
-            return localPoint
+        if len(localPoint) ==3 and  0<= localPoint[0] <= 1 and 0<=localPoint[1] <=1 and 0<=localPoint[2] <=1:
+            myPointX = bound[0][0] * localPoint[0] + (1-localPoint[0])*bound[1][0]
+            myPointY = bound[0][1] * localPoint[1] + (1-localPoint[1])*bound[1][1]
+            myPointZ = bound[0][2] * localPoint[2] + (1-localPoint[2])*bound[1][2]
+            return se3.apply(knowledge.shelf_xform, [myPointX, myPointY, myPointZ])
+
         else:
-            print 'Error localPoint is outside bin'
+            print 'Error incorrect entry format'
             return False
 
     def sampleBin(self, bin_name, sample=None, xPoints=3, yPoints=3, zPoints=3, startRatio = 0.1, endRatio = 0.9):
@@ -1102,15 +1106,21 @@ class PickingController:
 
                     myInput = myInput.split(',')
                     for el in myInput:
-                        myInts.append(float(el))     
-                    print myInts
-                    self.stow_pick_pos = myInts
-                    response = raw_input("Continue? y/n ")
-                    if response == 'y' and len(myInts)==3:
-                        break
-                    else:
-                        myInts = []
-                        self.stow_pick_pos = None
+                        try:
+                            myInts.append(float(el))
+                            goodInput = True     
+                        except:
+                            goodInput = False
+
+                    if goodInput:
+                        print myInts
+                        self.stow_pick_pos = myInts
+                        response = raw_input("Continue? y/n ")
+                        if response == 'y' and len(myInts)==3:
+                            break
+                        else:
+                            myInts = []
+                            self.stow_pick_pos = None
             else:
                 self.stow_pick_pos = position
 
@@ -1245,11 +1255,7 @@ class PickingController:
             # elif len(items)==1:
             #     print 'Item picked is:', items
             #     self.pickBin = stowHandler.getBin(items)
-<<<<<<< HEAD
-            # else: 
-=======
-            # else:
->>>>>>> 45f85620c0136a16a7882c8c8dbf4e9fa29922b2
+
             #     print 'got no Item'
             #     return False
             print items
@@ -2533,7 +2539,7 @@ class PickingController:
                 assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
             except:
                 myInput = None
-                while( 1):
+                while(1):
                     print 'Enter a position of where you would like to pick - defaults to world'
                     print 'If you would like to pick a location local to a bin, enter: l, x,y,z '
                     print 'Where x, y, and z are floating point numbers < 1 that refer to a ratio related to the bin'
@@ -2542,27 +2548,40 @@ class PickingController:
                     myInput = raw_input("So, where would you like to pick? (comma delimited) ")
                     myInput = myInput.split(',')
                     
+                    goodInput = False
+
                     if myInput[0] =='l' and len(myInput) ==4:
                         myInts = []
                         for i in range(1, 4):
-                            myInts.append(float(myInput[i]))
-
-                        self.pick_pick_pos = knowledge.getBinLoc(myInts)
+                            try:
+                                myInts.append(float(myInput[i]))
+                                goodInput = True
+                            except:
+                                goodInput = False
+                        if goodInput:
+                            self.pick_pick_pos = knowledge.getBinWorldPosition(bin_name=eval('self.'+limb+'_bin'), localPoint=myInts)
                     else:  
 
                         myInts = []
                         for el in myInput:
-                            myInts.append(float(el))
+                            try:
+                                myInts.append(float(el))
+                                goodInput = True
+                            except:
+                                goodInput = False
                         #if not knowledge.getBinWorldPosition(point=target):
                         #we failed
                         #    target = None
-                        self.pick_pick_pos = myInts
-                    response = raw_input("Continue? y/n ")
-                    if response == 'y':
-                        break
-                    else:
-                        myInput = None
-                        self.pick_pick_pos = None
+                        if goodInput:
+                            self.pick_pick_pos = myInts
+                    
+                    if goodInput:
+                        response = raw_input("Continue? y/n ")
+                        if response == 'y':
+                            break
+                        else:
+                            myInput = None
+                            self.pick_pick_pos = None
 
             target = self.pick_pick_pos
 
@@ -4777,6 +4796,7 @@ def load_apc_world():
 
     testingTransform = (so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
     world.terrain(0).geometry().transform(*testingTransform)
+    knowledgeTransform = (so3.rotation([0,1,0], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
 
     #knowledge.shelf_xform = se3.mul(reorient, calibration)
     knowledge.shelf_xform = se3.mul(calibration, reorient)
