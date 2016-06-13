@@ -679,8 +679,8 @@ class PickingController:
         self.held_object = None
 
         #self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0.0,0.0])
-        self.perceptionTransform = ( so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
         self.perceptionTransform = ( so3.rotation([0,0,1], -1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
+        self.perceptionTransform = ( so3.rotation([0,0,1], 1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.018413903172000288, 0.9997129126747357, -0.015330375121676166, -0.09940946303721014, -0.01708761023976607, -0.994899880508058, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, 0.009999999999999983, 0.024999999999999994])
@@ -4741,7 +4741,7 @@ def load_apc_world():
 
     #knowledge.shelf_xform = se3.mul(reorient, calibration)
     knowledge.shelf_xform = se3.mul(calibration, reorient)
-    knowledge.shelf_xform = se3.mul(testingTransform, knowledge.shelf_xform)
+    knowledge.shelf_xform = se3.mul(knowledge.shelf_xform, testingTransform)
 
 
     # world.terrain(0).geometry().transform(*perceptionTransform)
