@@ -65,8 +65,8 @@ from Group2Helper import Vacuum_Comms
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -1180,7 +1180,7 @@ class PickingController:
 
             #if ik.solve([goal1, goal2], tol=1e-3):
 
-            milestone =  self.simpleIK(goal = goal, limb = limb):
+            milestone =  self.simpleIK(goal = goal, limb = limb)
                 
             if milestone:
                 path.append(milestone)
@@ -1218,7 +1218,7 @@ class PickingController:
                     #getPressureReading
                     #reevaluate noPressureDrop                    
 
-                    # pressureDrop = readPressure()
+                    pressureDrop = readPressure()
                     print pressureDrop
                     time.sleep(0.5)
 
@@ -2595,7 +2595,7 @@ class PickingController:
                             self.pick_pick_pos = None
 
             target = self.pick_pick_pos
-
+            self.pick_pick_pos = None
 
             step = 1;
 
