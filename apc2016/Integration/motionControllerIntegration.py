@@ -70,7 +70,7 @@ PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 0 or ALL_ARDUINOS
+VACUUM = 1 or ALL_ARDUINOS
 
 SPEED = 3
 
@@ -102,9 +102,6 @@ STOW_TIME = 9000
 PRESSURE_THRESHOLD = 865
 
 visualizer = None
-
-
-INIT_DEGREE_OFFSET = 7
 
 if REAL_SCALE:
     from Sensors import scale
@@ -678,9 +675,8 @@ class PickingController:
         self.current_bin = None
         self.held_object = None
 
-        #self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0.0,0.0])
-        self.perceptionTransform = ( so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
-        self.perceptionTransform = ( so3.rotation([0,0,1], -1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
+        self.perceptionTransform = ([1,0,0,0,1,0,0,0,1], [0,0.0,0.0])
+        self.perceptionTransformInv =  ([1,0,0,0,1,0,0,0,1], [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
         self.cameraTransform = ([-0.018413903172000288, 0.9997129126747357, -0.015330375121676166, -0.09940946303721014, -0.01708761023976607, -0.994899880508058, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, 0.009999999999999983, 0.024999999999999994])
@@ -698,7 +694,6 @@ class PickingController:
 
         self.left_bin = None
         self.right_bin = None
-
 
         #these may be helpful
         self.left_camera_link = self.robot.link(left_camera_link_name)
@@ -891,14 +886,8 @@ class PickingController:
     DEBUG methods
     '''
 
-    def testBinIKHelper(self, limb='right', bin='bin_A'):
-        if bin in apc.bin_names:
-            if limb == 'left':
-                self.moveArmaAway('right')
-            if limb == 'right':
-                self.moveArmAway('left')
-            self.waitForMove()
-
+    def testIK(self, limb='right'):
+        for bin in apc.bin_names:
             self.viewBinAction(b=bin, limb=limb)
             self.waitForMove()
             self.prepGraspFromBinAction(b=bin, limb=limb)
@@ -913,58 +902,12 @@ class PickingController:
                     print point, 'Successful for ', bin
                 else:
                     print point, 'Unsuccessful for ', bin
-            if limb == 'left':
-                self.stateLeft = 'grasp'
-            if limb == 'right':
-                self.stateRight = 'grasp'
-                #prepGraspFromBinAction makes the states graspPrepped
-
             self.waitForMove()
             self.moveToRestConfig()
-            self.waitForMove()
 
     #preprepGraspFromBinAction(self, limb, b=None)
     #viewBinAction(self,b, limb)  
     #moveToObjectInBinFromTop(self, position=None, limb=None, step=None, naiive=True)
-
-    def testBinIK(self, limb='right', bin='all'):
-        if bin == 'all':
-            for bin in apc.bin_names:
-                testBinIKHelper(limb=limb, bin=bin)
-        else:
-            testBinIKHelper(limb=limb, bin=bin)
-
-    def testStowIK(self, limb='right', sample=None, sliceX=3, sliceY=3, sliceZ=3):
-        #use / to find these relative to the vacuum gripper
-        minX = a
-        minY = a
-        minZ = a
-        maxX = a
-        maxY = a
-        maxZ = a
-
-        totePoints = []
-
-        while curX < maxX:
-            startY = startRatio
-            while curY < maxY:
-                curZ = startRatio
-                while curZ < endZ:
-                    x = startX * minMax[0][0] + (1-startX)*minMax[1][0]
-                    y = startY*minMax[0][1] + (1-startY)*minMax[1][1]
-                    z = startZ*minMax[0][2] + (1-startZ)*minMax[1][2]
-                    returnPoints.append([x,y,z])
-                    startZ = startZ + incZ
-                startY = startY +incY
-            startX = startX + incX
-
-        self.viewBinAction(b=bin, limb=limb)
-        self.waitForMove()
-        self.prepGraspFromBinAction(b=bin, limb=limb)
-        self.waitForMove()
-        points = knowledge.sampleBin(bin_name=bin)
-            
-
 
     #=======================================================
 
@@ -2554,7 +2497,7 @@ class PickingController:
 
                 self.sendPath(path=[step1], limb=limb)
                 #self.sendPath(path=step1, limb = limb)
-                self.waitForMove()
+                time.sleep(2)
 
                 step =3
 
@@ -2593,7 +2536,7 @@ class PickingController:
 
 
                 self.sendPath(path=[step3], limb=limb)
-                self.waitForMove()
+                time.sleep(2)
                 step=4
 
             if step==4 :           
@@ -2618,7 +2561,6 @@ class PickingController:
                     return False
 
                 self.sendPath(path=[step4], limb = limb)
-                self.waitForMove()
                 #print 'Got to step 4'
 
                 step = 5
@@ -2626,10 +2568,9 @@ class PickingController:
             if step==5:
                 #pull back out
 
-                self.waitForMove()
                 self.sendPath(path=[step3], limb=limb)
-                self.waitForMove()
                 self.sendPath(path=[step1], limb=limb)
+
 
                 #check that object is still held
                 return True
@@ -2926,7 +2867,7 @@ class PickingController:
                 for milestone in lPath:
                     path.append(milestone)
       
-        elif(self.stateLeft == 'grasp' or self.stateLeft == 'graspPrepped' ):
+        elif(self.stateLeft == 'grasp' ):
             #not set up yet
             # go to store then rest
             lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT')
@@ -2987,7 +2928,7 @@ class PickingController:
                 for milestone in rPath:
                     path.append(milestone)
       
-        elif(self.stateRight == 'grasp' or self.stateRight == 'graspPrepped'):
+        elif(self.stateRight == 'grasp' ):
             #not set up yet
             # go to store then rest
             rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()[4]+'_RIGHT')
@@ -3180,20 +3121,6 @@ class PickingController:
                     print 'Error no '+path_name+'in recorded constants'
                     return False
 
-
-            #for milestone in path:
-            try:
-                len(path[0])
-            except:
-                #path is a single milestone
-                if path == []:
-                    if finalState is not None:
-                        self.stateRight = finalState
-                    return True
-
-                print 'Hit path exception for single milestones or empty paths'
-                path=[path]
-                path.append(path[0])
 
                 #change to most recently commanded position
                 #qAdd = None
@@ -3554,15 +3481,6 @@ class PickingController:
             print "sending empty path"
             return False
 
-
-        try:
-            len(path[i])
-        except:
-            #if we can't do it, it's because we received an empty array or path is one milestone
-            if path is None or path == []:
-                print 'sending empty path'
-                return False
-            path = [path]
 
         # if INCREMENTAL:
         #     assert(len(path)==2)
@@ -4096,6 +4014,9 @@ class MyGLViewer(GLRealtimeProgram):
 
             if self.picking_controller.pick_pick_pos is not None:
                 glVertex3f(*self.picking_controller.pick_pick_pos)
+
+            glVertex3f(*[1.21986850464577, -0.03790091164790879, 1.3999290005916654])
+            glVertex3f(*[1.0113589055602523, -0.03790091164790879, 1.3999290005916654])
 
 
             glEnd()
@@ -4746,12 +4667,8 @@ def load_apc_world():
     world.terrain(0).geometry().transform( newTransform[0], newTransform[1])
     world.terrain(0).geometry().transform(calibration[0], calibration[1])
 
-    testingTransform = (so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
-    world.terrain(0).geometry().transform(*testingTransform)
-
     #knowledge.shelf_xform = se3.mul(reorient, calibration)
     knowledge.shelf_xform = se3.mul(calibration, reorient)
-    knowledge.shelf_xform = se3.mul(testingTransform, knowledge.shelf_xform)
 
 
     # world.terrain(0).geometry().transform(*perceptionTransform)
