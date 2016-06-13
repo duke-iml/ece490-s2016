@@ -65,7 +65,7 @@ from Group2Helper import Vacuum_Comms
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
+FAKE_SIMULATION = 0
 PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
@@ -1157,7 +1157,7 @@ class PickingController:
         q_start = [conf for conf in self.controller.getSensedConfig()]
 
 
-        link = self.simworld.robot(0).link(limb+'_wrist')
+        link = self.robot.link(limb+'_wrist')
         # print 'Current limb is', limb
         # print self.simworld.robot(0).link('right_wrist').getName(), self.robot.link('right_wrist')
         # print self.simworld.robot(0).link('left_wrist').getName(), self.robot.link('left_wrist')
@@ -1165,6 +1165,8 @@ class PickingController:
         # print 'link_xform', link.getTransform()
         path = [q_start]
 
+
+        # print 'beginning debugging'
         
         while goalZ > endZ:
             global1 = [self.stow_pick_pos[0], self.stow_pick_pos[1], goalZ]
@@ -1182,12 +1184,22 @@ class PickingController:
 
             milestone =  self.simpleIK(goal = goal, limb = limb)
                 
+            # print [milestone[v] for v in self.right_arm_indices[:7]]
+
             if milestone:
+                #print milestone
                 path.append(milestone)
                 print 'Goal Z = ', goalZ, ' solved at ', i
 
             goalZ+=incZ    
        
+        # print len(path)
+
+
+        # print 'Milestones in path: ========================================'
+        # for milestone in path:
+        #     print [milestone[v] for v in self.right_arm_indices[:7]]
+
         if len(path)>1:
             #print 'sending'
 
@@ -1242,10 +1254,16 @@ class PickingController:
                     return False
 
             else:
+
+                
                 self.sendPath(path, limb=limb)
+
+                # print 'sent path to go down'
                 if FAKE_SIMULATION:
                     raw_input()
+
                 self.sendPath(path[::-1], limb=limb)
+                # print 'sent path to go up'
 
 
             #print 'sent'
@@ -3659,6 +3677,7 @@ class PickingController:
                 #pass
 
 
+        #print 'path in sendPath is ', path
 
         #print "Got to self.plan"
 
@@ -3706,6 +3725,10 @@ class PickingController:
                 if not PHYSICAL_SIMULATION:
                     self.controller.controller.setVelocity([1]*61,0.1)
                     self.controller.appendMilestone(path[j])
+                    
+                    #self.controller.setMilestone(path[j])
+                    
+
                     #print "got to this point"
                     # if INCREMENTAL:
                     #     self.waitForMove()
@@ -4040,7 +4063,11 @@ class MyGLViewer(GLRealtimeProgram):
         self.simworld = simworld
         self.planworld = planworld
         self.sim = Simulator(simworld)
-        self.simulate = False
+        
+        if not FAKE_SIMULATION and not PHYSICAL_SIMULATION:
+            self.simulate = True
+        else:
+            self.simulate = False
 
         # draw settings
         self.draw_bins = False
