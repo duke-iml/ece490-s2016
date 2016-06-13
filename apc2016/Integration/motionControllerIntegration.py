@@ -65,8 +65,8 @@ from Group2Helper import Vacuum_Comms
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -75,7 +75,7 @@ VACUUM = 0 or ALL_ARDUINOS
 SPEED = 3
 
 REAL_SCALE = False
-REAL_CAMERA = False
+REAL_CAMERA = True
 REAL_JSON = False
 REAL_PRESSURE = 1
 
@@ -4696,11 +4696,11 @@ def run_controller(controller,command_queue):
                 visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransform)
             elif c=='c':
                 print 'Viewing Tote: '
-                controller.viewToteAction(limb='right')
+                controller.viewToteAction(limb=DEFAULT_LIMB)
             elif c=='g':
                 visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransformInv)
             elif c == '1':
-                controller.runPickFromTote(limb = 'right')
+                controller.runPickFromTote(limb=DEFAULT_LIMB)
 
             elif c == '2':
                 controller.moveToRestConfig()
