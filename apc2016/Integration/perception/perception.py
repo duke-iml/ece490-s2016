@@ -18,7 +18,7 @@ sys.setrecursionlimit(10000)
 downsample_rate = 50
 
 RIGHT_CAMERA_IP = '10.236.66.147'
-LEFT_CAMERA_IP = 'Unspecified'
+LEFT_CAMERA_IP = '10.236.66.147'
 
 class CameraData:
 	def __init__(self, color, cloud, depth_uv, color_uv):
