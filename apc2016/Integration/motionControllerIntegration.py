@@ -75,9 +75,9 @@ VACUUM = 0 or ALL_ARDUINOS
 SPEED = 3
 
 REAL_SCALE = False
-REAL_CAMERA = True
+REAL_CAMERA = False
 REAL_JSON = False
-REAL_PRESSURE = 1
+REAL_PRESSURE = False
 
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
@@ -104,7 +104,7 @@ PRESSURE_THRESHOLD = 865
 visualizer = None
 
 
-INIT_DEGREE_OFFSET = 7
+INIT_DEGREE_OFFSET = 0
 
 if REAL_SCALE:
     from Sensors import scale
@@ -1067,7 +1067,8 @@ class PickingController:
                         self.waitForMove()
                         #time.sleep(5)
                         if REAL_CAMERA:
-                            self.getPickPositionForStow(limb)
+                            pass
+                            # self.getPickPositionForStow(limb)
                         return True
                 else:
                     print "Error in moveArm (from viewToteAction)"
@@ -1125,7 +1126,7 @@ class PickingController:
                         print myInts
                         self.stow_pick_pos = myInts
                         response = raw_input("Continue? y/n ")
-                        if response == 'y' and len(myInts)==3:
+                        if response == 'y' and len(myInts)>=2:
                             break
                         else:
                             myInts = []
@@ -1177,7 +1178,7 @@ class PickingController:
             #if ik.solve([goal1, goal2], tol=1e-3):
             print 'For x, y: ', self.stow_pick_pos[0], ' ',self.stow_pick_pos[1]
             if self.simpleIK(goal = goal, limb = limb):
-                sortedSolutions.append([conf for conf in self.simworld.robot(0).getConfig()])
+                sortedSolutions.append([conf for conf in self.robot.getConfig()])
                 print 'Goal Z = ', goalZ, ' solved at ', i
 
 
@@ -1197,7 +1198,7 @@ class PickingController:
             try:
                 vacuumController.change_vacuum_state(1)
             except:
-                print 'Error in vacuum Controller'
+                print 'Error in vacuum Controller (controller is off?)'
 
             reversePath = []
 
@@ -1214,6 +1215,7 @@ class PickingController:
                         self.waitForMove()
                         self.sendPath([path[index]])
                     else:
+                        self.waitForMove()
                         self.sendPath([path[index-1], path[index]], INCREMENTAL=True)
                     self.waitForMove()
                     #getPressureReading
@@ -1228,7 +1230,9 @@ class PickingController:
                         #lift back out the reverse path
                         self.waitForMove()
 
-                        self.sendPath(path[::-1], limb=limb)
+                        # self.sendPath(path[::-1], limb=limb)
+                        self.sendPath(reversePath[::-1], limb=limb)
+
                         self.waitForMove()
 
                         return True
@@ -3652,7 +3656,7 @@ class PickingController:
                 pass
             else:
                 
-                print path
+                #print path
                 if len(path[i])<n:
                     path[i] += [0.0]*(n-len(path[i]))
                 #pass
