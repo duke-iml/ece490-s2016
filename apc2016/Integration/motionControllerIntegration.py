@@ -104,7 +104,7 @@ PRESSURE_THRESHOLD = 865
 visualizer = None
 
 
-INIT_DEGREE_OFFSET = 7
+INIT_DEGREE_OFFSET = -7
 
 if REAL_SCALE:
     from Sensors import scale
@@ -930,9 +930,9 @@ class PickingController:
     def testBinIK(self, limb='right', bin='all'):
         if bin == 'all':
             for bin in apc.bin_names:
-                testBinIKHelper(limb=limb, bin=bin)
+                self.testBinIKHelper(limb=limb, bin=bin)
         else:
-            testBinIKHelper(limb=limb, bin=bin)
+            self.testBinIKHelper(limb=limb, bin=bin)
 
     def testStowIK(self, limb='right', sample=None, sliceX=3, sliceY=3, sliceZ=3):
         #use / to find these relative to the vacuum gripper
@@ -4552,7 +4552,7 @@ def run_controller(controller,command_queue):
 
             elif c=='d':
                 print 'Run Debug method - currently testing IK'
-                controller.testIK(limb=DEFAULT_LIMB)    
+                controller.testBinIK(limb=DEFAULT_LIMB)    
 
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
