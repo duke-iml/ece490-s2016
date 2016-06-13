@@ -1162,6 +1162,9 @@ class PickingController:
         # print self.simworld.robot(0).link('left_wrist').getName(), self.robot.link('left_wrist')
         # print link.getName(), link
         # print 'link_xform', link.getTransform()
+        path = [q_start]
+
+        
         while goalZ > endZ:
             global1 = [self.stow_pick_pos[0], self.stow_pick_pos[1], goalZ]
             global2 = [self.stow_pick_pos[0],self.stow_pick_pos[1], goalZ-0.5]
@@ -1176,20 +1179,18 @@ class PickingController:
 
             #if ik.solve([goal1, goal2], tol=1e-3):
             print 'For x, y: ', self.stow_pick_pos[0], ' ',self.stow_pick_pos[1]
-            if self.simpleIK(goal = goal, limb = limb):
-                sortedSolutions.append([conf for conf in self.simworld.robot(0).getConfig()])
+            milestone =  self.simpleIK(goal = goal, limb = limb):
+                
+            if milestone:
+                path.append(milestone)
                 print 'Goal Z = ', goalZ, ' solved at ', i
 
 
 
             goalZ+=incZ
 
-        path = [q_start]
-
-        for solution in sortedSolutions:
-
-            path.append(solution) 
-
+       
+       
         if len(path)>1:
             #print 'sending'
 
