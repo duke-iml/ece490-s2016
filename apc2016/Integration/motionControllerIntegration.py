@@ -104,7 +104,7 @@ PRESSURE_THRESHOLD = 865
 visualizer = None
 
 
-INIT_DEGREE_OFFSET = 7
+INIT_DEGREE_OFFSET = 0
 
 if REAL_SCALE:
     from Sensors import scale
@@ -4190,7 +4190,7 @@ class MyGLViewer(GLRealtimeProgram):
                 pass
             if all_stow_pick_poss is not None:
                 for stow_pick_pos in all_stow_pick_poss:
-                gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [stow_pick_pos[0], stow_pick_pos[1], -0.1]), 0.5, 0.1, fancy=False)
+                    gldraw.xform_widget(([1,0,0,0,1,0,0,0,1], [stow_pick_pos[0], stow_pick_pos[1], -0.1]), 0.5, 0.1, fancy=False)
                 
                 
         if SHOW_BIN_BOUNDS:
@@ -4627,7 +4627,8 @@ def run_controller(controller,command_queue):
 
             elif c=='m':
                 print 'Run Debug method - currently testing IK for Tote'
-                controller.testStowIK(limb=DEFAULT_LIMB)   
+                controller.testStowIK(limb=DEFAULT_LIMB)
+                stderr.write('Don')   
 
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
