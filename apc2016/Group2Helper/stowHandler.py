@@ -48,7 +48,7 @@ CONST_ITEM_NAMES = ["i_am_a_bunny_book",
 import sys
 import time
 sys.path.insert(0, "../")
-from Sensors import scale
+# from Sensors import scale
 import json
 import json_parser_stow
 from bin_select import binSelector
@@ -63,6 +63,7 @@ class stowHandler:
         self.scale = None
         # self.currentWeight = 100
         # try:
+
         self.scale=scale.Scale_Measurement()
         self.currentWeight=float(self.scale.readData(10).split(' ')[0])
         print 'Initial Reading', self.currentWeight
@@ -95,12 +96,12 @@ class stowHandler:
         
 
     def pickWhichObj(self, debug=False):
+
         newWeight = float(self.scale.readData(10).split(' ')[0])
 
         #newWeight=self.scale.readData(10)
         #newWeight=100
         objWeight=abs((self.currentWeight-newWeight))
-        
         
         if (debug):
             print "Object Weight is ",objWeight
@@ -224,6 +225,7 @@ class stowHandler:
             return False
     def jsonOutput(self, filename):
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
+
 
 # if __name__ == "__main__":
 #     FILE_NAME="apc_stow_task.json"

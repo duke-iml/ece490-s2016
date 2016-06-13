@@ -1245,7 +1245,11 @@ class PickingController:
             # elif len(items)==1:
             #     print 'Item picked is:', items
             #     self.pickBin = stowHandler.getBin(items)
+<<<<<<< HEAD
+            # else: 
+=======
             # else:
+>>>>>>> 45f85620c0136a16a7882c8c8dbf4e9fa29922b2
             #     print 'got no Item'
             #     return False
             print items
