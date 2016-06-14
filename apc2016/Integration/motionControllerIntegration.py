@@ -640,12 +640,13 @@ class PhysicalLowLevelController(LowLevelController):
         return
 
     def appendMilestoneRight(self, destination, dt=2):
+        print "appending milestone right...len(destination)=", len(destination)
         if len(destination) == 7:
             #while len(destination) < len(self.right_arm_indices):
             #    destination = destination + [0]
             if not motion.robot.right_mq.appendLinear(dt, destination): raise RuntimeError()
         else:
-            #print 'Desitnation is: ', destination
+            print 'Desitnation is: ', [destination[v] for v in self.right_arm_indices[:7]]
             if not motion.robot.right_mq.appendLinear(dt, [destination[v] for v in self.right_arm_indices[:7]]): raise RuntimeError()
         return True
     def appendMilestoneLeft(self, destination, dt=2):
@@ -1063,7 +1064,6 @@ class PickingController:
         if LOAD_PHYSICAL_TRAJECTORY:
             if limb is not None:
                 if self.moveArm(limb, statusConditional='ready', path_name='Q_VIEW_TOTE_'+limb.upper(), finalState='viewTote'):
-
                         self.waitForMove()
                         #time.sleep(5)
                         if REAL_CAMERA:
@@ -1181,6 +1181,13 @@ class PickingController:
             self.simworld.robot(0).setConfig([conf for conf in q_start])
 
             #if ik.solve([goal1, goal2], tol=1e-3):
+            milestone = []
+            milestone = self.simpleIK(goal = goal, limb = limb)
+            
+
+            print "DEBUG"
+            print [milestone[v] for v in self.right_arm_indices[:7]]
+
 
             milestone =  self.simpleIK(goal = goal, limb = limb)
                 
@@ -1222,7 +1229,10 @@ class PickingController:
                     # print "milestone #",index
                     if i == 0:
                         self.waitForMove()
-                        self.sendPath([path[index]])
+                        print "1"
+                        self.controller.appendMilestone(path[index])
+                        print "2"
+                        #self.sendPath([path[index]])
                     else:
                         self.waitForMove()
                         self.sendPath([path[index-1], path[index]], INCREMENTAL=True)
@@ -1253,9 +1263,8 @@ class PickingController:
                     print 'Didn\'t grab anything'
                     return False
 
-            else:
+            else:                
 
-                
                 self.sendPath(path, limb=limb)
 
                 # print 'sent path to go down'
@@ -3302,10 +3311,17 @@ class PickingController:
             #     self.sendPath(path, limb='right', readConstants=True)
             # ^Hyunsoo's code - delinked the arms from moving simultaneously
 
+
+            # print "DEBUGGING"
+            # print "path = ", path
+            # self.sendPath(path, limb='right')
+            # return False
+
             for milestone in path:
 
                 #print milestone
                 self.controller.appendMilestoneRight(milestone, 1)
+                
                 #move to the milestone in 1 second
 
                 #self.waitForMove() #still doesn't do anything, but it's the thought that counts
@@ -3423,12 +3439,16 @@ class PickingController:
 
         #print 'this is the length of ikSolutions', len(ikSolutions)
 
+        # print "length of sorted solutions before sorting", len(sortedSolutions)
         sortedSolutions = sorted(sortedSolutions, key=itemgetter(0))
+        # print "length of sorted solutions after sorting", len(sortedSolutions)
+
         #print 'this is the length of sorted solutions (should be 2)', len(sortedSolutions)
         #print 'this is the length of the second index of sortedSolutions (should also be 2)', len(sortedSolutions[1])
         #print 'this is the length of the 0\'th entry to sortedSolutions[1]', len(sortedSolutions[1][0])
         # s[0] contains the distance-sqaured values
         # s[1] contains the ikSolution, which has [0]: config and [1]: index
+
 
         if oneSolution:
             #print 'solution 1 = ', sortedSolutions[0][1][0]
@@ -3635,6 +3655,8 @@ class PickingController:
         return False
 
     def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False, limb = None, readConstants=False):
+
+
         # interpolate path linearly between two endpoints
         if path == None:
             print "sending empty path"
@@ -3750,6 +3772,7 @@ class PickingController:
 
             # original
         # print "reached"
+
         if PHYSICAL_SIMULATION:
             i = 0
             endIndex = len(path)            
