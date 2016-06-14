@@ -399,7 +399,7 @@ class Perceiver(object):
 		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
 		all_idxs = self.get_all_local_maxima(densities)
 		# all_idxs = sorted(all_idxs, key=lambda idx:-densities[idx[0], idx[1]]) # sort in descending order of density
-		all_locs = [[x_grid[x_idx], y_grid[y_idx]] for x_idx,y_idx in all_idxs]
+		all_locs = [[x_grid[x_idx,y_idx], y_grid[x_idx,y_idx]] for x_idx,y_idx in all_idxs]
 		if not return_tote_content_cloud:
 			return all_locs
 		else:
@@ -431,27 +431,35 @@ class Perceiver(object):
 			self.remove_local_max(mat, *max_loc)
 		return all_locs
 
-	def get_current_tote_content_cloud(self, cur_camera_R, cur_camera_t, limb, scene_cloud=None, threshold=0.02, fit=False):
+	def get_current_tote_content_cloud(self, cur_camera_R, cur_camera_t, limb, colorful=True, threshold=0.02, fit=False):
 		'''
 		subtract tote model from current point cloud of tote (with object in it)
 		if fit is True, transform the model to align with the scene first. it will take some time
 		return the point cloud of the remaining scene in global frame
 		'''
-		if scene_cloud is None:
-			_, scene_cloud, _, _ = self.read_once(limb, unit='meter', Nx3_cloud=True, clean=True)
+		color, scene_cloud, depth_uv, _ = self.read_once(limb, unit='meter', Nx3_cloud=False)
+		if colorful:
+			scene_cloud = colorize_point_cloud(scene_cloud, color, depth_uv).reshape(-1, 4)
+		else:
+			scene_cloud = scene_cloud.reshape(-1, 3)
+		keep_idxs = np.where(scene_cloud[:,2].flatten()!=0)[0]
+		scene_cloud = scene_cloud[keep_idxs, :]
+		scene_cloud = scene_cloud[::downsample_rate, :]
+		scene_cloud_xyz = scene_cloud[:, 0:3]
+
 		model_cloud = self.load_model_tote_cloud(limb, downsample=True)
 		assert model_cloud is not None, 'Error loading tote model'
 		
 		model_xform_R, model_xform_t = self.load_R_t(self.get_tote_viewing_camera_xform_path(limb), nparray=True)
 		model_cloud = model_cloud.dot(model_xform_R) + model_xform_t
 
-		scene_cloud = scene_cloud[::downsample_rate, :]
 		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
 		cur_camera_t = np.array(cur_camera_t)
-		scene_cloud = scene_cloud.dot(cur_camera_R.T) + cur_camera_t # transform scene cloud
+		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R.T) + cur_camera_t # transform scene cloud
+		scene_cloud[:, 0:3] = scene_cloud_xyz
 		
 		print "Making scene cloud with %i points"%scene_cloud.shape[0]
-		scene_tree = KDTree(scene_cloud)
+		scene_tree = KDTree(scene_cloud_xyz)
 		print "Done"
 		
 		if fit:
@@ -465,25 +473,25 @@ class Perceiver(object):
 
 		num_content_cloud_pts = content_cloud.shape[0]
 		print "Making content cloud with %i points"%content_cloud.shape[0]
-		content_tree = KDTree(content_cloud)
+		content_tree = KDTree(content_cloud[:, 0:3])
 		print "Done. Querying neighbors within 0.03 m"
-		idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		idxs = content_tree.query_ball_point(content_cloud[:, 0:3], 0.03)
 		unisolated_flag = map(lambda x: len(x)>=3, idxs)
 		content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
 		print "Clean cloud has %i points"%content_cloud.shape[0]
 
 		print "Making content cloud with %i points"%content_cloud.shape[0]
-		content_tree = KDTree(content_cloud)
+		content_tree = KDTree(content_cloud[:, 0:3])
 		print "Done. Querying neighbors within 0.03 m"
-		idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		idxs = content_tree.query_ball_point(content_cloud[:, 0:3], 0.03)
 		unisolated_flag = map(lambda x: len(x)>=4, idxs)
 		content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
 		print "Clean cloud has %i points"%content_cloud.shape[0]
 
 		print "Making content cloud with %i points"%content_cloud.shape[0]
-		content_tree = KDTree(content_cloud)
+		content_tree = KDTree(content_cloud[:, 0:3])
 		print "Done. Querying neighbors within 0.03 m"
-		idxs = content_tree.query_ball_point(content_cloud, 0.03)
+		idxs = content_tree.query_ball_point(content_cloud[:, 0:3], 0.03)
 		unisolated_flag = map(lambda x: len(x)>=5, idxs)
 		content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
 		print "Clean cloud has %i points"%content_cloud.shape[0]
