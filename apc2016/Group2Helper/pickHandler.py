@@ -13,43 +13,44 @@ CONST_BIN_NAMES = ['bin_A',
 'bin_J',
 'bin_K',
 'bin_L']
-CONST_ITEM_NAMES = [["scotch_bubble_mailer",
-"creativity_chenille_stems",
-"i_am_a_bunny_book",
-"cherokee_easy_tee_shirt",
+CONST_ITEM_NAMES = [
+["laugh_out_loud_joke_book",
 "jane_eyre_dvd",
-"laugh_out_loud_joke_book",
-"kyjen_squeakin_eggs_plush_puppies",
+"cherokee_easy_tee_shirt",
+"womens_knit_gloves",
+"i_am_a_bunny_book",
+"scotch_bubble_mailer",
 "soft_white_lightbulb",
-"hanes_tube_socks",
-"woods_extension_cord",
-"ticonderoga_12_pencils",
 "barkely_hide_bones",
-"kleenex_tissue_box",
 "staples_index_cards",
-"cool_shot_glue_sticks",
-"crayola_24_ct",
 "dove_beauty_bar",
+"expo_dry_erase_board_eraser",
+"ticonderoga_12_pencils",
+"crayola_24_ct",
+"elmers_washable_no_run_school_glue",
+"creativity_chenille_stems",
+"cloud_b_plush_bear",
+"kleenex_tissue_box",
+"command_hooks",
+"safety_first_outlet_plugs",
+"cool_shot_glue_sticks",
+"platinum_pets_dog_bowl"],
+["woods_extension_cord",
+"dr_browns_bottle_brush",
+"rawlings_baseball",
+"kyjen_squeakin_eggs_plush_puppies",
+"up_glucose_bottle",
+"peva_shower_curtain_liner",
+"folgers_classic_roast_coffee",
+"clorox_utility_brush",
+"scotch_duct_tape",
 "oral_b_toothbrush_green",
 "oral_b_toothbrush_red",
-"peva_shower_curtain_liner",
-"womens_knit_gloves",
-"expo_dry_erase_board_eraser"],
-["cloud_b_plush_bear",
-"command_hooks",
-"platinum_pets_dog_bowl",
-"dr_browns_bottle_brush",
-"safety_first_outlet_plugs",
-"easter_turtle_sippy_cup",
-"elmers_washable_no_run_school_glue",
-"up_glucose_bottle",
-"folgers_classic_roast_coffee",
-"fiskars_scissors_red",
-"rawlings_baseball",
-"scotch_duct_tape",
-"clorox_utility_brush"],
+"easter_turtle_sippy_cup"],
 ["dasani_water_bottle",
 "kleenex_paper_towels",
+"hanes_tube_socks",
+"fiskars_scissors_red",
 "rolodex_jumbo_pencil_cup",
 "fitness_gear_3lb_dumbbell"]]
 CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
@@ -173,8 +174,10 @@ class pickHandler:
         # return (BinOrder, objectOrder, oneOrNot)
         return (sortedBinOrder, sortedTargetOrder, sortedRight)
 if __name__ == "__main__":
-    a=pickHandler("apc_pick_task.json")
-    [border,torder, aorder]=a.workBinOrder()
-    print border
-    print torder
-    print aorder
+    JSON_FILES=["PickTestA.json","PickTestB.json","PickTestC.json","PickTestD.json","PickTestE.json"]
+    for i in range(len(JSON_FILES)):
+        a=pickHandler("../JSON_FILES/"+JSON_FILES[i])
+        [border,torder, aorder]=a.workBinOrder()
+        print border
+        print torder
+        print aorder
