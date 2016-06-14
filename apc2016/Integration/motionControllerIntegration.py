@@ -107,8 +107,9 @@ visualizer = None
 INIT_DEGREE_OFFSET = 0
 
 TOTE_BOUNDS = [[],[]]
-TOTE_BOUNDS[0] = [0.4798129387979302, 0.27387636103959584, 0.4489993529429332]
-TOTE_BOUNDS[1] =  [0.729562827187139, -0.22440848211492773, 0.23683088095005633]
+TOTE_BOUNDS[0] = [0.46305347574054306, 0.17945420476731544, 0.40173116757882754]
+TOTE_BOUNDS[1] =  [0.7450201607565164, -0.24038306811680057, 0.2343197591748587]
+
 
 
 if REAL_SCALE:
@@ -3099,6 +3100,8 @@ class PickingController:
 
         elif self.stateLeft == 'stow':
             #go right ahead through the code
+
+            path.append(eval('Q_OUT_OF_TOTE_LEFT'))
             pass
 
         elif self.stateLeft == 'viewTote':
@@ -3170,7 +3173,7 @@ class PickingController:
 
         elif self.stateRight == 'stow':
             #go right ahead through the code
-            pass
+            path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
 
         elif self.stateRight == 'viewTote':
             rPath = eval('Q_VIEW_TOTE_RIGHT')
