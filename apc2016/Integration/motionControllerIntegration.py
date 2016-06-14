@@ -4851,7 +4851,7 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
-    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.555, -0.02])
+    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.615, -0.02])
     # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
