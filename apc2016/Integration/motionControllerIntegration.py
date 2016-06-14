@@ -107,8 +107,10 @@ visualizer = None
 INIT_DEGREE_OFFSET = 0
 
 TOTE_BOUNDS = [[],[]]
-TOTE_BOUNDS[0] = [0.46305347574054306, 0.17945420476731544, 0.40173116757882754]
-TOTE_BOUNDS[1] =  [0.7450201607565164, -0.24038306811680057, 0.2343197591748587]
+TOTE_BOUNDS[0] = [0.7457424118397027, -0.19966880112083363, 0.24317271366212811]
+
+TOTE_BOUNDS[1] =  [0.5351749454031796, 0.2791990789975449, 0.4314465273701872]
+
 
 
 
@@ -1014,7 +1016,7 @@ class PickingController:
             self.waitForMove()
             #self.debugPoints.append()
             #self.moveToObjectInBinFromSide()
-            if self.graspFromToteAction(position=point, limb=limb, points=sliceZ-1):
+            if self.graspFromToteAction(position=point, limb=limb, points=sliceZ-1, endZ=minZ, startZ =maxZ + .1 ):
                 numSuccess += 1
             else:
                 numFailure += 1
@@ -1373,6 +1375,8 @@ class PickingController:
         else:
             print "fail"
             return False
+
+        self.waitForMove()
 
         path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
         print "self.moveArm(",path_name,")...",
