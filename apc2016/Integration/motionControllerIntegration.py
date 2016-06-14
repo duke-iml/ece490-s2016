@@ -964,8 +964,9 @@ class PickingController:
             return False 
 
         #use / to find these relative to the vacuum gripper
-        point1 = [0.493707578811178, 0.31898193868487673, 0.2912119630803892]
-        point2 = [0.7835949216561817, -0.2311991834824173, 0.13890998061380122]
+        point1 = [0.4798129387979302, 0.27387636103959584, 0.4489993529429332]
+        point2 = [0.729562827187139, -0.22440848211492773, 0.23683088095005633]
+
 
 
         minX = min(point1[0], point2[0])
@@ -1116,12 +1117,15 @@ class PickingController:
 
             print 'Error in viewTote action can\'t move with no limb'
 
-    def graspFromToteAction(self, limb, position=None, points=None):
+    def graspFromToteAction(self, limb, position=None, points=None, startZ = .54, endZ =.24):
 
         #if perception has picked something
 
         #x = forward
         #y = left
+
+        #startZ
+        #endZ
 
 
         if REAL_CAMERA:
@@ -1158,8 +1162,6 @@ class PickingController:
                 self.stow_pick_pos = position
 
         # goalXY = [0.5,-0.5]
-        startZ = .5
-        endZ = .15
         if points == None:
             points = 15.0
 
@@ -1211,9 +1213,6 @@ class PickingController:
 
             # print "DEBUG"
             # print [milestone[v] for v in self.right_arm_indices[:7]]
-
-
-            milestone =  self.simpleIK(goal = goal, limb = limb)
                 
             # print [milestone[v] for v in self.right_arm_indices[:7]]
 
