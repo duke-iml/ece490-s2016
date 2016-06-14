@@ -65,8 +65,8 @@ from Group2Helper import Vacuum_Comms
 
 
 NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 1
+FAKE_SIMULATION = 1
+PHYSICAL_SIMULATION = 0
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -729,6 +729,7 @@ class PickingController:
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
         self.debugPoints = []
+        self.debugFailedPoints = []
         # mapping from "link ID" to "link index"
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
 
@@ -919,14 +920,21 @@ class PickingController:
             self.waitForMove()
             points = knowledge.sampleBin(bin_name=bin)
             
+            numSuccess = 0
+            numFailure = 0
+            numTrials = len(points)
+
             for point in points:
 
                 self.waitForMove()
                 #self.moveToObjectInBinFromSide()
                 if self.moveToObjectInBinFromTop(position=point, limb=limb):
-                    print point, 'Successful for ', bin
+                    #print point, 'Successful for ', bin
+                    numSuccess+=1
                 else:
-                    print point, 'Unsuccessful for ', bin
+                    self.debugFailedPoints.append(point)
+                    # print point, 'Unsuccessful for ', bin
+                    numFailure +=1
             if limb == 'left':
                 self.stateLeft = 'grasp'
             if limb == 'right':
@@ -936,6 +944,8 @@ class PickingController:
             self.waitForMove()
             self.moveToRestConfig()
             self.waitForMove()
+
+            print "Summary (", bin,"):",numSuccess,"/",numTrials,"successful"
 
     #preprepGraspFromBinAction(self, limb, b=None)
     #viewBinAction(self,b, limb)  
@@ -948,7 +958,11 @@ class PickingController:
         else:
             self.testBinIKHelper(limb=limb, bin=bin)
 
-    def testStowIK(self, limb='right', sample=None, sliceX=60, sliceY=30, sliceZ=3):
+    def testStowIK(self, limb='right', sample=None, sliceX=3, sliceY=6, sliceZ = 2):
+        if sliceZ < 2:
+            print "minimum sliceZ is 2 (Start, Goal)"
+            return False 
+
         #use / to find these relative to the vacuum gripper
         point1 = [0.493707578811178, 0.31898193868487673, 0.2912119630803892]
         point2 = [0.7835949216561817, -0.2311991834824173, 0.13890998061380122]
@@ -979,10 +993,19 @@ class PickingController:
         self.waitForMove()
         self.prepGraspFromToteAction(limb=limb)
         self.waitForMove()
+
+        numSuccess = 0
+        numFailure = 0
+        numTrials = len(totePoints)
         for point in totePoints:
             self.waitForMove()
+            #self.debugPoints.append()
             #self.moveToObjectInBinFromSide()
-            self.graspFromToteAction(position=point, limb=limb)
+            if self.graspFromToteAction(position=point, limb=limb, points=sliceZ-1):
+                numSuccess += 1
+            else:
+                numFailure += 1
+        print "Summary ( Tote ):",numSuccess,"/",numTrials*sliceZ,"successful"
 
             
 
@@ -1093,7 +1116,7 @@ class PickingController:
 
             print 'Error in viewTote action can\'t move with no limb'
 
-    def graspFromToteAction(self, limb, position=None):
+    def graspFromToteAction(self, limb, position=None, points=None):
 
         #if perception has picked something
 
@@ -1137,7 +1160,8 @@ class PickingController:
         # goalXY = [0.5,-0.5]
         startZ = .5
         endZ = .15
-        points = 15.0
+        if points == None:
+            points = 15.0
 
         incZ = (endZ-startZ)/points
 
@@ -1185,8 +1209,8 @@ class PickingController:
             milestone = self.simpleIK(goal = goal, limb = limb)
             
 
-            print "DEBUG"
-            print [milestone[v] for v in self.right_arm_indices[:7]]
+            # print "DEBUG"
+            # print [milestone[v] for v in self.right_arm_indices[:7]]
 
 
             milestone =  self.simpleIK(goal = goal, limb = limb)
@@ -1196,7 +1220,11 @@ class PickingController:
             if milestone:
                 #print milestone
                 path.append(milestone)
+                self.debugPoints.append(global1)
                 print 'Goal Z = ', goalZ, ' solved at ', i
+
+            else:
+                self.debugFailedPoints.append(global1)
 
             goalZ+=incZ    
        
@@ -1268,8 +1296,9 @@ class PickingController:
                 self.sendPath(path, limb=limb)
 
                 # print 'sent path to go down'
-                if FAKE_SIMULATION:
-                    raw_input()
+                time.sleep(0.1)
+                # if FAKE_SIMULATION:
+                #     raw_input()
 
                 self.sendPath(path[::-1], limb=limb)
                 # print 'sent path to go up'
@@ -1387,7 +1416,6 @@ class PickingController:
         if step==1:
             #move to the top center of the bin
             target1 = knowledge.getBinFrontCenter('bin_'+bin)
-            self.debugPoints.append(target1)
             ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
             #ik to top center of bin, normal to the shelf
             #use ik seed and knowledge of shelf
@@ -1408,7 +1436,7 @@ class PickingController:
                 except:
                     print '\tError in vacuum Comms'
                 return False
-            
+            self.debugPoints.append(target1)
             #ik returns a configuration
 
             self.sendPath(path=[step1], limb=limb)
@@ -1419,7 +1447,6 @@ class PickingController:
 
         if step==2: 
             target2 = knowledge.getBinTrueCenter('bin_'+bin)
-            self.debugPoints.append(target2)
             ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
 
             print '\ttrying step2 ik'
@@ -1436,7 +1463,7 @@ class PickingController:
                 except:
                     print '\tError in vacuum Comms'
                 return False
-
+            self.debugPoints.append(target2)
             self.sendPath(path = [step2], limb = limb)
 
         #turn vacuum off
@@ -2635,18 +2662,17 @@ class PickingController:
             if step==1:
                 #move to the top center of the bin
                 target1 = knowledge.getBinFrontCenterTop(bin)
-                self.debugPoints.append(target1)
                 ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                print "Target position =", target
+                #print "Target position =", target
                 #print 'trying step1 ik'
                 step1 = self.simpleIK(limb=limb, goal=ikGoal)
                 if step1 is None:
                     print 'ik failed in step1 of moveToObjectInBinFromTop'
                     return False
-
+                self.debugPoints.append(target1)
                 self.sendPath(path=[step1], limb=limb)
                 #self.sendPath(path=step1, limb = limb)
                 self.waitForMove()
@@ -2675,18 +2701,17 @@ class PickingController:
                 target3 = knowledge.getBinMidCenterTop(bin)
                 target3[0] = target[0]
                 target3[1] = target[1]
-                self.debugPoints.append(target3)
                 ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target3)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                print 'trying step3 ik'
+                #print 'trying step3 ik'
                 step3 = self.simpleIK(limb=limb, goal=ikGoal)
                 if step3 is None:
                     print 'ik failed in step3 of moveToObjectInBinFromTop'
                     return False
 
-
+                self.debugPoints.append(target3)
                 self.sendPath(path=[step3], limb=limb)
                 self.waitForMove()
                 step=4
@@ -2699,7 +2724,6 @@ class PickingController:
                     print 'Error in vacuum Controller'
                 #keep the x, y - throw out the z
                 target4 = target
-                self.debugPoints.append(target4)
                 #check to make sure target is actually in bin
                 ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target4)
                 #ik to top center of bin, normal to the shelf
@@ -2711,7 +2735,7 @@ class PickingController:
                     print 'ik failed in step4 of moveToObjectInBinFromTop'
                     self.sendPath(path=[step1], limb=limb)
                     return False
-
+                self.debugPoints.append(target4)
                 self.sendPath(path=[step4], limb = limb)
                 self.waitForMove()
                 #print 'Got to step 4'
@@ -4196,7 +4220,7 @@ class MyGLViewer(GLRealtimeProgram):
 
             glDisable(GL_LIGHTING)
             glColor3f(0, 0, 1)
-            glPointSize(15)
+            glPointSize(10)
             glBegin(GL_POINTS)
             for point in self.picking_controller.debugPoints:
                 glVertex3f(*point)
@@ -4205,10 +4229,19 @@ class MyGLViewer(GLRealtimeProgram):
             if self.picking_controller.pick_pick_pos is not None:
                 glVertex3f(*self.picking_controller.pick_pick_pos)
 
-
             glEnd()
             glEnable(GL_LIGHTING)
 
+
+            glDisable(GL_LIGHTING)
+            glColor3f(1, 0, 0)
+            glPointSize(15)
+            glBegin(GL_POINTS)
+            for point in self.picking_controller.debugFailedPoints:
+                glVertex3f(*point)
+
+            glEnd()
+            glEnable(GL_LIGHTING)
 
 
             # if self.picking_controller.getPerceivedPoints() is not None:
@@ -4674,12 +4707,13 @@ def run_controller(controller,command_queue):
 
             elif c=='d':
                 print 'Run Debug method - currently testing IK for Bins'
-                controller.testBinIK(limb=DEFAULT_LIMB)    
+                binNumber = raw_input('Enter bin name (ex. all, bin_A, ... ): ')
+                controller.testBinIK(limb=DEFAULT_LIMB, bin=binNumber)    
 
             elif c=='m':
                 print 'Run Debug method - currently testing IK for Tote'
                 controller.testStowIK(limb=DEFAULT_LIMB)
-                stderr.write('Don')   
+                # stderr.write('Don')   
 
             elif c=='a':
                 print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
