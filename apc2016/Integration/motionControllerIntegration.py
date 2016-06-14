@@ -1507,7 +1507,18 @@ class PickingController:
         xVal = minX <= point[0] <=maxX
         yVal = minY <= point[1] <= maxY
 
-        return xVal and yVal        
+        return xVal and yVal
+
+    def isInBin(self, bin, point):
+
+        #TODO - may need work
+
+        minMax = knowledge.getGlobalBounds(bin)
+
+        xVal = minMax[0][0] <= point[0] <=minMax[1][0]
+        yVal = minMax[0][1] <= point[1] <= minMax[1][1]
+        zVal = minMax[0][2]<= point[2] <= minMax[1][2]
+        return xVal and yVal and zVal   
 
     #================================================
     # Process for picking
@@ -2679,10 +2690,6 @@ class PickingController:
 
             checkPoint = se3.apply([inv_perturb_R, inv_perturb_t], target)
 
-            bin = eval('self.'+limb + '_bin')
-
-            #if 
-
             step = 1;
 
             bin = None
@@ -2691,6 +2698,10 @@ class PickingController:
             elif limb =='right':
                 bin = self.right_bin
                 
+            if not self.isInBin(bin=bin, point=checkPoint):
+                print 'Error, point not in ', bin
+                return False 
+
             if step==1:
                 #move to the top center of the bin
                 target1 = knowledge.getBinFrontCenterTop(bin)
