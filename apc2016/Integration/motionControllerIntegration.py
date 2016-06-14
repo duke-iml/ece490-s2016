@@ -63,10 +63,11 @@ from Group2Helper import Vacuum_Comms
 
 # configuration variables
 
+WAIT_TIME = 2
 
-NO_SIMULATION_COLLISIONS = 1
-FAKE_SIMULATION = 1
-PHYSICAL_SIMULATION = 0
+NO_SIMULATION_COLLISIONS = 0
+FAKE_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -97,6 +98,9 @@ JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
 JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
 JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
+SKIP_GRASP_FROM_TOTE= True
+
+
 PICK_TIME = 9000
 STOW_TIME = 9000
 PRESSURE_THRESHOLD = 865
@@ -105,6 +109,14 @@ visualizer = None
 
 
 INIT_DEGREE_OFFSET = 0
+
+TOTE_BOUNDS = [[],[]]
+TOTE_BOUNDS[0] = [0.7457424118397027, -0.19966880112083363, 0.24317271366212811]
+
+TOTE_BOUNDS[1] =  [0.5351749454031796, 0.2791990789975449, 0.4314465273701872]
+
+
+
 
 if REAL_SCALE:
     from Sensors import scale
@@ -958,7 +970,7 @@ class PickingController:
         else:
             self.testBinIKHelper(limb=limb, bin=bin)
 
-    def testStowIK(self, limb='right', sample=None, sliceX=3, sliceY=6, sliceZ = 2):
+    def testStowIK(self, limb='right', sample=None, sliceX=12, sliceY=6, sliceZ = 2):
         if sliceZ < 2:
             print "minimum sliceZ is 2 (Start, Goal)"
             return False 
@@ -968,6 +980,12 @@ class PickingController:
         point2 = [0.729562827187139, -0.22440848211492773, 0.23683088095005633]
 
 
+        point1 = [0.7345506986310872, -0.15495465859843727, 0.23459600770185196]
+        point2 = [0.28799199514357793, 0.1297286843466862, 0.4367729217053905]
+
+
+        point1 = TOTE_BOUNDS[0]
+        point2 = TOTE_BOUNDS[1]
 
         minX = min(point1[0], point2[0])
         minY = min(point1[1], point2[1])
@@ -1002,7 +1020,7 @@ class PickingController:
             self.waitForMove()
             #self.debugPoints.append()
             #self.moveToObjectInBinFromSide()
-            if self.graspFromToteAction(position=point, limb=limb, points=sliceZ-1):
+            if self.graspFromToteAction(position=point, limb=limb, points=sliceZ-1, endZ=minZ, startZ =maxZ + .1 ):
                 numSuccess += 1
             else:
                 numFailure += 1
@@ -1043,7 +1061,7 @@ class PickingController:
         stowHandler.jsonOutput(JSON_STOW_OUTPUT_FILE)
         #print out bin contents
 
-    def runPickFromTote(self, limb):
+    def runPickFromTote(self, limb, bin=None):
 
         #bin = getKnowledgeFromParser   
         self.moveToRestConfig()
@@ -1059,23 +1077,31 @@ class PickingController:
             self.waitForMove()
             if self.prepGraspFromToteAction(limb=limb):
                 self.waitForMove()
-                if self.graspFromToteAction(limb=limb):
-                    self.waitForMove()
-                    if self.evaluateObjectAction():
-                        #self.pickedObject should be populated
-                        #self.pickBin should be populated
-                        self.waitForMove()
-                        if self.placeInBinAction(limb=limb, bin=self.pickBin):
-                            #place successful
-                            #update result
-                            print 'Place successful'
-                            return True
-                        else:
-                            print 'Place In Bin Action Failed'
-                    else:
-                        print 'Evaluating the object Failed'
+                if SKIP_GRASP_FROM_TOTE:
+                    pass
                 else:
-                    print 'Grasp From Tote Action Failed'
+                    if self.graspFromToteAction(limb=limb):
+                        self.waitForMove()
+                    else: 
+                        print 'Grasp From Tote Action Failed'
+                        return False
+
+                if self.evaluateObjectAction():
+                    #self.pickedObject should be populated
+                    #self.pickBin should be populated
+                    if bin == None:
+                        bin = self.pickBin
+
+                    self.waitForMove()
+                    if self.placeInBinAction(limb=limb, bin=bin):
+                        #place successful
+                        #update result
+                        print 'Place successful'
+                        return True
+                    else:
+                        print 'Place In Bin Action Failed'
+                else:
+                    print 'Evaluating the object Failed'
             else:
                 print 'Prep Grasp From Tote Action Failed'
         else:
@@ -1161,6 +1187,10 @@ class PickingController:
             else:
                 self.stow_pick_pos = position
 
+
+        if not self.isInTote(self.stow_pick_pos):
+            print 'Error, point is not within tote bounds'
+            return False
         # goalXY = [0.5,-0.5]
         if points == None:
             points = 15.0
@@ -1358,6 +1388,8 @@ class PickingController:
             print "fail"
             return False
 
+        self.waitForMove()
+
         path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
         print "self.moveArm(",path_name,")...",
         if self.moveArm(limb = limb, path_name =path_name ,reverse=True, finalState ='placeInBin'):
@@ -1480,9 +1512,30 @@ class PickingController:
     
     # Stowing Debug
 
-    def moveToTote(self):
-        pass
+    def isInTote(self, point):
+        tote1 = TOTE_BOUNDS[0]
+        tote2 = TOTE_BOUNDS[1]
 
+        minX = min(tote1[0], tote2[0])
+        maxX = max(tote1[0], tote2[0])
+        minY = min(tote1[1], tote2[1])
+        maxY = max(tote1[1], tote2[1])
+
+        xVal = minX <= point[0] <=maxX
+        yVal = minY <= point[1] <= maxY
+
+        return xVal and yVal
+
+    def isInBin(self, bin, point):
+
+        #TODO - may need work
+
+        minMax = knowledge.getGlobalBounds(bin)
+
+        xVal = minMax[0][0] <= point[0] <=minMax[1][0]
+        yVal = minMax[0][1] <= point[1] <= minMax[1][1]
+        zVal = minMax[0][2]<= point[2] <= minMax[1][2]
+        return xVal and yVal and zVal   
 
     #================================================
     # Process for picking
@@ -1536,18 +1589,18 @@ class PickingController:
                         print 'Error in placeInToteAction'
                         return False
                 else:
-                    binQueue.append(eval('self.'+limb+'_bin'))
-                    armQueue.append(limb)
+                    #binQueue.append(eval('self.'+limb+'_bin'))
+                    #armQueue.append(limb)
                     print 'Error in graspFromBinAction'
                     return False
             else:
-                binQueue.append(eval('self.'+limb+'_bin'))
-                armQueue.append(limb)
+                #binQueue.append(eval('self.'+limb+'_bin'))
+                #armQueue.append(limb)
                 print 'Error in prepGraspFromBinAction'
                 return False
         else:
-            binQueue.append(eval('self.'+limb+'_bin'))
-            armQueue.append(limb)
+            #binQueue.append(eval('self.'+limb+'_bin'))
+            #armQueue.append(limb)
             print 'Error in View Bin Action'
             return False
 
@@ -1657,7 +1710,9 @@ class PickingController:
 
                 else:
                     print 'Grasp Unsuccessful'
-                    return False
+                    #TODO
+                    return True
+                    #return False
             elif graspDirection[0] =='side':
                 try:
                     position = perception.getPickPositionForPick()
@@ -1701,7 +1756,7 @@ class PickingController:
                     self.waitForMove()
                     print "moveArm to", path_name
 
-                    if self.moveArm(limb, statusConditional = 'stow', path_name = stow_name, finalState = 'done'):
+                    if self.moveArm(limb, statusConditional = 'stow', path_name = stow_name, finalState = 'stow'):
                         self.waitForMove()
                         print "moveArm to", stow_name
 
@@ -2650,6 +2705,10 @@ class PickingController:
             target = self.pick_pick_pos
             self.pick_pick_pos = None
 
+            inv_perturb_R, inv_perturb_t = se3.inv(self.perceptionTransform)
+
+            checkPoint = se3.apply([inv_perturb_R, inv_perturb_t], target)
+
             step = 1;
 
             bin = None
@@ -2658,6 +2717,10 @@ class PickingController:
             elif limb =='right':
                 bin = self.right_bin
                 
+            if not self.isInBin(bin=bin, point=checkPoint):
+                print 'Error, point not in ', bin
+                return False 
+
             if step==1:
                 #move to the top center of the bin
                 target1 = knowledge.getBinFrontCenterTop(bin)
@@ -2985,6 +3048,7 @@ class PickingController:
                 #print pathL
                 #print pathR
 
+
                 self.moveBothArms(pathL =pathL,pathR = pathR, finalState = 'ready', INCREMENTAL=True)
 
                 self.left_bin=None
@@ -3055,7 +3119,20 @@ class PickingController:
 
         elif self.stateLeft == 'stow':
             #go right ahead through the code
+
+            path.append(eval('Q_OUT_OF_TOTE_LEFT'))
             pass
+
+        elif self.stateLeft == 'viewTote':
+            lPath = eval('Q_VIEW_TOTE_LEFT')
+            try:
+                len(lPath[0])
+            except:
+                lPath = [lPath]
+            lPath = lPath[::-1]
+            if lPath != []:
+                for milestone in lPath:
+                    path.append(milestone)
 
         else:
             #not set up yet
@@ -3115,7 +3192,18 @@ class PickingController:
 
         elif self.stateRight == 'stow':
             #go right ahead through the code
-            pass
+            path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
+
+        elif self.stateRight == 'viewTote':
+            rPath = eval('Q_VIEW_TOTE_RIGHT')
+            try:
+                len(rPath[0])
+            except:
+                rPath = [rPath]
+            rPath = rPath[::-1]
+            if rPath != []:
+                for milestone in rPath:
+                    path.append(milestone)
 
         else:
             #not set up yet
@@ -3210,6 +3298,10 @@ class PickingController:
         #print 'pathR after appends =', pathR
 
         realPath = []
+
+        print pathL
+        print pathR
+
         realConfig = [v for v in dummyConfig]
         for j in range(len(pathL)):
             for i in range(len(self.left_arm_indices)):
@@ -3276,7 +3368,7 @@ class PickingController:
                 if FORCE_WAIT:
                     self.forceWait(milestone, self.left_arm_indices, 0.01)
                 else:
-                    self.controller.appendMilestoneLeft(milestone, 3)
+                    self.controller.appendMilestoneLeft(milestone, WAIT_TIME)
                 #wait at the milestone for 2 seconds
                 #later should replace with Hyunsoo's code setting milestones if dt is too large
 
@@ -3352,7 +3444,7 @@ class PickingController:
                 if FORCE_WAIT:
                     self.forceWait(milestone, self.right_arm_indices, 0.01)
                 else:
-                    self.controller.appendMilestoneRight(milestone, 3)
+                    self.controller.appendMilestoneRight(milestone, WAIT_TIME)
                 #wait at the milestone for 2 seconds
 
 
@@ -4784,7 +4876,14 @@ def run_controller(controller,command_queue):
             elif c=='g':
                 visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransformInv)
             elif c == '1':
-                controller.runPickFromTote(limb=DEFAULT_LIMB)
+                print 'Do complete Stow Task - Press Bin Letter for bin to be stowed to. Press X to cancel'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if not ( ('a'<=bin_letter.lower()<='l') ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue
+                controller.runPickFromTote(limb=DEFAULT_LIMB, bin='bin_'+bin_letter.upper())
 
             elif c == '2':
                 controller.moveToRestConfig()
@@ -4884,7 +4983,8 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
-    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.615, -0.02])
+
+    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.965, -2.516, -0.02])
     # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
