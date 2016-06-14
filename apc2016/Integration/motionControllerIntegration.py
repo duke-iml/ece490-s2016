@@ -3121,7 +3121,7 @@ class PickingController:
             #go right ahead through the code
 
             path.append(eval('Q_OUT_OF_TOTE_LEFT'))
-            pass
+    
 
         elif self.stateLeft == 'viewTote':
             lPath = eval('Q_VIEW_TOTE_LEFT')
