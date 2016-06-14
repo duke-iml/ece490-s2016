@@ -63,6 +63,7 @@ from Group2Helper import Vacuum_Comms
 
 # configuration variables
 
+WAIT_TIME = 2
 
 NO_SIMULATION_COLLISIONS = 0
 FAKE_SIMULATION = 0
@@ -96,6 +97,9 @@ JSON_STOW_OUTPUT_FILE = "../JSON_FILES/JSON_stow_file_output.json"
 JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
 JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
 JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
+
+SKIP_GRASP_FROM_TOTE= True
+
 
 PICK_TIME = 9000
 STOW_TIME = 9000
@@ -1057,7 +1061,7 @@ class PickingController:
         stowHandler.jsonOutput(JSON_STOW_OUTPUT_FILE)
         #print out bin contents
 
-    def runPickFromTote(self, limb):
+    def runPickFromTote(self, limb, bin=None):
 
         #bin = getKnowledgeFromParser   
         self.moveToRestConfig()
@@ -1073,23 +1077,31 @@ class PickingController:
             self.waitForMove()
             if self.prepGraspFromToteAction(limb=limb):
                 self.waitForMove()
-                if self.graspFromToteAction(limb=limb):
-                    self.waitForMove()
-                    if self.evaluateObjectAction():
-                        #self.pickedObject should be populated
-                        #self.pickBin should be populated
-                        self.waitForMove()
-                        if self.placeInBinAction(limb=limb, bin=self.pickBin):
-                            #place successful
-                            #update result
-                            print 'Place successful'
-                            return True
-                        else:
-                            print 'Place In Bin Action Failed'
-                    else:
-                        print 'Evaluating the object Failed'
+                if SKIP_GRASP_FROM_TOTE:
+                    pass
                 else:
-                    print 'Grasp From Tote Action Failed'
+                    if self.graspFromToteAction(limb=limb):
+                        self.waitForMove()
+                    else: 
+                        print 'Grasp From Tote Action Failed'
+                        return False
+
+                if self.evaluateObjectAction():
+                    #self.pickedObject should be populated
+                    #self.pickBin should be populated
+                    if bin == None:
+                        bin = self.pickBin
+
+                    self.waitForMove()
+                    if self.placeInBinAction(limb=limb, bin=bin):
+                        #place successful
+                        #update result
+                        print 'Place successful'
+                        return True
+                    else:
+                        print 'Place In Bin Action Failed'
+                else:
+                    print 'Evaluating the object Failed'
             else:
                 print 'Prep Grasp From Tote Action Failed'
         else:
@@ -1577,18 +1589,18 @@ class PickingController:
                         print 'Error in placeInToteAction'
                         return False
                 else:
-                    binQueue.append(eval('self.'+limb+'_bin'))
-                    armQueue.append(limb)
+                    #binQueue.append(eval('self.'+limb+'_bin'))
+                    #armQueue.append(limb)
                     print 'Error in graspFromBinAction'
                     return False
             else:
-                binQueue.append(eval('self.'+limb+'_bin'))
-                armQueue.append(limb)
+                #binQueue.append(eval('self.'+limb+'_bin'))
+                #armQueue.append(limb)
                 print 'Error in prepGraspFromBinAction'
                 return False
         else:
-            binQueue.append(eval('self.'+limb+'_bin'))
-            armQueue.append(limb)
+            #binQueue.append(eval('self.'+limb+'_bin'))
+            #armQueue.append(limb)
             print 'Error in View Bin Action'
             return False
 
@@ -1698,7 +1710,9 @@ class PickingController:
 
                 else:
                     print 'Grasp Unsuccessful'
-                    return False
+                    #TODO
+                    return True
+                    #return False
             elif graspDirection[0] =='side':
                 try:
                     position = perception.getPickPositionForPick()
@@ -1742,7 +1756,7 @@ class PickingController:
                     self.waitForMove()
                     print "moveArm to", path_name
 
-                    if self.moveArm(limb, statusConditional = 'stow', path_name = stow_name, finalState = 'done'):
+                    if self.moveArm(limb, statusConditional = 'stow', path_name = stow_name, finalState = 'stow'):
                         self.waitForMove()
                         print "moveArm to", stow_name
 
@@ -3034,6 +3048,7 @@ class PickingController:
                 #print pathL
                 #print pathR
 
+
                 self.moveBothArms(pathL =pathL,pathR = pathR, finalState = 'ready', INCREMENTAL=True)
 
                 self.left_bin=None
@@ -3283,6 +3298,10 @@ class PickingController:
         #print 'pathR after appends =', pathR
 
         realPath = []
+
+        print pathL
+        print pathR
+
         realConfig = [v for v in dummyConfig]
         for j in range(len(pathL)):
             for i in range(len(self.left_arm_indices)):
@@ -3349,7 +3368,7 @@ class PickingController:
                 if FORCE_WAIT:
                     self.forceWait(milestone, self.left_arm_indices, 0.01)
                 else:
-                    self.controller.appendMilestoneLeft(milestone, 3)
+                    self.controller.appendMilestoneLeft(milestone, WAIT_TIME)
                 #wait at the milestone for 2 seconds
                 #later should replace with Hyunsoo's code setting milestones if dt is too large
 
@@ -3425,7 +3444,7 @@ class PickingController:
                 if FORCE_WAIT:
                     self.forceWait(milestone, self.right_arm_indices, 0.01)
                 else:
-                    self.controller.appendMilestoneRight(milestone, 3)
+                    self.controller.appendMilestoneRight(milestone, WAIT_TIME)
                 #wait at the milestone for 2 seconds
 
 
@@ -4857,7 +4876,14 @@ def run_controller(controller,command_queue):
             elif c=='g':
                 visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransformInv)
             elif c == '1':
-                controller.runPickFromTote(limb=DEFAULT_LIMB)
+                print 'Do complete Stow Task - Press Bin Letter for bin to be stowed to. Press X to cancel'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if not ( ('a'<=bin_letter.lower()<='l') ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue
+                controller.runPickFromTote(limb=DEFAULT_LIMB, bin='bin_'+bin_letter.upper())
 
             elif c == '2':
                 controller.moveToRestConfig()
@@ -4957,7 +4983,8 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
-    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-2.0, -2.615, -0.02])
+
+    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.965, -2.516, -0.02])
     # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
