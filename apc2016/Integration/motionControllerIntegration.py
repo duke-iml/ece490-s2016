@@ -266,7 +266,7 @@ class KnowledgeBase:
 
     def getBinFrontCenter(self, bin_name):
         #center of the front face of the bin
-        minMax = self.getGlobalBounds(bin_name)
+        minMax = apc.bin_bounds[bin_name]
         #get the min of  x, 
         #get the midpoint of y
         #get the midpoint of z
@@ -2433,7 +2433,7 @@ class PickingController:
 
     def moveToOffset(self, limb=None, statusConditional=None, q_name=None, milestone=None, finalState=None):
 
-        print 'Last position\'s transform is: ',self.simworld.robot(0).link(limb+'_wrist').getTransform()   
+        # print 'Last position\'s transform is: ',self.simworld.robot(0).link(limb+'_wrist').getTransform()   
 
         #self.frames.append(self.simworld.robot(0).link(limb+'_wrist').getTransform())
 
@@ -2465,8 +2465,8 @@ class PickingController:
             return False
 
 
-        print q_start
-        print q_canonical
+        # print q_start
+        # print q_canonical
 
         self.simworld.robot(0).setConfig([conf for conf in q_canonical])
 
@@ -2631,7 +2631,7 @@ class PickingController:
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                print target
+                print "Target position =", target
                 #print 'trying step1 ik'
                 step1 = self.simpleIK(limb=limb, goal=ikGoal)
                 if step1 is None:
@@ -4427,7 +4427,7 @@ class MyGLViewer(GLRealtimeProgram):
         for frame in self.picking_controller.frames:
             R = frame[0]
             t = frame[1]
-            gldraw.xform_widget([R,t], 0.25, 0.05, lighting=True, fancy=True)
+            gldraw.xform_widget([R,t], 0.025, 0.005, lighting=True, fancy=True)
 
         return
 
