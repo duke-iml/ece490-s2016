@@ -1194,7 +1194,7 @@ class PickingController:
 
         # print 'beginning debugging'
         
-        while goalZ > endZ:
+        while goalZ >= endZ:
             global1 = [self.stow_pick_pos[0], self.stow_pick_pos[1], goalZ]
             global2 = [self.stow_pick_pos[0],self.stow_pick_pos[1], goalZ-0.5]
 
