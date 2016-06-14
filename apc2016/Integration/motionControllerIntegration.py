@@ -66,7 +66,7 @@ from Group2Helper import Vacuum_Comms
 
 NO_SIMULATION_COLLISIONS = 1
 FAKE_SIMULATION = 0
-PHYSICAL_SIMULATION = 0
+PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -908,7 +908,7 @@ class PickingController:
     def testBinIKHelper(self, limb='right', bin='bin_A'):
         if bin in apc.bin_names:
             if limb == 'left':
-                self.moveArmaAway('right')
+                self.moveArmAway('right')
             if limb == 'right':
                 self.moveArmAway('left')
             self.waitForMove()
