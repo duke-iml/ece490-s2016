@@ -106,6 +106,11 @@ visualizer = None
 
 INIT_DEGREE_OFFSET = 0
 
+TOTE_BOUNDS = [[],[]]
+TOTE_BOUNDS[0] = [0.4798129387979302, 0.27387636103959584, 0.4489993529429332]
+TOTE_BOUNDS[1] =  [0.729562827187139, -0.22440848211492773, 0.23683088095005633]
+
+
 if REAL_SCALE:
     from Sensors import scale
     from Group2Helper import stowHandler
@@ -958,7 +963,7 @@ class PickingController:
         else:
             self.testBinIKHelper(limb=limb, bin=bin)
 
-    def testStowIK(self, limb='right', sample=None, sliceX=3, sliceY=6, sliceZ = 2):
+    def testStowIK(self, limb='right', sample=None, sliceX=12, sliceY=6, sliceZ = 2):
         if sliceZ < 2:
             print "minimum sliceZ is 2 (Start, Goal)"
             return False 
@@ -968,6 +973,12 @@ class PickingController:
         point2 = [0.729562827187139, -0.22440848211492773, 0.23683088095005633]
 
 
+        point1 = [0.7345506986310872, -0.15495465859843727, 0.23459600770185196]
+        point2 = [0.28799199514357793, 0.1297286843466862, 0.4367729217053905]
+
+
+        point1 = TOTE_BOUNDS[0]
+        point2 = TOTE_BOUNDS[1]
 
         minX = min(point1[0], point2[0])
         minY = min(point1[1], point2[1])
@@ -1161,6 +1172,10 @@ class PickingController:
             else:
                 self.stow_pick_pos = position
 
+
+        if not self.isInTote(self.stow_pick_pos):
+            print 'Error, point is not within tote bounds'
+            return False
         # goalXY = [0.5,-0.5]
         if points == None:
             points = 15.0
@@ -1480,9 +1495,19 @@ class PickingController:
     
     # Stowing Debug
 
-    def moveToTote(self):
-        pass
+    def isInTote(self, point):
+        tote1 = TOTE_BOUNDS[0]
+        tote2 = TOTE_BOUNDS[1]
 
+        minX = min(tote1[0], tote2[0])
+        maxX = max(tote1[0], tote2[0])
+        minY = min(tote1[1], tote2[1])
+        maxY = max(tote1[1], tote2[1])
+
+        xVal = minX <= point[0] <=maxX
+        yVal = minY <= point[1] <= maxY
+
+        return xVal and yVal        
 
     #================================================
     # Process for picking
@@ -2650,6 +2675,14 @@ class PickingController:
             target = self.pick_pick_pos
             self.pick_pick_pos = None
 
+            inv_perturb_R, inv_perturb_t = se3.inv(self.perceptionTransform)
+
+            checkPoint = se3.apply([inv_perturb_R, inv_perturb_t], target)
+
+            bin = eval('self.'+limb + '_bin')
+
+            #if 
+
             step = 1;
 
             bin = None
@@ -3057,6 +3090,17 @@ class PickingController:
             #go right ahead through the code
             pass
 
+        elif self.stateLeft == 'viewTote':
+            lPath = eval('Q_VIEW_TOTE_LEFT')
+            try:
+                len(lPath[0])
+            except:
+                lPath = [lPath]
+            lPath = lPath[::-1]
+            if lPath != []:
+                for milestone in lPath:
+                    path.append(milestone)
+
         else:
             #not set up yet
             #find the nearest milestone and follow the path back
@@ -3116,6 +3160,17 @@ class PickingController:
         elif self.stateRight == 'stow':
             #go right ahead through the code
             pass
+
+        elif self.stateRight == 'viewTote':
+            rPath = eval('Q_VIEW_TOTE_RIGHT')
+            try:
+                len(rPath[0])
+            except:
+                rPath = [rPath]
+            rPath = rPath[::-1]
+            if rPath != []:
+                for milestone in rPath:
+                    path.append(milestone)
 
         else:
             #not set up yet
