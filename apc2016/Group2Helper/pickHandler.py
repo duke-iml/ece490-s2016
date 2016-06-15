@@ -13,43 +13,44 @@ CONST_BIN_NAMES = ['bin_A',
 'bin_J',
 'bin_K',
 'bin_L']
-CONST_ITEM_NAMES = [["scotch_bubble_mailer",
-"creativity_chenille_stems",
-"i_am_a_bunny_book",
-"cherokee_easy_tee_shirt",
+CONST_ITEM_NAMES = [
+["laugh_out_loud_joke_book",
 "jane_eyre_dvd",
-"laugh_out_loud_joke_book",
-"kyjen_squeakin_eggs_plush_puppies",
+"cherokee_easy_tee_shirt",
+"womens_knit_gloves",
+"i_am_a_bunny_book",
+"scotch_bubble_mailer",
 "soft_white_lightbulb",
-"hanes_tube_socks",
-"woods_extension_cord",
-"ticonderoga_12_pencils",
 "barkely_hide_bones",
-"kleenex_tissue_box",
 "staples_index_cards",
-"cool_shot_glue_sticks",
-"crayola_24_ct",
 "dove_beauty_bar",
+"expo_dry_erase_board_eraser",
+"ticonderoga_12_pencils",
+"crayola_24_ct",
+"elmers_washable_no_run_school_glue",
+"creativity_chenille_stems",
+"cloud_b_plush_bear",
+"kleenex_tissue_box",
+"command_hooks",
+"safety_first_outlet_plugs",
+"cool_shot_glue_sticks",
+"platinum_pets_dog_bowl"],
+["woods_extension_cord",
+"dr_browns_bottle_brush",
+"rawlings_baseball",
+"kyjen_squeakin_eggs_plush_puppies",
+"up_glucose_bottle",
+"peva_shower_curtain_liner",
+"folgers_classic_roast_coffee",
+"clorox_utility_brush",
+"scotch_duct_tape",
 "oral_b_toothbrush_green",
 "oral_b_toothbrush_red",
-"peva_shower_curtain_liner",
-"womens_knit_gloves",
-"expo_dry_erase_board_eraser"],
-["cloud_b_plush_bear",
-"command_hooks",
-"platinum_pets_dog_bowl",
-"dr_browns_bottle_brush",
-"safety_first_outlet_plugs",
-"easter_turtle_sippy_cup",
-"elmers_washable_no_run_school_glue",
-"dasani_water_bottle",
-"up_glucose_bottle",
-"folgers_classic_roast_coffee",
-"fiskars_scissors_red",
-"rawlings_baseball",
-"scotch_duct_tape",
-"clorox_utility_brush",
+"easter_turtle_sippy_cup"],
+["dasani_water_bottle",
 "kleenex_paper_towels",
+"hanes_tube_socks",
+"fiskars_scissors_red",
 "rolodex_jumbo_pencil_cup",
 "fitness_gear_3lb_dumbbell"]]
 CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
@@ -67,18 +68,23 @@ class pickHandler:
         (self.binMap, self.workOrder)=self.parser.readInFile(filename)
         self.targetOrder=[]
         self.easyTargetOrder=[]
+        self.medTargetOrder=[]
         self.hardTargetOrder=[]
         self.easyBinInd=[]
+        self.medBinInd=[]
         self.hardBinInd=[]
 
         for i in range(len(CONST_BIN_NAMES)):
             self.targetOrder.append(self.workOrder[i]["item"])
-            if(CONST_ITEM_NAMES[0].count(self.workOrder[i]["item"])==0):
-                self.hardTargetOrder.append(self.workOrder[i]["item"])
-                self.hardBinInd.append(i)
-            else:
+            if(CONST_ITEM_NAMES[0].count(self.workOrder[i]["item"])>0):
                 self.easyTargetOrder.append(self.workOrder[i]["item"])
                 self.easyBinInd.append(i)
+            elif(CONST_ITEM_NAMES[1].count(self.workOrder[i]["item"])>0):
+                self.medTargetOrder.append(self.workOrder[i]["item"])
+                self.medBinInd.append(i)
+            else:
+                self.hardTargetOrder.append(self.workOrder[i]["item"])
+                self.hardBinInd.append(i)
         # self.binSelector=binSelector()
         # self.binSelector.initialize(filename)
     def workBinOrder(self):
@@ -88,19 +94,24 @@ class pickHandler:
         # filename=filenames[l]
         numObject=[len(self.binMap[BinOrder[i]]) for i in range(len(BinOrder))]
         easyNumObject=[numObject[self.easyBinInd[i]] for i in range(len(self.easyBinInd))]
+        medNumObject=[numObject[self.medBinInd[i]] for i in range(len(self.medBinInd))]
         hardNumObject=[numObject[self.hardBinInd[i]] for i in range(len(self.hardBinInd))]
         print easyNumObject
+        print medNumObject
         print hardNumObject
         sortedEasyNumInd=sorted(range(len(easyNumObject)), key=lambda k: easyNumObject[k])
+        sortedMedNumInd=sorted(range(len(medNumObject)), key=lambda k: medNumObject[k])
         sortedHardNumInd=sorted(range(len(hardNumObject)), key=lambda k: hardNumObject[k])
         sortedEasyBinInd=[self.easyBinInd[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
+        sortedMedBinInd=[self.medBinInd[sortedMedNumInd[i]] for i in range(len(sortedMedNumInd))]
         sortedHardBinInd=[self.hardBinInd[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
-        sortedBinInd=sortedEasyBinInd+sortedHardBinInd
+        sortedBinInd=sortedEasyBinInd+sortedMedBinInd+sortedHardBinInd
         print sortedBinInd
         sortedBinOrder=[BinOrder[sortedBinInd[i]] for i in range(len(sortedBinInd))]
         sortedEasyTargetOrder=[self.easyTargetOrder[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
+        sortedMedTargetOrder=[self.medTargetOrder[sortedMedNumInd[i]] for i in range(len(sortedMedNumInd))]
         sortedHardTargetOrder=[self.hardTargetOrder[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
-        sortedTargetOrder=sortedEasyTargetOrder+sortedHardTargetOrder
+        sortedTargetOrder=sortedEasyTargetOrder+sortedMedTargetOrder+sortedHardTargetOrder
         sortedRight=[sortedBinInd[i]%3!=0 for i in range(len(sortedBinInd))]
         # objectWeight=dict()
         # binWeightDict=dict()
@@ -163,5 +174,10 @@ class pickHandler:
         # return (BinOrder, objectOrder, oneOrNot)
         return (sortedBinOrder, sortedTargetOrder, sortedRight)
 if __name__ == "__main__":
-    a=pickHandler("apc_pick_task.json")
-    print a.workBinOrder()
+    JSON_FILES=["PickTestA.json","PickTestB.json","PickTestC.json","PickTestD.json","PickTestE.json"]
+    for i in range(len(JSON_FILES)):
+        a=pickHandler("../JSON_FILES/"+JSON_FILES[i])
+        [border,torder, aorder]=a.workBinOrder()
+        print border
+        print torder
+        print aorder

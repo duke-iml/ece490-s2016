@@ -227,10 +227,11 @@ class stowHandler:
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
 
-# if __name__ == "__main__":
-#     FILE_NAME="apc_stow_task.json"
-#     a=stowHandler(FILE_NAME)
-#     a.pickWhichObj()
-#     # while(1):
-#     #     time.sleep(4)
-#     #     print a.pickWhichObj()
+if __name__ == "__main__":
+    JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
+    for i in range(len(JSON_FILES)):
+        a=stowHandler("../JSON_FILES/"+JSON_FILES[i])
+        a.pickWhichObj()
+        # while(1):
+        #     time.sleep(4)
+        #     print a.pickWhichObj()
