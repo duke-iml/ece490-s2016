@@ -141,7 +141,7 @@ class stowHandler:
         classidx=0
 
         if objWeight<10:
-            return []
+            return [[],None]
         elif objWeight<23:
             classidx=0
             item = self.overlap[0]
@@ -220,6 +220,7 @@ class stowHandler:
         if (len(item))>0:
             if self.bin[classidx]==None:
                 (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0])
+                self.binSelector.addtoBin(item[0],self.bin[classidx])
             self.updateTote(item[-1])
             self.updateBin(self.bin[classidx],item[-1])
             # self.overlap[classidx].remove(item[-1])
@@ -240,7 +241,6 @@ class stowHandler:
     def jsonOutput(self, filename):
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
-
 # if __name__ == "__main__":
 #     JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
 #     # for i in range(len(JSON_FILES)):
@@ -248,3 +248,4 @@ class stowHandler:
 #     while(1):
 #         time.sleep(5)
 #         print a.pickWhichObj(True)
+#         a.jsonOutput("../JSON_FILES/StowTestBOut.json")
