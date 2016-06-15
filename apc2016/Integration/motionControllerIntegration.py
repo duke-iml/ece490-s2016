@@ -61,17 +61,21 @@ from Group2Helper import Vacuum_Comms
 # End of Imports
 
 
-# configuration variables
-
-WAIT_TIME = 2
-
 NO_SIMULATION_COLLISIONS = 0
 FAKE_SIMULATION = 0
 PHYSICAL_SIMULATION = 1
 
+
+#============================================================
+# configuration variables
+
+
+
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
 VACUUM = 1 or ALL_ARDUINOS
+
+WAIT_TIME = 2
 
 SPEED = 3
 
@@ -79,6 +83,28 @@ REAL_SCALE = False
 REAL_CAMERA = False
 REAL_JSON = False
 REAL_PRESSURE = True
+
+#TASK = 'pick'
+TASK = 'stow'
+
+SHELF_STATIONARY = False
+
+PRESSURE_THRESHOLD = 850
+
+SKIP_GRASP_FROM_TOTE= False
+SKIP_STOWING_INPUT = False
+
+
+INIT_DEGREE_OFFSET = 0
+
+TOTE_BOUNDS = [[],[]]
+TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
+TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
+
+#KLAMPT_MODEL="baxter.rob"
+KLAMPT_MODEL="baxter_with_two_vacuums.rob"
+
+#========================================================================================
 
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
@@ -88,9 +114,7 @@ SHOW_BIN_BOUNDS = True # setting this to True will draw bin bounds
 LOAD_TRAJECTORY_DEFAULT = False
 LOAD_PHYSICAL_TRAJECTORY = True
 FORCE_WAIT = False
-SHELF_STATIONARY = False
-#TASK = 'pick'
-TASK = 'stow'
+
 
 if TASK == 'stow':
     END_EFFECTOR = '_STRAIGHT'
@@ -103,26 +127,13 @@ JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
 JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
 JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
-SKIP_GRASP_FROM_TOTE= False
-SKIP_STOWING_INPUT = False
+
 
 PICK_TIME = 9000
 STOW_TIME = 9000
-PRESSURE_THRESHOLD = 850
+
 
 visualizer = None
-
-
-INIT_DEGREE_OFFSET = 0
-
-TOTE_BOUNDS = [[],[]]
-TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
-
-TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
-
-
-
-
 
 if REAL_SCALE:
     from Sensors import scale
@@ -160,8 +171,7 @@ if PHYSICAL_SIMULATION:
 model_dir = "../klampt_models/"
 TRAJECTORIES_PATH = "../Trajectories/"
 PATHING_PATH = "../Trajectories"
-#KLAMPT_MODEL="baxter.rob"
-KLAMPT_MODEL="baxter_with_two_vacuums.rob"
+
 
 # The transformation of the order bin
 order_bin_xform = (so3.identity(),[0.65,-0.55,0])
@@ -1169,6 +1179,7 @@ class PickingController:
                     for el in myInput:
                         try:
                             myInts.append(float(el))
+                            assert(len(myInput)==3 or len(myInput)==2)
                             goodInput = True     
                         except:
                             goodInput = False
