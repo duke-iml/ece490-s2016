@@ -71,14 +71,14 @@ PHYSICAL_SIMULATION = 1
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 0 or ALL_ARDUINOS
+VACUUM = 1 or ALL_ARDUINOS
 
 SPEED = 3
 
 REAL_SCALE = False
 REAL_CAMERA = False
 REAL_JSON = False
-REAL_PRESSURE = False
+REAL_PRESSURE = True
 
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
@@ -97,14 +97,14 @@ if TASK == 'stow':
 elif TASK == 'pick':
     END_EFFECTOR = '_90'
 
-PRESSURE_FILE = "../Sensors/pressureReading_"
+PRESSURE_FILE_PREFIX = "../Sensors/pressureReading_"
 JSON_STOW_OUTPUT_FILE = "../JSON_FILES/JSON_stow_file_output.json"
 JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
 JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
 JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
-SKIP_GRASP_FROM_TOTE= True
-SKIP_STOWING_INPUT = True
+SKIP_GRASP_FROM_TOTE= False
+SKIP_STOWING_INPUT = False
 
 PICK_TIME = 9000
 STOW_TIME = 9000
@@ -1113,8 +1113,10 @@ class PickingController:
                         self.waitForMove()
                         #time.sleep(5)
                         if REAL_CAMERA:
-                            pass
-                            # self.getPickPositionForStow(limb)
+
+
+                            
+                            self.getPickPositionForStow(limb)
                         return True
                 else:
                     print "Error in moveArm (from viewToteAction)"
