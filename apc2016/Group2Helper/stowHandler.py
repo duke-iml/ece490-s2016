@@ -47,11 +47,14 @@ CONST_ITEM_NAMES = ["i_am_a_bunny_book",
 
 import sys
 import time
+import copy
 sys.path.insert(0, "../")
 # from Sensors import scale
 import json
 import json_parser_stow
 from bin_select import binSelector
+from Sensors import scale
+
 class stowHandler:
     def __init__(self,filename=None):
         self.counter = 0
@@ -61,36 +64,63 @@ class stowHandler:
         self.bin=[None]*24
 
         self.scale = None
-        # self.currentWeight = 100
-        # try:
-
         self.scale=scale.Scale_Measurement()
         self.currentWeight=float(self.scale.readData(10).split(' ')[0])
         print 'Initial Reading', self.currentWeight
         # self.currentWeight = self.currentWeight.split(' ')[0]
         print 'Numeric Reading', self.currentWeight
-    # except:
         # print 'Scale not connected'
-
         if filename is not None:
             (self.binContents, self.toteContents)=self.parser.readInFile(filename)
             print self.toteContents
-        self.weightClass=[["oral_b_toothbrush_green", "oral_b_toothbrush_red"],
-        ["expo_dry_erase_board_eraser","expo_dry_erase_board_eraser","scotch_bubble_mailer","scotch_bubble_mailer"],
-        ["fiskars_scissors_red"],["cloud_b_plush_bear","womens_knit_gloves"],
+        # self.weightClass=[["oral_b_toothbrush_green", "oral_b_toothbrush_red","expo_dry_erase_board_eraser","expo_dry_erase_board_eraser","scotch_bubble_mailer","scotch_bubble_mailer"],
+        # ["fiskars_scissors_red"],
+        # ["cloud_b_plush_bear","womens_knit_gloves"],
+        # ["safety_first_outlet_plugs","platinum_pets_dog_bowl"],
+        # ["kyjen_squeakin_eggs_plush_puppies"],
+        # ["cherokee_easy_tee_shirt"],
+        # ["cool_shot_glue_sticks"],
+        # ["dr_browns_bottle_brush","soft_white_lightbulb"],
+        # ["ticonderoga_12_pencils","barkely_hide_bones","laugh_out_loud_joke_book","command_hooks","jane_eyre_dvd"],
+        # ["rolodex_jumbo_pencil_cup","creativity_chenille_stems","creativity_chenille_stems"],
+        # ["i_am_a_bunny_book"],
+        # ["dove_beauty_bar"],
+        # ["staples_index_cards","staples_index_cards"],
+        # ["crayola_24_ct"],
+        # ["easter_turtle_sippy_cup","woods_extension_cord"],
+        # ["rawlings_baseball","clorox_utility_brush","elmers_washable_no_run_school_glue","elmers_washable_no_run_school_glue","scotch_duct_tape","scotch_duct_tape"],
+        # ["kleenex_tissue_box"],
+        # ["peva_shower_curtain_liner"],
+        # ["up_glucose_bottle"],
+        # ["kleenex_paper_towels"],
+        # ["folgers_classic_roast_coffee"],
+        # ["hanes_tube_socks"],
+        # ["dasani_water_bottle","dasani_water_bottle"],
+        # ["fitness_gear_3lb_dumbbell"]]
+        self.weightClass=[["oral_b_toothbrush_green", "oral_b_toothbrush_red","expo_dry_erase_board_eraser","scotch_bubble_mailer"],
+        ["fiskars_scissors_red"],
+        ["cloud_b_plush_bear","womens_knit_gloves"],
         ["safety_first_outlet_plugs","platinum_pets_dog_bowl"],
-        ["kyjen_squeakin_eggs_plush_puppies"],["cherokee_easy_tee_shirt"],
-        ["cool_shot_glue_sticks"],["dr_browns_bottle_brush","soft_white_lightbulb"],
+        ["kyjen_squeakin_eggs_plush_puppies"],
+        ["cherokee_easy_tee_shirt"],
+        ["cool_shot_glue_sticks"],
+        ["dr_browns_bottle_brush","soft_white_lightbulb"],
         ["ticonderoga_12_pencils","barkely_hide_bones","laugh_out_loud_joke_book","command_hooks","jane_eyre_dvd"],
-        ["rolodex_jumbo_pencil_cup","creativity_chenille_stems","creativity_chenille_stems"],
-        ["i_am_a_bunny_book"],["dove_beauty_bar","staples_index_cards","staples_index_cards"],
-        ["crayola_24_ct"],["easter_turtle_sippy_cup","woods_extension_cord"],
-        ["rawlings_baseball","clorox_utility_brush","elmers_washable_no_run_school_glue",
-        "elmers_washable_no_run_school_glue","scotch_duct_tape","scotch_duct_tape"],
-        ["kleenex_tissue_box"],["peva_shower_curtain_liner"],
-        ["up_glucose_bottle"],["kleenex_paper_towels"],
-        ["folgers_classic_roast_coffee"],["hanes_tube_socks"],
-        ["dasani_water_bottle","dasani_water_bottle"],["fitness_gear_3lb_dumbbell"]]
+        ["rolodex_jumbo_pencil_cup","creativity_chenille_stems"],
+        ["i_am_a_bunny_book"],
+        ["dove_beauty_bar"],
+        ["staples_index_cards"],
+        ["crayola_24_ct"],
+        ["easter_turtle_sippy_cup","woods_extension_cord"],
+        ["rawlings_baseball","clorox_utility_brush","elmers_washable_no_run_school_glue","scotch_duct_tape"],
+        ["kleenex_tissue_box"],
+        ["peva_shower_curtain_liner"],
+        ["up_glucose_bottle"],
+        ["kleenex_paper_towels"],
+        ["folgers_classic_roast_coffee"],
+        ["hanes_tube_socks"],
+        ["dasani_water_bottle"],
+        ["fitness_gear_3lb_dumbbell"]]
         self.overlap = [filter(lambda x: x in self.toteContents, sublist) for sublist in self.weightClass]
         print self.overlap
         
@@ -99,8 +129,6 @@ class stowHandler:
 
         newWeight = float(self.scale.readData(10).split(' ')[0])
 
-        #newWeight=self.scale.readData(10)
-        #newWeight=100
         objWeight=abs((self.currentWeight-newWeight))
         
         if (debug):
@@ -114,43 +142,43 @@ class stowHandler:
 
         if objWeight<10:
             return []
-        elif objWeight<21:
-            classidx=0
-            item =  self.overlap[0]
         elif objWeight<23:
+            classidx=0
+            item = self.overlap[0]
+        elif objWeight<28:
             classidx=1
             item = self.overlap[1]
-        elif objWeight<28:
+        elif objWeight<37:
             classidx=2
             item = self.overlap[2]
-        elif objWeight<37:
+        elif objWeight<47:
             classidx=3
             item = self.overlap[3]
-        elif objWeight<47:
+        elif objWeight<55:
             classidx=4
             item = self.overlap[4]
-        elif objWeight<55:
+        elif objWeight<61:
             classidx=5
             item = self.overlap[5]
-        elif objWeight<60:
+        elif objWeight<66:
             classidx=6
             item = self.overlap[6]
-        elif objWeight<66:
+        elif objWeight<76:
             classidx=7
             item = self.overlap[7]
-        elif objWeight<73:
+        elif objWeight<90:
             classidx=8
             item = self.overlap[8]
-        elif objWeight<90:
+        elif objWeight<105:
             classidx=9
             item = self.overlap[9]
-        elif objWeight<105:
+        elif objWeight<116:
             classidx=10
             item = self.overlap[10]
-        elif objWeight<116:
+        elif objWeight<122:
             classidx=11
             item = self.overlap[11]
-        elif objWeight<125:
+        elif objWeight<128:
             classidx=12
             item = self.overlap[12]
         elif objWeight<132:
@@ -187,29 +215,15 @@ class stowHandler:
             classidx=23
             item = self.overlap[23]
         self.counter = self.counter+1
+        copieditem=copy.copy(item)
 
         if (len(item))>0:
             if self.bin[classidx]==None:
                 (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0])
             self.updateTote(item[-1])
             self.updateBin(self.bin[classidx],item[-1])
-            self.overlap[classidx].remove(item[-1])
-        print self.bin
-        #     for element in self.candidates:
-        #         print element
-        #         if not element in self.bin_dict:
-        #             self.bin_dict[element] = self.bin_dict(self.candidates[0])
-
-        # for i in xrange(len(self.overlap)):
-        #     if(len(self.overlap[i])>0):
-        #         self.bin.append(self.binSelector.chooseBin(self.overlap[i][0]))
-        #     else:
-        #         self.bin.append(None)
-        # print self.bin
-        print self.overlap
-        print self.toteContents
-        return item, self.bin[classidx]
-
+            # self.overlap[classidx].remove(item[-1])
+        return copieditem, self.bin[classidx]
 
     def getToteContents(self):
         return self.toteContents
@@ -227,11 +241,10 @@ class stowHandler:
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
 
-if __name__ == "__main__":
-    JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
-    for i in range(len(JSON_FILES)):
-        a=stowHandler("../JSON_FILES/"+JSON_FILES[i])
-        a.pickWhichObj()
-        # while(1):
-        #     time.sleep(4)
-        #     print a.pickWhichObj()
+# if __name__ == "__main__":
+#     JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
+#     # for i in range(len(JSON_FILES)):
+#     a=stowHandler("../JSON_FILES/"+JSON_FILES[1])
+#     while(1):
+#         time.sleep(5)
+#         print a.pickWhichObj(True)
