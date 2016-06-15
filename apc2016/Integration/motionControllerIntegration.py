@@ -35,8 +35,8 @@ import numpy as np
 
 from Trajectories.camera_to_bin import *
 from Trajectories.view_to_grasp import *
-from Trajectories.grasp_to_stow import *
-
+from Trajectories.grasp_to_stow_90 import *
+from Trajectories.grasp_to_stow_straight import *
 #-----------------------------------------------------------
 #Imports require internal folders
 
@@ -92,6 +92,11 @@ SHELF_STATIONARY = False
 #TASK = 'pick'
 TASK = 'stow'
 
+if TASK == 'stow':
+    END_EFFECTOR = '_STRAIGHT'
+elif TASK == 'pick':
+    END_EFFECTOR = '_90'
+
 PRESSURE_FILE = "../Sensors/pressureReading.pkl"
 JSON_STOW_OUTPUT_FILE = "../JSON_FILES/JSON_stow_file_output.json"
 JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
@@ -99,7 +104,7 @@ JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
 JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
 SKIP_GRASP_FROM_TOTE= True
-
+SKIP_STOWING_INPUT = True
 
 PICK_TIME = 9000
 STOW_TIME = 9000
@@ -359,16 +364,6 @@ class KnowledgeBase:
     def applyShelfXform(self, point):
         return se3.apply(knowledge.shelf_xform, point)
 
-    def getBinScanPosition(self):
-        #store where the camera is in relation the bins when calibrating
-        #then apply transform to get position of new point so camera can move there
-        #TODO
-        pass
-
-    def getBinIKPosition(self):
-        #get the point located at the top middle of the bin (subtracted by an offset)
-        #TODO
-        pass
 
     def getShelfNormal(self):
         # assume z = 0
@@ -1390,7 +1385,7 @@ class PickingController:
 
         self.waitForMove()
 
-        path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
+        path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper() + END_EFFECTOR
         print "self.moveArm(",path_name,")...",
         if self.moveArm(limb = limb, path_name =path_name ,reverse=True, finalState ='placeInBin'):
             print "success"
@@ -1422,7 +1417,7 @@ class PickingController:
 
         step1 = []
         step2 = []
-        path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper()
+        path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper() + END_EFFECTOR
         
         if bin == None:
             if limb =='left':
@@ -1749,9 +1744,9 @@ class PickingController:
 
         if LOAD_PHYSICAL_TRAJECTORY:
             if eval('self.'+limb+'_bin') in apc.bin_names:
-                path_name = 'GRASP_TO_STOW_' + b[4].upper() + '_' + limb.upper()
+                path_name = 'GRASP_TO_STOW_' + b[4].upper() + '_' + limb.upper() + END_EFFECTOR
                 #EX: 'GRASP_TO_STOW_B_RIGHT'
-                stow_name = 'Q_STOW_' + limb.upper()
+                stow_name = 'Q_STOW_' + limb.upper() + END_EFFECTOR
                 if self.moveArm(limb, statusConditional = 'grasp', path_name=path_name, finalState = 'stow'):
                     self.waitForMove()
                     print "moveArm to", path_name
@@ -2658,49 +2653,53 @@ class PickingController:
                 assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
             except:
                 myInput = None
-                while(1):
-                    print 'Enter a position of where you would like to pick - defaults to world'
-                    print 'If you would like to pick a location local to a bin, enter: l, x,y,z '
-                    print 'Where x, y, and z are floating point numbers < 1 that refer to a ratio related to the bin'
-                    print 'I.E. l, 0.5,0.5,0.5 picks the midde of the given bin'
 
-                    myInput = raw_input("So, where would you like to pick? (comma delimited) ")
-                    myInput = myInput.split(',')
-                    
-                    goodInput = False
+                if SKIP_STOWING_INPUT:  
+                    self.pick_pick_pos = knowledge.getBinWorldPosition(bin_name=eval('self.'+limb+'_bin'), localPoint=[.5,.5,.5])
+                else:
+                    while(1):
+                        print 'Enter a position of where you would like to pick - defaults to world'
+                        print 'If you would like to pick a location local to a bin, enter: l, x,y,z '
+                        print 'Where x, y, and z are floating point numbers < 1 that refer to a ratio related to the bin'
+                        print 'I.E. l, 0.5,0.5,0.5 picks the midde of the given bin'
 
-                    if myInput[0] =='l' and len(myInput) ==4:
-                        myInts = []
-                        for i in range(1, 4):
-                            try:
-                                myInts.append(float(myInput[i]))
-                                goodInput = True
-                            except:
-                                goodInput = False
+                        myInput = raw_input("So, where would you like to pick? (comma delimited) ")
+                        myInput = myInput.split(',')
+                        
+                        goodInput = False
+
+                        if myInput[0] =='l' and len(myInput) ==4:
+                            myInts = []
+                            for i in range(1, 4):
+                                try:
+                                    myInts.append(float(myInput[i]))
+                                    goodInput = True
+                                except:
+                                    goodInput = False
+                            if goodInput:
+                                self.pick_pick_pos = knowledge.getBinWorldPosition(bin_name=eval('self.'+limb+'_bin'), localPoint=myInts)
+                        else:  
+
+                            myInts = []
+                            for el in myInput:
+                                try:
+                                    myInts.append(float(el))
+                                    goodInput = True
+                                except:
+                                    goodInput = False
+                            #if not knowledge.getBinWorldPosition(point=target):
+                            #we failed
+                            #    target = None
+                            if goodInput:
+                                self.pick_pick_pos = myInts
+                        
                         if goodInput:
-                            self.pick_pick_pos = knowledge.getBinWorldPosition(bin_name=eval('self.'+limb+'_bin'), localPoint=myInts)
-                    else:  
-
-                        myInts = []
-                        for el in myInput:
-                            try:
-                                myInts.append(float(el))
-                                goodInput = True
-                            except:
-                                goodInput = False
-                        #if not knowledge.getBinWorldPosition(point=target):
-                        #we failed
-                        #    target = None
-                        if goodInput:
-                            self.pick_pick_pos = myInts
-                    
-                    if goodInput:
-                        response = raw_input("Continue? y/n ")
-                        if response == 'y':
-                            break
-                        else:
-                            myInput = None
-                            self.pick_pick_pos = None
+                            response = raw_input("Continue? y/n ")
+                            if response == 'y':
+                                break
+                            else:
+                                myInput = None
+                                self.pick_pick_pos = None
 
             target = self.pick_pick_pos
             self.pick_pick_pos = None
@@ -3045,10 +3044,6 @@ class PickingController:
                 pathL = self.getLeftRestPath()
                 pathR = self.getRightRestPath()
 
-                #print pathL
-                #print pathR
-
-
                 self.moveBothArms(pathL =pathL,pathR = pathR, finalState = 'ready', INCREMENTAL=True)
 
                 self.left_bin=None
@@ -3080,7 +3075,7 @@ class PickingController:
         elif(self.stateLeft == 'grasp' ):
             #not set up yet
             # go to store then rest
-            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT')
+            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT' + END_EFFECTOR)
             self.moveLeftArm(path = lPath)
 
             return False
@@ -3098,7 +3093,7 @@ class PickingController:
         self.left_bin = None
 
     def getLeftRestPath(self):
-        path = []
+        path =  [[self.simworld.robot(0).getConfig()[v] for v in self.left_arm_indices]]
 
         if(self.stateLeft == 'scan'):
             lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
@@ -3111,11 +3106,13 @@ class PickingController:
         elif(self.stateLeft == 'grasp' or self.stateLeft == 'graspPrepped' ):
             #not set up yet
             # go to store then rest
-            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT')
+            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT'+END_EFFECTOR)
 
             if lPath !=[]:
                 for milestone in lPath:
                     path.append(milestone)
+
+            path.append(eval('Q_OUT_OF_TOTE_LEFT'))
 
         elif self.stateLeft == 'stow':
             #go right ahead through the code
@@ -3133,6 +3130,7 @@ class PickingController:
             if lPath != []:
                 for milestone in lPath:
                     path.append(milestone)
+
 
         else:
             #not set up yet
@@ -3153,7 +3151,7 @@ class PickingController:
         elif(self.stateRight == 'grasp' or self.stateRight == 'toteStowInBin'):
             #not set up yet
             # go to store then rest
-            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()+'_RIGHT')
+            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()+'_RIGHT'+END_EFFECTOR)
             self.moveRightArm(path=rPath)
             #sendPath(path = rPath, )
             #self.moveRightArm()
@@ -3173,7 +3171,7 @@ class PickingController:
         self.right_bin = None
 
     def getRightRestPath(self):
-        path = []
+        path = [[self.simworld.robot(0).getConfig()[v] for v in self.right_arm_indices]]
 
         if(self.stateRight == 'scan'):
             rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
@@ -3185,10 +3183,12 @@ class PickingController:
         elif(self.stateRight == 'grasp' or self.stateRight == 'graspPrepped'):
             #not set up yet
             # go to store then rest
-            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()[4]+'_RIGHT')
+            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()[4]+'_RIGHT'+END_EFFECTOR)
             if rPath != []:
                 for milestone in rPath:
                     path.append(milestone)
+
+            path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
 
         elif self.stateRight == 'stow':
             #go right ahead through the code
@@ -3298,9 +3298,6 @@ class PickingController:
         #print 'pathR after appends =', pathR
 
         realPath = []
-
-        print pathL
-        print pathR
 
         realConfig = [v for v in dummyConfig]
         for j in range(len(pathL)):
@@ -3598,7 +3595,7 @@ class PickingController:
         xPos = 0.5 * xScale
         yPos = 0.5 * yScale
 
-        # TODO: get this from perception group
+
         # if single item:
         if step == 1:
             print "\n=========================="        
@@ -3793,7 +3790,6 @@ class PickingController:
         #         else:
         #             i += 1
 
-
         # for p in path:
         #     for c in p:
         #         print '%0.2f,'%c,
@@ -3921,12 +3917,15 @@ class PickingController:
                 else:
                     i += 1
                     self.waitForMove()
+                    # if INCREMENTAL:
+                    #     time.sleep(.1)
                     if counter%SPEED == 0 or INCREMENTAL:
                         if limb == 'left':
                             self.controller.appendMilestoneLeft(q)
                         elif limb == 'right':
                             self.controller.appendMilestoneRight(q)
                         else:
+                            #print 'milestone #', i, q
                             self.controller.appendMilestone(q)
                     counter +=1
             if limb == 'left':
@@ -3934,6 +3933,7 @@ class PickingController:
             elif limb == 'right':
                 self.controller.appendMilestoneRight(path[-1])
             else:
+                #print 'last milestone', path[-1]
                 self.controller.appendMilestone(path[-1])
             # print 'Done with moving'
 
