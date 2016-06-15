@@ -5059,7 +5059,7 @@ def turnOffVacuum(limb):
     except:
         print 'Error in vacuum Controller'
 
-def trunOnVacuum(limb):
+def turnOnVacuum(limb):
     if limb=='left':
         command = 1
     if limb == 'right':
