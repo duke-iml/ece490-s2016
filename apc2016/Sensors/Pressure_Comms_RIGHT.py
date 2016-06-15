@@ -8,7 +8,6 @@ import random
 import serial.tools.list_ports
 
 class CommPressure:
-    message_time = 0.02
 
     # initialize the serial comm
     # def __init__(self, port="COM5"):
@@ -29,21 +28,40 @@ class CommPressure:
     #     time.sleep(0.5)
 
     # initialize the serial comm
-    def __init__(self, port="COM7"):
+    def __init__(self, port=None):
+        self.message_time = 0.02
         # on linux use port="/dev/ttyUSB2"
         # attempt to connect
         foundPort = False
         ports = list(serial.tools.list_ports.comports())
         portArray = []
-        for p in ports:
-            print p
-            if "Arduino Micro" in p[1] or "Arduino Micro" in p[2] or "VID:PID=2a03:0042" in p[1] or "VID:PID=2a03:0042" in p[2]:
 
-                # print "Port =", p[0]
-                port = p[0]
-                # print port
-                portArray.append(port)
-                foundPort = True
+
+        if port == None:
+            print "Here is a lit of ports"
+            for p in ports:
+                print p
+            pName = raw_input("choose a port number and enter it: ")
+
+        else:
+            pName = port
+
+        # print "trying to find port =", pName
+        for p in ports:    
+            # print "curr port =", p
+            if pName in p[0] or pName in p[1] or pName in p[2]:
+                print "Target port FOUND"
+                portArray.append(p[0])
+                foundPort = True                
+
+            # # if "Arduino Micro" in p[1] or "Arduino Micro" in p[2] or "VID:PID=2a03:0042" in p[1] or "VID:PID=2a03:0042" in p[2]:
+
+            #     # print "Port =", p[0]
+            #     port = p[0]
+            #     #print port
+            #     portArray.append(port)
+            #     foundPort = True
+
         if foundPort == False:
             print "No Port Found (Arduino Micro)"
 
@@ -67,20 +85,22 @@ class CommPressure:
             self.com.flushInput()
             self.com.setDTR(True)
 
-            print('connected to an arduino... checking ID...')
-            time.sleep(0.01)
 
-            arduinoID = self.com.readline()
-            while not ("c" in arduinoID) or ("l" in arduinoID) or ("r" in arduinoID):
-                print arduinoID
-                arduinoID = self.com.readline()
-                time.sleep(0.01)
+            print "connected to an arduino..."
+            # print('connected to an arduino... checking ID...')
+            # time.sleep(0.01)
 
-            # print "ID:", arduinoID
-            if "c" in arduinoID:
-                print "ID Checked (pressure sensor", arduinoID, ")"
-            else:
-                print "Wrong ID:", arduinoID
+            # arduinoID = self.com.readline()
+            # while not ("c" in arduinoID) or ("l" in arduinoID):
+            #     print "Trying to connect... readline() =", arduinoID
+            #     arduinoID = self.com.readline()
+            #     time.sleep(0.01)
+
+            # # print "ID:", arduinoID
+            # if "c" in arduinoID:
+            #     print "ID Checked (pressure sensor", arduinoID, ")"
+            # else:
+            #     print "Wrong ID:", arduinoID
 
 
 
@@ -111,15 +131,21 @@ class CommPressure:
 
 if __name__ == "__main__":
     ports = list(serial.tools.list_ports.comports())
-    foundPort = False
-    for p in ports:
-        print p
-        if "Arduino Micro" in p[1]:
-            print "Port =", p[0]
-            compress = CommPressure(port = p[0])
-            foundPort = True
-    if foundPort == False:
-        print "No Port Found (Arduino Micro)"
+    # foundPort = False
+    # for p in ports:
+    #     print p
+    #     if "Arduino Micro" in p[1]:
+    #         print "Port =", p[0]
+    #         # compress = CommPressure(port = p[0])
+    #         compress = CommPressure(port = p[0])
+    #         foundPort = True
+    # if foundPort == False:
+    #     print "No Port Found (Arduino Micro)"
+
+
+
+    compress = CommPressure()
+
 
     while True:
         attached = compress.read_pressure()
@@ -131,6 +157,6 @@ if __name__ == "__main__":
         # attached = random.uniform(0,10)
         #print 'attached: ', attached[0], "pressure:", attached[1]
         print "pressure:", attached[0]
-        with open("pressureReading.pkl", "wb") as f:
+        with open("pressureReading_RIGHT.pkl", "wb") as f:
             pickle.dump(attached, f)
         time.sleep(1)

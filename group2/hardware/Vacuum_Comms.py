@@ -16,7 +16,8 @@ class CommVacuum:
         ports = list(serial.tools.list_ports.comports())
         portArray = []
         for p in ports:
-            if "Arduino Mega" in p[1]:
+            if "Arduino Mega" in p[1] or "Arduino Mega" in p[2] or "VID:PID=2a03:0042" in p[1] or "VID:PID=2a03:0042" in p[2]:
+
                 # print "Port =", p[0]
                 port = p[0]
                 # print port
@@ -37,11 +38,20 @@ class CommVacuum:
                     port = input('Port = ')
                     if port.isdigit():
                         port = '/dev/ttyUSB' + port
+
+            self.com.setDTR(False)
+            time.sleep(1)
+            # toss any data already received, see
+            # http://pyserial.sourceforge.net/pyserial_api.html#serial.Serial.flushInput
+            self.com.flushInput()
+            self.com.setDTR(True)
+
             print('connected to an arduino... checking ID...')
-            time.sleep(0.5)
+            time.sleep(0.01)
 
             arduinoID = self.com.readline()
             while not ("c" in arduinoID) or ("b" in arduinoID) or ("a" in arduinoID):
+                print arduinoID
                 arduinoID = self.com.readline()
                 time.sleep(0.01)
 
@@ -52,13 +62,25 @@ class CommVacuum:
                 print "Wrong ID:", arduinoID
 
 
-    # send commands to the arduino for the vacuum, should be 0 or 1 (on or off)
+    # send commands to the arduino for the vacuum, should be 0, 1, 2, or 3 (left/right vacuum)
     def change_vacuum_state(self, comm):
         self.com.write(str(comm))
         time.sleep(self.message_time)
 
 if __name__ == "__main__":
     comm = CommVacuum()
+
+    # run this main() to test functionality
     while True:
-        # comm.change_vacuum_state(0)
+        comm.change_vacuum_state(0)
+        time.sleep(1)
         comm.change_vacuum_state(1)
+        time.sleep(1)
+        comm.change_vacuum_state(0)
+        time.sleep(1)
+        comm.change_vacuum_state(2)
+        time.sleep(1)
+        comm.change_vacuum_state(3)
+        time.sleep(1)
+        comm.change_vacuum_state(2)
+        time.sleep(1)

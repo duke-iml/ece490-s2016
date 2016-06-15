@@ -61,24 +61,50 @@ from Group2Helper import Vacuum_Comms
 # End of Imports
 
 
-# configuration variables
-
-WAIT_TIME = 2
-
 NO_SIMULATION_COLLISIONS = 0
 FAKE_SIMULATION = 0
 PHYSICAL_SIMULATION = 1
 
+
+#============================================================
+# configuration variables
+
+
+
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 0 or ALL_ARDUINOS
+VACUUM = 1 or ALL_ARDUINOS
+
+WAIT_TIME = 2
 
 SPEED = 3
 
 REAL_SCALE = False
 REAL_CAMERA = False
 REAL_JSON = False
-REAL_PRESSURE = False
+REAL_PRESSURE = True
+
+#TASK = 'pick'
+TASK = 'stow'
+
+SHELF_STATIONARY = False
+
+PRESSURE_THRESHOLD = 850
+
+SKIP_GRASP_FROM_TOTE= False
+SKIP_STOWING_INPUT = False
+
+
+INIT_DEGREE_OFFSET = 0
+
+TOTE_BOUNDS = [[],[]]
+TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
+TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
+
+#KLAMPT_MODEL="baxter.rob"
+KLAMPT_MODEL="baxter_with_two_vacuums.rob"
+
+#========================================================================================
 
 CALIBRATE = True
 SHOW_BIN_CONTENT = True # setting this to True will show bin content as perceived by camera
@@ -88,40 +114,26 @@ SHOW_BIN_BOUNDS = True # setting this to True will draw bin bounds
 LOAD_TRAJECTORY_DEFAULT = False
 LOAD_PHYSICAL_TRAJECTORY = True
 FORCE_WAIT = False
-SHELF_STATIONARY = False
-#TASK = 'pick'
-TASK = 'stow'
+
 
 if TASK == 'stow':
     END_EFFECTOR = '_STRAIGHT'
 elif TASK == 'pick':
     END_EFFECTOR = '_90'
 
-PRESSURE_FILE = "../Sensors/pressureReading.pkl"
+PRESSURE_FILE_PREFIX = "../Sensors/pressureReading_"
 JSON_STOW_OUTPUT_FILE = "../JSON_FILES/JSON_stow_file_output.json"
 JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
 JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
 JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
-SKIP_GRASP_FROM_TOTE= True
-SKIP_STOWING_INPUT = True
+
 
 PICK_TIME = 9000
 STOW_TIME = 9000
-PRESSURE_THRESHOLD = 865
+
 
 visualizer = None
-
-
-INIT_DEGREE_OFFSET = 0
-
-TOTE_BOUNDS = [[],[]]
-TOTE_BOUNDS[0] = [0.7457424118397027, -0.19966880112083363, 0.24317271366212811]
-
-TOTE_BOUNDS[1] =  [0.5351749454031796, 0.2791990789975449, 0.4314465273701872]
-
-
-
 
 if REAL_SCALE:
     from Sensors import scale
@@ -159,8 +171,7 @@ if PHYSICAL_SIMULATION:
 model_dir = "../klampt_models/"
 TRAJECTORIES_PATH = "../Trajectories/"
 PATHING_PATH = "../Trajectories"
-#KLAMPT_MODEL="baxter.rob"
-KLAMPT_MODEL="baxter_with_two_vacuums.rob"
+
 
 # The transformation of the order bin
 order_bin_xform = (so3.identity(),[0.65,-0.55,0])
@@ -1112,8 +1123,10 @@ class PickingController:
                         self.waitForMove()
                         #time.sleep(5)
                         if REAL_CAMERA:
-                            pass
-                            # self.getPickPositionForStow(limb)
+
+
+                            
+                            self.getPickPositionForStow(limb)
                         return True
                 else:
                     print "Error in moveArm (from viewToteAction)"
@@ -1166,6 +1179,7 @@ class PickingController:
                     for el in myInput:
                         try:
                             myInts.append(float(el))
+                            assert(len(myInput)==3 or len(myInput)==2)
                             goodInput = True     
                         except:
                             goodInput = False
@@ -1264,7 +1278,7 @@ class PickingController:
 
             #turn vacuum on
             try:
-                vacuumController.change_vacuum_state(1)
+                turnOnVacuum(limb)
             except:
                 print 'Error in vacuum Controller (controller is off?)'
 
@@ -1292,7 +1306,7 @@ class PickingController:
                     #getPressureReading
                     #reevaluate noPressureDrop                    
 
-                    pressureDrop = readPressure()
+                    pressureDrop = readPressure(limb)
                     print pressureDrop
                     time.sleep(0.5)
 
@@ -1429,7 +1443,7 @@ class PickingController:
 
         if REAL_PRESSURE:
 
-                pressureDrop = readPressure()
+                pressureDrop = readPressure(limb)
 
                 if pressureDrop:
                     pass
@@ -1458,7 +1472,7 @@ class PickingController:
                 self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
                 time.sleep(0.5)
                 try: 
-                    vacuumController.change_vacuum_state(0)
+                    turnOffVacuum(limb)
                 except:
                     print '\tError in vacuum Comms'
                 return False
@@ -1485,7 +1499,7 @@ class PickingController:
                 self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
                 time.sleep(0.5)
                 try:
-                    vacuumController.change_vacuum_state(0)
+                    turnOffVacuum(limb)
                 except:
                     print '\tError in vacuum Comms'
                 return False
@@ -1496,7 +1510,7 @@ class PickingController:
         self.waitForMove()
         time.sleep(1)
         try:
-            vacuumController.change_vacuum_state(0)
+            turnOffVacuum(limb)
         except:
             print '\tError in vacuum Comms'
 
@@ -1759,7 +1773,7 @@ class PickingController:
                             time.sleep(2)
                             #wait for two seconds
                             #maybe forcewait until it's in stow state
-                            vacuumController.change_vacuum_state(0)
+                            turnOffVacuum(limb)
                         except:
                             print 'Error in vacuum Controller'
                             return True
@@ -2780,7 +2794,7 @@ class PickingController:
             if step==4 :           
                 #turn on vacuum and move down
                 try:
-                    vacuumController.change_vacuum_state(1)
+                    turnOnVacuum(limb)
                 except:
                     print 'Error in vacuum Controller'
                 #keep the x, y - throw out the z
@@ -2966,7 +2980,7 @@ class PickingController:
                 #keep the x, y - throw out the z
                 #check to make sure target is actually in bin
                 try:
-                    vacuumController.change_vacuum_state(1)
+                    turnOnVacuum(limb)
                 except:
                     print 'Error in vacuum Controller'
 
@@ -4854,7 +4868,7 @@ def run_controller(controller,command_queue):
                     DEFAULT_LIMB='left'
                 print 'Limb is now ' + DEFAULT_LIMB
             elif c =='d':
-                readPressure()
+                readPressure(limb)
 
             elif c == 'r':
                 controller.moveToRestConfig()
@@ -4929,7 +4943,8 @@ def run_controller(controller,command_queue):
                 #     #controller.moveToRestConfig()
                 #     binIndex += 1
             elif c=='q':
-                turnOffVacuum()
+                turnOffVacuum('left')
+                turnOffVacuum('right')
                 break
             elif c=='b':
                 print 'Get Bin Bounds - Press Bin Letter on GUI. Press X to cancel'
@@ -4983,8 +4998,7 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
-
-    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.965, -2.516, -0.02])
+    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.975, -2.566, -0.03])
     # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
@@ -5009,8 +5023,8 @@ def load_apc_world():
     #ground_truth_shelf_xform = se3.mul(Trel,reorient)
     return world
 
-def readPressure():
-    with open(PRESSURE_FILE, "rb") as f:
+def readPressure(limb):
+    with open(PRESSURE_FILE_PREFIX + limb.upper()+'.pkl', "rb") as f:
         valList = pickle.load(f)
         pressureAverage = float(valList[0])
         print "Vacuum Pressure: ",pressureAverage, "Threshold:", PRESSURE_THRESHOLD 
@@ -5044,11 +5058,29 @@ def f_addr_to_i(f):
 def i_addr_to_f(i):
     return struct.unpack('f', struct.pack('I', i))[0]
 
-def turnOffVacuum():
+def turnOffVacuum(limb):
+
+    if limb =='left':
+        command = 0
+    if limb =='right':
+        command = 2
+
     try:
-        vacuumController.change_vacuum_state(0)
+        vacuumController.change_vacuum_state(command)
     except:
         print 'Error in vacuum Controller'
+
+def turnOnVacuum(limb):
+    if limb=='left':
+        command = 1
+    if limb == 'right':
+        command = 3
+
+    try:
+        vacuumController.change_vacuum_state(command)
+    except:
+        print 'Error in vacuum Controller'
+
 
 def pcl_float_to_rgb(f):
     i = f_addr_to_i(f)
