@@ -105,7 +105,6 @@ class binSelector:
             elif orgnum>=1 and orgnum<3:
                 self.bin_dict[key][2]=10;
                 continue;
-            self.bin_dict[key][2]=0
         print("Bin Selector has been intialized")
             
     def printBin(self):

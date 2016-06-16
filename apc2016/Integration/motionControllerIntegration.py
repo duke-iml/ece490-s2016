@@ -150,14 +150,14 @@ if REAL_SCALE:
 
 if REAL_JSON:
     # JSON parser
-    binOrderParser = binOrder.binOrder()
+    pickHandler = pickHandler.pickHandler()
 
     # Order list. Can be parsed from JSON input
     global binList
     global singleItemList
-
+    global rightTrueList
     global orderList
-    (binList, orderList, singleItemList) = binOrderParser.workBinOrder("../JSON_FILES/apc_pick_task.json")
+    (binList, orderList, rightTrueList) = pickHandler.workBinOrder(JSON_PICK_INPUT_FILE)
 
 
 perceiver = perception.Perceiver()
@@ -2054,13 +2054,13 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-        binQueue = []
-        armQueue = []
+        binQueue = binOrder
+        armQueue = ['right' if rightTrueList[i] else 'left' for i in range(len(rightTrueList))]
 
 
         while (endTime - startTime > PICK_TIME and pickQueue is not []):
 
-            runPickFromBin(bin = binQueue.pop(0), limb = binQueue.pop(0))
+            runPickFromBin(bin = binQueue.pop(0), limb = armQueue.pop(0))
             endTime = time.clock()
 
     def runPickFromBin(self, bin, limb):
@@ -2115,7 +2115,7 @@ class PickingController:
                             
                             if REAL_CAMERA:
                                 if doPerception:
-                                    self.getPickPositionForPick(bin_letter=b[4], limb=limb)
+                                    self.getPickPositionForPick(bin_letter=b[4],target_item=orderList.pop(0), limb=limb)
                             
                             if limb == 'left':
                                 self.left_bin = b
