@@ -53,7 +53,7 @@ sys.path.insert(0, "../")
 import json
 import json_parser_stow
 from bin_select import binSelector
-# from Sensors import scale
+from Sensors import scale
 
 class stowHandler:
     def __init__(self,filename=None):
@@ -64,12 +64,11 @@ class stowHandler:
         self.bin=[None]*24
 
         self.scale = None
-        # self.scale=scale.Scale_Measurement()
-        # self.currentWeight=float(self.scale.readData(10).split(' ')[0])
-        # print 'Initial Reading', self.currentWeight
-        # # self.currentWeight = self.currentWeight.split(' ')[0]
-        # print 'Numeric Reading', self.currentWeight
-        # print 'Scale not connected'
+        self.scale=scale.Scale_Measurement()
+        self.currentWeight=float(self.scale.readData(10).split(' ')[0])
+        print 'Initial Reading', self.currentWeight
+        # self.currentWeight = self.currentWeight.split(' ')[0]
+        print 'Numeric Reading', self.currentWeight
         if filename is not None:
             (self.binContents, self.toteContents)=self.parser.readInFile(filename)
             print self.toteContents
@@ -123,26 +122,23 @@ class stowHandler:
         ["fitness_gear_3lb_dumbbell"]]
         self.overlap = [filter(lambda x: x in sublist, self.toteContents) for sublist in self.weightClass]
         print self.overlap
-        self.a=1
 
     def pickWhichObj(self, limb, debug=False):
 
-        # newWeight = float(self.scale.readData(10).split(' ')[0])
+        newWeight = float(self.scale.readData(10).split(' ')[0])
 
-        # objWeight=abs((self.currentWeight-newWeight))
+        objWeight=abs((self.currentWeight-newWeight))
         
-        # if (debug):
-        #     print "Object Weight is ",objWeight
-        #     print "Because old weight was ", self.currentWeight, " & new weight is ", newWeight
+        if (debug):
+            print "Object Weight is ",objWeight
+            print "Because old weight was ", self.currentWeight, " & new weight is ", newWeight
 
-        # self.currentWeight=newWeight
-        self.a=self.a+5
-        objWeight=self.a
+        self.currentWeight=newWeight
         item = []
         classidx=0
 
         if objWeight<10:
-            return [[],None]
+            return [None,None]
         elif objWeight<23:
             classidx=0
             item = self.overlap[0]
@@ -216,43 +212,55 @@ class stowHandler:
             classidx=23
             item = self.overlap[23]
         self.counter = self.counter+1
-        copieditem=copy.copy(item)
 
-        if(len(item)==0):
-            return [[],None]
-        elif(len(item)>1):
+        if len(item)==0:
+            return None, None
+        copieditem=copy.copy(item)
+        print "Possible items are:"+str(copieditem)
+
+        if(len(item)>1):
             if self.bin[classidx]==None:
                 (self.bin[classidx],binidx) = self.binSelector.chooseCenterBin(item[0])
         else:
             if self.bin[classidx]==None:
                 (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0],limb)
-        self.binSelector.addtoBin(item[0],self.bin[classidx])
+        
         self.updateTote(item[0])
-        self.updateBin(self.bin[classidx],item[0])
         self.overlap[classidx].remove(item[0])
+        return copieditem[0], self.bin[classidx]
 
-        return copieditem, self.bin[classidx]
+    def updateWeight(self):
+        self.currentWeight=float(self.scale.readData(10).split(' ')[0])
+        return self.currentWeight
 
     def getToteContents(self):
         return self.toteContents
 
     def updateBin(self, bin, item):
+        self.binSelector.addtoBin(item,bin)
         self.binContents[bin].append(item)
         return True
+
     def updateTote(self,objRemoved):
+        print "Object removed:"+objRemoved
         if objRemoved in self.toteContents: 
             self.toteContents.remove(objRemoved)
             return True
         else:
             return False
+
     def jsonOutput(self, filename):
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
-if __name__ == "__main__":
-    JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
-    # for i in range(len(JSON_FILES)):
-    a=stowHandler("../JSON_FILES/"+JSON_FILES[0])
-    for i in range(50):
-        # time.sleep(5)
-        print a.pickWhichObj('left',True)
-        a.jsonOutput("../JSON_FILES/StowTestBOut.json")
+# if __name__ == "__main__":
+#     JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
+#     # for i in range(len(JSON_FILES)):
+#     a=stowHandler("../JSON_FILES/"+JSON_FILES[0])
+#     for i in range(50):
+#         # time.sleep(5)
+#         (targetitem,targetbin)=a.pickWhichObj('left',True);
+#         print "TI"
+#         print targetitem
+#         if targetitem!=None:
+#             a.updateBin(targetbin,targetitem)
+#         a.jsonOutput("../JSON_FILES/StowTestBOut.json")
