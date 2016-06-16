@@ -79,7 +79,7 @@ WAIT_TIME = 2
 
 SPEED = 3
 
-REAL_SCALE = True
+REAL_SCALE = False
 REAL_CAMERA = True
 REAL_JSON = True
 REAL_PRESSURE = True
@@ -146,7 +146,7 @@ if REAL_SCALE:
     from Sensors import scale
     from Group2Helper import stowHandler
     if TASK == 'stow':
-        stowHandler = None
+        stowHandler = stowHandler.stowHandler(JSON_STOW_INPUT_FILE)
 
 if REAL_JSON:
     # JSON parser
@@ -910,7 +910,7 @@ class PickingController:
         if target_item is None:
             target_item = raw_input('Enter target item: ')
         if possible_items is None:
-            possible_items = raw_input('Enter possible items, separated by comma')
+            possible_items = raw_input('Enter possible items, separated by comma: ')
             if possible_items=='':
                 possible_items = [target_item]
             elif ',' not in possible_items: # single item input
@@ -1078,7 +1078,7 @@ class PickingController:
     def runStowingTask(self):
         #
 
-        stowHandler.stowHandler(JSON_STOW_INPUT_FILE)
+
         print stowHandler.getToteContents()
 
         startTime = time.clock()
@@ -1550,7 +1550,7 @@ class PickingController:
 
             #     print 'got no Item'
             #     return False
-            print items
+            print self.stowItems
             print self.pickBin
             return True
         else:
@@ -1638,7 +1638,7 @@ class PickingController:
 
                 if pressureDrop:
                     
-                    stowHandler.updateBin(bin=bin ,item=self.stowItems)
+                    stowHandler.updateBin(bin='bin_'+bin ,item=self.stowItems)
                     pass
                 else:
                     # we dropped the object
@@ -1813,7 +1813,7 @@ class PickingController:
 
         #turn vacuum off
 
-        self.turnOffVacuum(limb=limb)
+        turnOffVacuum(limb=limb)
         self.sendPath(path = [step1], limb=limb)
         return True
     
@@ -4418,7 +4418,7 @@ class PickingController:
                     self.waitForMove()
                     # if INCREMENTAL:
                     #     time.sleep(.1)
-                    if counter%SPEED == 0 or INCREMENTAL:
+                    if counter%internalSpeed == 0 or INCREMENTAL:
                         if limb == 'left':
                             self.controller.appendMilestoneLeft(q)
                         elif limb == 'right':
@@ -4912,8 +4912,8 @@ class MyGLViewer(GLRealtimeProgram):
                 
                 
         if SHOW_BIN_BOUNDS:
-            # for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:
-            for letter in ['F']:
+            for letter in ['A','B','C','D','E','F','G','H','I','J','K','L']:
+            # for letter in ['F']:
                 draw_wire_box(*map(lambda p:se3.apply(knowledge.shelf_xform, p), apc.bin_bounds['bin_'+letter]))
         # draw the shelf and floor
         # if self.simworld.numTerrains()==0:
