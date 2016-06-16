@@ -1079,7 +1079,7 @@ class PickingController:
 
         self.waitForMove()
 
-        if self.viewToteAction(limb=limb):
+        if self.viewToteAction(limb=limb)
             self.waitForMove()
             if self.prepGraspFromToteAction(limb=limb):
                 self.waitForMove()
@@ -1117,6 +1117,9 @@ class PickingController:
 
     def viewToteAction(self,limb ):
 
+        #start state = ready
+        #end state = viewTote
+
         if LOAD_PHYSICAL_TRAJECTORY:
             if limb is not None:
                 if self.moveArm(limb, statusConditional='ready', path_name='Q_VIEW_TOTE_'+limb.upper(), finalState='viewTote'):
@@ -1141,9 +1144,12 @@ class PickingController:
 
     def prepGraspFromToteAction(self, limb):
 
+        # start state = viewTote
+        # end state = prepTote
+
         #assumes we're using the constants file
         if limb is not None:
-            if self.moveArm(limb, statusConditional='viewTote', path_name='Q_STOW_'+limb.upper()+'_STRAIGHT', finalState='toteGraspPrepped'):
+            if self.moveArm(limb, statusConditional='viewTote', path_name='Q_STOW_'+limb.upper()+'_STRAIGHT', finalState='prepTote'):
                 return True
             else:
                 print "Error in moveArm (from preGraspFromToteAction"
@@ -1152,6 +1158,9 @@ class PickingController:
             print 'Error in viewTote action can\'t move with no limb'
 
     def graspFromToteAction(self, limb, position=None, points=None, startZ = .54, endZ =.24):
+
+        #start state = prepTote
+        # end state = graspTote
 
         #if perception has picked something
 
@@ -1263,6 +1272,9 @@ class PickingController:
 
             else:
                 self.debugFailedPoints.append(global1)
+                break
+                #currently skips lower points if we fail for 1
+
 
             goalZ+=incZ    
        
@@ -1326,18 +1338,21 @@ class PickingController:
                     index= index+1
                 else:
                     #we didn't grab anything
-                    print 'Didn\'t grab anything'
-                    return False
+                    self.sendPath(reversePath[::-1], limb=limb)
+                    self.waitForMove()
+                    if readPressure(limb):
+                        print 'we actually got something'
+                        return True
+                    else:
+                        print 'Didn\'t grab anything'
+                        return False
 
             else:                
-
                 self.sendPath(path, limb=limb)
-
                 # print 'sent path to go down'
                 time.sleep(0.1)
                 # if FAKE_SIMULATION:
                 #     raw_input()
-
                 self.sendPath(path[::-1], limb=limb)
                 # print 'sent path to go up'
 
@@ -1350,6 +1365,11 @@ class PickingController:
         return False
 
     def evaluateObjectAction(self):
+
+        #start state = graspTote
+        #end state = graspTote
+
+
         if REAL_SCALE:
             (items, self.pickBin) = stowHandler.pickWhichObj(True)
             if self.pickBin==None:
@@ -1372,6 +1392,10 @@ class PickingController:
             return True
 
     def placeInBinAction(self, limb, bin='H'):
+
+        #start state = graspTote
+        #end state = placeInBin or retry1, retry2, retry3
+
 
         # limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False
         if limb == 'left':
@@ -1453,6 +1477,8 @@ class PickingController:
                     return False
 
 
+        #log current effort
+
         if step==1:
             #move to the top center of the bin
             target1 = knowledge.getBinFrontCenter('bin_'+bin)
@@ -1461,26 +1487,34 @@ class PickingController:
             #use ik seed and knowledge of shelf
             # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
             #print target1
+
+
+
             print '\ttrying step1 ik'
             step1 = self.simpleIK(limb=limb, goal=ikGoal)
             if not step1:
                 #failed
                 #check pressure sensor for limb
+                #-check in loop
+
                 # if still on, return to tote
                 # if off, return to tote - turn vacuum off
+                
                 print "\tIK solve failed, reverting to previous position"
                 self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
-                time.sleep(0.5)
-                try: 
-                    turnOffVacuum(limb)
-                except:
-                    print '\tError in vacuum Comms'
+                self.waitForMove()
+                # try: 
+                #     turnOffVacuum(limb)
+                # except:
+                #     print '\tError in vacuum Comms'
                 return False
             self.debugPoints.append(target1)
             #ik returns a configuration
 
             self.sendPath(path=[step1], limb=limb)
-            #self.sendPath(path=step1, limb = limb)
+
+            #check effort - if we're colliding, return
+
             time.sleep(0.5)
 
             step =2
