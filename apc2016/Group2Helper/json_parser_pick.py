@@ -13,6 +13,7 @@ class json_parser_pick(object):
         # print data
         binMap = dict()
         workOrder = []
+        toteContents=[]
 
         for binName in self.bin_list:
             bin_contents = data["bin_contents"][binName]
@@ -20,7 +21,8 @@ class json_parser_pick(object):
 
         workOrder = data["work_order"]
 
-        return (binMap, workOrder)
-    def writeOutFile(self, filename, shelfMap, toteContents):
+        return (binMap,toteContents, workOrder)
+    def writeOutFile(self, filename, shelfMap, toteContents, workOrder):
         with open(filename, "w") as file:
-            json.dump({"bin_contents":{self.bin_list[i]:shelfMap[self.bin_list[i]] for i in range(0, len(self.bin_list))}, "tote_contents":toteContents}, file, indent=4, sort_keys=True)
+            json.dump({"bin_contents":{self.bin_list[i]:shelfMap[self.bin_list[i]] for i in 
+                range(0, len(self.bin_list))}, "tote_contents":toteContents, "work_order":workOrder}, file, indent=4, sort_keys=True)
