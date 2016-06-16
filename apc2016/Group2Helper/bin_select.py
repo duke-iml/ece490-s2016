@@ -32,24 +32,43 @@ class binSelector:
         binlist[0].append(itemid); #add itemid to contents list
         binlist[1]=binlist[1]+1; #add item to number of items 
         binlist[3]=binlist[3]+itemvol; #add volume to total volume
-        binlist[4]=100-binlist[3]*100/self.maxbinvolume; #recalculate percentage free
+        binlist[4]=100-binlist[3]*100/self.maxbinvolume/(1.2 if str(itembin)=='bin_B' or str(itembin)=='bin_E' or str(itembin)=='bin_H' or str(itembin)=='bin_K' else 1); #recalculate percentage free
         self.bin_dict[str(itembin)]=binlist;
         
     def addStrike(self,itembin):
         self.bin_dict[itembin][5]=self.bin_dict[itembin][5]+1;
         
-    def chooseBin(self,itemid):
+    def chooseBin(self,itemid,limb):
         #This method selects a bin and returns that to the caller.
         itemvol=self.item_lookup[itemid];
         validlist=[];
-        for key in self.bin_dict.keys():
+        if limb=='left':
+            for key in ['bin_A','bin_B','bin_D','bin_E','bin_G','bin_H','bin_J','bin_K']:
+                prediction=self.addPredict(key,itemvol);
+                if prediction[3]>20: #If there is less than 10% free space in the bin don't add it to the list to be considered 
+                    validlist.append(prediction);
+            validlist.sort(cmp=self.comparator);
+            print "Sent to ",validlist[0][0], " which is now ",validlist[0][3]," % free"
+        else:
+            for key in ['bin_C','bin_B','bin_F','bin_E','bin_I','bin_H','bin_L','bin_K']:
+                prediction=self.addPredict(key,itemvol);
+                if prediction[3]>20: #If there is less than 10% free space in the bin don't add it to the list to be considered 
+                    validlist.append(prediction);
+            validlist.sort(cmp=self.comparator);
+            print "Sent to ",validlist[0][0], " which is now ",validlist[0][3]," % free"
+        return (validlist[0][0],validlist[0][5])
+
+    def chooseCenterBin(self,itemid):
+        #This method selects a bin and returns that to the caller.
+        itemvol=self.item_lookup[itemid];
+        validlist=[];
+        for key in ['bin_B','bin_E','bin_H','bin_K']:
             prediction=self.addPredict(key,itemvol);
             if prediction[3]>20: #If there is less than 10% free space in the bin don't add it to the list to be considered 
                 validlist.append(prediction);
         validlist.sort(cmp=self.comparator);
         print "Sent to ",validlist[0][0], " which is now ",validlist[0][3]," % free"
         return (validlist[0][0],validlist[0][5])
-
     
     def comparator(self, a,b):
         #Comparator for the bin sort module
@@ -148,3 +167,4 @@ if __name__ == "__main__":
     FILE_NAME="apc_stow_task.json"
     a=binSelector()
     a.initialize(FILE_NAME)
+    a.addtoBin("dove_beauty_bar", "bin_B")
