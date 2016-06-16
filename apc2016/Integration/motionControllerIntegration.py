@@ -880,7 +880,7 @@ class PickingController:
             self.tote_render_downsample_rate = 1
             self.tote_render_ptsize = 5
 
-    def getPickPositionForPick(self, bin_letter, limb='left'):
+    def getPickPositionForPick(self, bin_letter, target_item=None, possible_items=None, limb='left'):
         local_bound = apc.bin_bounds['bin_'+bin_letter]
         min_local_bound, max_local_bound = local_bound
         min_global_bound = se3.apply(knowledge.shelf_xform, min_local_bound)
@@ -906,15 +906,36 @@ class PickingController:
             min_global_z = max_global_bound[2]
             max_global_z = min_global_bound[2]
 
-        pos, cloud = perceiver.get_picking_position_for_single_item_bin(bin_letter, *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
-            bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]], return_bin_content_cloud=True)
+        if target_item is None:
+            target_item = raw_input('Enter target item: ')
+        if possible_items is None:
+            possible_items = raw_input('Enter possible items, separated by comma')
+            if possible_items=='':
+                possible_items = [target_item]
+            elif ',' not in possible_items: # single item input
+                possible_items = [possible_items]
+            else:
+                possible_items = map(lambda x:x.strip(), possible_items.split(','))
+
+        print 'target item is %s'%target_item
+        print 'possible items are %s'%str(possible_items)
+
+        res = perceiver.get_picking_position_for_bin(target_item, possible_items, bin_letter, 
+            *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
+            bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]], 
+            return_bin_content_cloud=True)
         
+        if res is None:
+            'Object not found'
+            return False
+
+        pos, cloud = res
         print 'Picking position is:', pos
         self.pick_pick_pos = pos
         self.bin_content_cloud = cloud
         self.bin_render_downsample_rate = 1
         self.bin_render_ptsize = 5
-
+        return True
         
 
     def getPickPositionForStow(self, limb='left'):
@@ -5128,6 +5149,7 @@ def run_controller(controller,command_queue):
                 print 'I: Save Canonical Point Cloud for Bin/Tote'
                 print 'A: Render Bin Content'
                 print 'T: Render Tote Content'
+                print 'N: Get Pick Position for Bin'
                 print 'L: Get Pick Position for Stow'
                 print 'V: Change Default Limb'
                 print 'R: Move to Rest Configuration'
@@ -5277,8 +5299,8 @@ def run_controller(controller,command_queue):
                     print 'compute time', time.time() - a
                 else:
                     controller.renderToteContent(flag=='1', limb=DEFAULT_LIMB)
-            elif c=='j':
-                print 'Get Pick Position for Single Item Bin - Press Bin Letter on GUI. Press X to cancel'
+            elif c=='n':
+                print 'Get Pick Position for Bin - Press Bin Letter on GUI and Then Enter Object Information in Console. Press X to cancel'
                 bin_letter = command_queue.get()
                 while bin_letter is None:
                     bin_letter = command_queue.get()

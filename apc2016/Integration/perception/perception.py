@@ -243,35 +243,87 @@ class Perceiver(object):
 		assert pts.shape[1]==3, 'pts must have shape N x 3'
 		return [-1,0,0]
 
+	def long_name_to_short(self, name):
+		'''
+		translate official APC item name to short name stored in uv_hist
+		'''
+		short_names = ['baseball', 'bear', 'bones', 'bowl', 'brush', 'bulb', 'bunny', 
+		'coffee', 'cord', 'crayola24', 'cup', 'curtain', 'dumbbell', 'dvd', 'eggs', 
+		'expo', 'gloves', 'glucose', 'glue', 'glue_stick', 'hooks', 'index_card', 
+		'joke', 'mailer', 'paper_towel', 'pencil', 'plug', 'rolodex', 'scissor', 'shirt', 
+		'soap', 'socks', 'stems', 'tape', 'tissue', 'toothbrush_green', 'toothbrush_red', 
+		'util_brush', 'water']
+		long_names = ['rawlings_baseball', 'cloud_b_plush_bear', 'barkely_hide_bones', 'platinum_pets_dog_bowl', 
+		'dr_browns_bottle_brush', 'soft_white_lightbulb', 'i_am_a_bunny_book', 'folgers_classic_roast_coffee', 'woods_extension_cord', 
+		'crayola_24_ct', 'easter_turtle_sippy_cup', 'peva_shower_curtain_liner', 'fitness_gear_3lb_dumbbell', 'jane_eyre_dvd', 
+		'kyjen_squieakin_eggs_plush_puppies', 'expo_dry_erase_board_eraser', 'womens_knit_gloves', 'up_glucose_bottle', 'elmers_washable_no_run_school_glue', 
+		'cool_shot_glue_sticks', 'command_hooks', 'staples_index_cards', 'laugh_out_loud_joke_book', 'scotch_bublle_mailer', 
+		'kleenex_paper_towels', 'ticonderoga_12_pencils', 'safety_first_outlet_plugs', 'rolodex_jumbo_pencil_cup', 
+		'fiskars_scissors_red', 'cherokee_easy_tee_shirt', 'dove_beauty_bar', 'hanes_tube_socks', 'creativity_chenille_stems', 
+		'scotch_duct_tape', 'kleenex_tissue_box', 'oral_b_toothbrush_green', 'oral_b_toothbrush_red', 'clorox_utility_brush', 'dasani_water_bottle']
+		assert name not in (long_names+short_names), 'name: %s must be either long form or short form'%name
+		if name in long_names:
+			name = short_names[long_names.index(name)]
+		return name
+
+
+
+	def get_picking_position_for_bin(self, target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb, 
+		colorful=True, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, crop=False, bin_bound=None, perturb_xform=None, return_bin_content_cloud=False):
+		'''
+		perception API for picking from bin
+		will return None if perception failed (e.g. not able to find specified object)
+		'''
+		assert target_item in possible_items, 'target item must be in the list of possible items'
+		if len(possible_items)==1: # single object localization
+			return self.get_picking_position_for_single_item_bin(bin_letter, cur_camera_R, cur_camera_t, limb, 
+				colorful=colorful, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, 
+				perturb_xform=perturb_xform, return_bin_content_cloud=return_bin_content_cloud)
+		else:
+			target_item = self.long_name_to_short(target_item)
+			possible_items = map(self.long_name_to_short, possible_items)
+			return self.get_picking_position_for_multi_item_bin(target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb, 
+				colorful=colorful, fit=fit, shelf_subtraction_threshold=shelf_subtraction_threshold, cc_threshold=cc_threshold, 
+				crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform, return_bin_content_cloud=return_bin_content_cloud)
+
 	def get_picking_position_for_multi_item_bin(self, target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb, 
 		colorful=True, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, crop=False, bin_bound=None, perturb_xform=None, return_bin_content_cloud=False):
 		'''
 		return (x,y,z) coordinate in global frame of position that has something to suck. 
 		'''
 		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
-			colorful=True, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
+			colorful=colorful, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
 		assert bin_content_cloud.shape[1]==4, 'Color channel seems to be missing'
 		labels, n_components = self.segment_cloud(bin_content_cloud, cc_threshold)
 
 		'''
-		Naive way: among largest n+1 components, find the closest match to 
-		the item historgram of request, disregarding match/mismatch of other candidates
+		Better way: return cloud that maximizes f-g, 
+		where f is correlation with target object, and g is max correlation with non-target object.
 		'''
 		sizes = [len(np.where(labels==i)[0]) for i in xrange(n_components)]
 		sorted_idxs = [ i for _,i in sorted([(v,i) for i,v in enumerate(sizes)]) ][::-1]
-		sorted_idxs = sorted_idxs[0:min(n_components, len(possible_items))]
-		target_uv_hist = self.load_uv_hist_for_item(target_item)
+		sorted_idxs = sorted_idxs[0:min(n_components, len(possible_items)+1)]
 		best_score = None
 		best_cloud = None
 		for i in sorted_idxs:
-			cur_idxs = np.where(labels==i)[0]
-			cur_cloud = bin_content_cloud[cur_idxs, :]
+			cur_cloud = bin_content_cloud[np.where(labels==i)[0], :]
 			cur_uv_hist = self.make_uv_hist_from_cloud(cur_cloud)
-			score = self.calculate_uv_matching(cur_uv_hist, target_uv_hist, suppress_center=True)
-			if best_score is None or score > best_score:
-				best_score = score
+			scoring_func = lambda item: self.calculate_uv_matching(cur_uv_hist, self.load_uv_hist_for_item(item), suppress_center=True)
+			f_score = scoring_func(target_item)
+			g_score = max([scoring_func(non_target_item) for non_target_item in possible_items if non_target_item!=target_item])
+			score_diff = f_score - g_score
+			print 'CC %i with %i points has score diff of %f'%(i, len(np.where(labels==i)[0]), score_diff)
+			if score_diff>0 and (best_score is None or score_diff > best_score):
+				best_score = score_diff
 				best_cloud = cur_cloud
-		return cur_cloud
+		if best_cloud is None:
+			print 'No positive score difference for item %s among items %s'%(target_item, str(possible_items))
+			return None
+		pos = self.find_max_density_3d(best_cloud)
+		if not return_cloud:
+			return pos
+		else:
+			return pos, best_cloud
 
 	def rgb_to_uv(rgb):
 		r, g, b = rgb
@@ -283,8 +335,8 @@ class Perceiver(object):
 		assert cloud.shape[1]==4, 'cloud must have size N x 4'
 		colors = cloud[:,3]
 		rgbs = map(pcl_float_to_rgb, colors.tolist())
-		vals = map(rgb_to_uv, rgbs)
 		hist = np.zeros((int(256/binsize), int(256/binsize)))
+		vals = map(rgb_to_uv, rgbs)
 		try:
 			vals = vals.tolist()
 		except:
@@ -294,6 +346,14 @@ class Perceiver(object):
 		hist = hist / len(vals)
 		return hist
 
+	def suppress(self, uv_hist):
+		side_len = uv_hist.shape[0]
+		center = side_len / 2 - 0.5
+		for i in xrange(side_len):
+			for j in xrange(side_len):
+				if (i - center)**2+(j-center)**2<16:
+					uv_hist[i,j] = 0
+
 	def calculate_uv_matching(self, hist1, hist2, suppress_center=False):
 		'''
 		size of intersection of normalized histogram
@@ -301,8 +361,8 @@ class Perceiver(object):
 		'''
 		assert hist1.shape==hist2.shape, 'Shape not equal!'
 		if suppress_center:
-			hist1[29:35, 29:35] = 0
-			hist2[29:35, 29:35] = 0
+			suppress(hist1)
+			suppress(hist2)
 		sum1 = hist1.sum()
 		sum2 = hist2.sum()
 		hist1 = hist1 / sum1
