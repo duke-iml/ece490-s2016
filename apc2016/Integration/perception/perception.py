@@ -261,7 +261,7 @@ class Perceiver(object):
 		'kleenex_paper_towels', 'ticonderoga_12_pencils', 'safety_first_outlet_plugs', 'rolodex_jumbo_pencil_cup', 
 		'fiskars_scissors_red', 'cherokee_easy_tee_shirt', 'dove_beauty_bar', 'hanes_tube_socks', 'creativity_chenille_stems', 
 		'scotch_duct_tape', 'kleenex_tissue_box', 'oral_b_toothbrush_green', 'oral_b_toothbrush_red', 'clorox_utility_brush', 'dasani_water_bottle']
-		assert name not in (long_names+short_names), 'name: %s must be either long form or short form'%name
+		assert name in (long_names+short_names), 'name: %s must be either long form or short form'%name
 		if name in long_names:
 			name = short_names[long_names.index(name)]
 		return name
@@ -320,12 +320,12 @@ class Perceiver(object):
 			print 'No positive score difference for item %s among items %s'%(target_item, str(possible_items))
 			return None
 		pos = self.find_max_density_3d(best_cloud)
-		if not return_cloud:
+		if not return_bin_content_cloud:
 			return pos
 		else:
 			return pos, best_cloud
 
-	def rgb_to_uv(rgb):
+	def rgb_to_uv(self, rgb):
 		r, g, b = rgb
 		u = 128 -.168736*r -.331364*g + .5*b
 		v = 128 +.5*r - .418688*g - .081312*b
@@ -336,7 +336,7 @@ class Perceiver(object):
 		colors = cloud[:,3]
 		rgbs = map(pcl_float_to_rgb, colors.tolist())
 		hist = np.zeros((int(256/binsize), int(256/binsize)))
-		vals = map(rgb_to_uv, rgbs)
+		vals = map(self.rgb_to_uv, rgbs)
 		try:
 			vals = vals.tolist()
 		except:
@@ -361,8 +361,8 @@ class Perceiver(object):
 		'''
 		assert hist1.shape==hist2.shape, 'Shape not equal!'
 		if suppress_center:
-			suppress(hist1)
-			suppress(hist2)
+			self.suppress(hist1)
+			self.suppress(hist2)
 		sum1 = hist1.sum()
 		sum2 = hist2.sum()
 		hist1 = hist1 / sum1
@@ -815,7 +815,7 @@ class Perceiver(object):
 		positions = np.vstack([x_grid.ravel(), y_grid.ravel()])
 		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
 		max_idx = densities.argmax()
-		if not return_tote_content_cloud:
+		if not return_cloud:
 			return x_grid.flatten()[max_idx], y_grid.flatten()[max_idx]
 		else:
 			return (x_grid.flatten()[max_idx], y_grid.flatten()[max_idx]), tote_content_cloud
