@@ -146,8 +146,7 @@ if REAL_SCALE:
     from Sensors import scale
     from Group2Helper import stowHandler
     if TASK == 'stow':
-        stowHandler = stowHandler.stowHandler(JSON_STOW_INPUT_FILE)
-        print stowHandler.getToteContents()
+        stowHandler = None
 
 if REAL_JSON:
     # JSON parser
@@ -728,6 +727,8 @@ class PickingController:
         self.right_bin = None
 
 
+        self.stowItems = None
+
         #these may be helpful
         self.left_camera_link = self.robot.link(left_camera_link_name)
         self.right_camera_link = self.robot.link(right_camera_link_name)
@@ -1055,6 +1056,10 @@ class PickingController:
     '''
     def runStowingTask(self):
         #
+
+        stowHandler.stowHandler(JSON_STOW_INPUT_FILE)
+        print stowHandler.getToteContents()
+
         startTime = time.clock()
         #print startTime
         endTime = time.clock()
@@ -1113,7 +1118,11 @@ class PickingController:
         else:
             target = self.all_stow_pick_poss.pop(0)
 
-        value = self.chooseLimb(target=target)
+
+        if REAL_CAMERA:
+            value = self.chooseLimb(target=target)
+        else:
+            value = self.chooseLimb()
 
         print 'value = ', value
         if value != False:
@@ -1156,7 +1165,7 @@ class PickingController:
 
             self.waitForMove()
 
-            if self.evaluateObjectAction():
+            if self.evaluateObjectAction(limb=limb):
                 #self.pickedObject should be populated
                 #self.pickBin should be populated
                 if bin == None:
@@ -1501,12 +1510,14 @@ class PickingController:
 
         path_name = 'Q_EVAL_SCALE_'+limb.upper()
         print "self.moveArm(",path_name,")...",
-        self.moveArm(limb = limb, path_name = path_name):
+        self.moveArm(limb = limb, path_name = path_name)
 
         self.waitForMove()
 
+        time.sleep(2)
+
         if REAL_SCALE:
-            (items, self.pickBin) = stowHandler.pickWhichObj(limb, True)
+            (self.stowItems, self.pickBin) = stowHandler.pickWhichObj(limb, True)
             if self.pickBin==None:
                 print "No target object in the weight range"
             # if len(items)>1:
@@ -1605,6 +1616,8 @@ class PickingController:
                 pressureDrop = readPressure(limb)
 
                 if pressureDrop:
+                    
+                    stowHandler.updateBin(bin=bin ,item=self.stowItems)
                     pass
                 else:
                     # we dropped the object
@@ -1631,6 +1644,9 @@ class PickingController:
 
             print '\ttrying step1 ik'
             step1 = self.simpleIK(limb=limb, goal=ikGoal)
+
+
+
             if not step1:
                 #failed
                 #check pressure sensor for limb
@@ -1708,21 +1724,83 @@ class PickingController:
             self.debugPoints.append(target3)
             self.sendPath(path = [step3], limb = limb)
 
-        #turn vacuum off
-        self.waitForMove()
-        time.sleep(1)
-        try:
-            turnOffVacuum(limb)
-        except:
-            print '\tError in vacuum Comms'
 
-        print "waiting for object to be released"
-        time.sleep(5)
-        self.sendPath(path = [step2, step1], limb=limb)
+
+            self.waitForMove()
+            time.sleep(1)
+            try:
+                turnOffVacuum(limb)
+            except:
+                print '\tError in vacuum Comms'
+
+            print "waiting for object to be released"
+            time.sleep(5)
+
+            step = 4
+            # move up out of the bin
+
+        if step==4: 
+            #target2 = knowledge.getBinTrueCenter('bin_'+bin)
+            target4 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .15, .5])
+            ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target4)
+
+            print '\ttrying step4 ik'
+            step4 = self.simpleIK(limb=limb, goal=ikGoal)
+            if not step4:
+                #failed
+                #check pressure sensor for limb
+                # if still on, return to tote
+                print "\tIK solve failed, reverting to previous position"
+                self.sendPath(path = [step3, step2, step1], limb = limb)
+                self.waitForMove()
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
+                time.sleep(0.5)
+                try:
+                    turnOffVacuum(limb)
+                except:
+                    print '\tError in vacuum Comms'
+                return False
+            self.debugPoints.append(target4)
+            self.sendPath(path = [step4], limb = limb)
+
+            step = 5
+
+
+        if step==5: 
+            #target2 = knowledge.getBinTrueCenter('bin_'+bin)
+            target5 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .15, 0])
+            ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target5)
+
+            print '\ttrying step5 ik'
+            step5 = self.simpleIK(limb=limb, goal=ikGoal)
+            if not step5:
+                #failed
+                #check pressure sensor for limb
+                # if still on, return to tote
+                print "\tIK solve failed, reverting to previous position"
+                self.sendPath(path = [step4, step3, step2, step1], limb = limb)
+                self.waitForMove()
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
+                time.sleep(0.5)
+                try:
+                    turnOffVacuum(limb)
+                except:
+                    print '\tError in vacuum Comms'
+                return False
+            self.debugPoints.append(target5)
+            self.sendPath(path = [step5], limb = limb)
+
+        #turn vacuum off
+
+        self.turnOffVacuum(limb=limb)
+        self.sendPath(path = [step1], limb=limb)
         return True
     
     def chooseLimb(self, target=None, endZ =TOTE_BOUNDS_Z_MIN , startZ = TOTE_BOUNDS_Z_MAX+.15, points = 10):
         
+
+        if REAL_SCALE:
+            stowHandler.updateWeight()
 
         while target is None:
             myInts = []
