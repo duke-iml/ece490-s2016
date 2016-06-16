@@ -1492,14 +1492,21 @@ class PickingController:
         #print 'sent'
         return True
 
-    def evaluateObjectAction(self):
+    def evaluateObjectAction(self, limb):
 
         #start state = graspTote
         #end state = graspTote
 
+        #TODO - 
+
+        path_name = 'Q_EVAL_SCALE_'+limb.upper()
+        print "self.moveArm(",path_name,")...",
+        self.moveArm(limb = limb, path_name = path_name):
+
+        self.waitForMove()
 
         if REAL_SCALE:
-            (items, self.pickBin) = stowHandler.pickWhichObj(True)
+            (items, self.pickBin) = stowHandler.pickWhichObj(limb, True)
             if self.pickBin==None:
                 print "No target object in the weight range"
             # if len(items)>1:
