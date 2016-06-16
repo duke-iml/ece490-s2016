@@ -79,9 +79,9 @@ WAIT_TIME = 2
 
 SPEED = 3
 
-REAL_SCALE = False
-REAL_CAMERA = False
-REAL_JSON = False
+REAL_SCALE = True
+REAL_CAMERA = True
+REAL_JSON = True
 REAL_PRESSURE = True
 
 #TASK = 'pick'
@@ -712,8 +712,8 @@ class PickingController:
         self.perceptionTransform = ( so3.rotation([0,0,1], -1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
         self.perceptionTransform = ( so3.rotation([0,0,1], 1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
-        # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
-        self.cameraTransform = ([-0.018413903172000288, 0.9997129126747357, -0.015330375121676166, -0.09940946303721014, -0.01708761023976607, -0.994899880508058, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, 0.009999999999999983, 0.024999999999999994])       
+
+        self.cameraTransform = ([-0.028246296697197804, 0.9930125976810241, -0.11457804139398291, -0.09707450692261138, -0.1168069991014857, -0.9883990414132534, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, -0.010000000000000014, 0.024999999999999994])
         self.vacuumTransform = []
 
         if TASK == 'stow':
@@ -921,7 +921,7 @@ class PickingController:
         res = perceiver.get_candidate_picking_positions_for_stowing(*self.getCameraToWorldXform(limb), limb=limb, fit=True, return_tote_content_cloud=True)
         if res is None:
             print 'Perception Failed for Getting Picking Position for Stowing'
-            return
+            return False
         poss, cloud = res
         print 'All picking positions are:', poss
         if len(poss)==0:
@@ -932,7 +932,7 @@ class PickingController:
         self.tote_cloud = cloud
         self.tote_render_downsample_rate = 1
         self.tote_render_ptsize = 5
-
+        return True
     #====================================================
     '''
     DEBUG methods
@@ -1059,23 +1059,27 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-        toteContents = stowHandler.getToteContents()
-        #get toteContents 
+        if REAL_SCALE:
+            toteContents = stowHandler.getToteContents()
+            #get toteContents 
+            print toteContents
 
-        print toteContents
         print endTime - startTime 
 
-        print toteContents == []
+        #print toteContents == []
 
         while (endTime - startTime < STOW_TIME and not toteContents == []):
 
             #bestLimb = evalBestLimb()
             self.runPickFromTote(limb='right')
-            toteContents = stowHandler.getToteContents()
+            if REAL_SCALE:
+                toteContents = stowHandler.getToteContents()
             endTime = time.clock()
             print (endTime - startTime)
         
-        stowHandler.jsonOutput(JSON_STOW_OUTPUT_FILE)
+        
+        if REAL_SCALE:
+            stowHandler.jsonOutput(JSON_STOW_OUTPUT_FILE)
         #print out bin contents
 
     def runPickFromTote(self, limb, bin=None):
@@ -1089,72 +1093,89 @@ class PickingController:
 
         self.waitForMove()
 
-        if self.viewToteAction(limb=limb):
-            self.waitForMove()
 
-            value = self.chooseLimb()
+        if self.all_stow_pick_poss is None or self.all_stow_pick_poss == []:
 
-            print 'value = ', value
-            if value != False:
-                limb = value[0]
-                path = value[1]
-            else:
+            if REAL_CAMERA:
 
-                return False
+                time.sleep(2)
 
-
-            self.moveToRestConfig()
-            self.waitForMove()
-
-            # need to clean path configs
-            if limb == 'left':
-                indices = self.right_arm_indices
-            else:
-                indices = self.left_arm_indices
-
-            cleanPath = []
-
-            for milestone in path:
-                for index in indices:
-                    milestone[index] = self.controller.getSensedConfig()[index]
-                cleanPath.append(milestone)
-            
-
-
-            if self.prepGraspFromToteAction(limb=limb):
-
-                self.waitForMove()
-                if SKIP_GRASP_FROM_TOTE:
-                    pass
-                else:
-                    if self.graspFromToteAction(limb=limb, path=cleanPath):
-                        self.waitForMove()
-                    else: 
-                        print 'Grasp From Tote Action Failed'
-                        self.moveToRestConfig()
-                        return False
-
-                if self.evaluateObjectAction():
-                    #self.pickedObject should be populated
-                    #self.pickBin should be populated
-                    if bin == None:
-                        bin = self.pickBin
+                if self.viewToteAction(limb=limb):
 
                     self.waitForMove()
-                    if self.placeInBinAction(limb=limb, bin=bin):
-                        #place successful
-                        #update result
-                        print 'Place successful'
-                        return True
-                    else:
-                        turnOffVacuum(limb)
-                        print 'Place In Bin Action Failed'
+
+                    target = self.all_stow_pick_poss.pop(0)
+
                 else:
-                    print 'Evaluating the object Failed'
-            else:
-                print 'Prep Grasp From Tote Action Failed'
+                    print 'View action failed'
+                    target = self.vacuumSearch()
+
         else:
-            print 'View action failed'
+            target = self.all_stow_pick_poss.pop(0)
+
+        value = self.chooseLimb(target=target)
+
+        print 'value = ', value
+        if value != False:
+            limb = value[0]
+            path = value[1]
+        else:
+            return False
+
+
+        self.moveToRestConfig()
+        self.waitForMove()
+
+        # need to clean path configs
+        if limb == 'left':
+            indices = self.right_arm_indices
+        else:
+            indices = self.left_arm_indices
+
+        cleanPath = []
+
+        for milestone in path:
+            for index in indices:
+                milestone[index] = self.controller.getSensedConfig()[index]
+            cleanPath.append(milestone)
+        
+
+
+        if self.prepGraspFromToteAction(limb=limb):
+
+            self.waitForMove()
+            if SKIP_GRASP_FROM_TOTE:
+                pass
+            else:
+                if self.graspFromToteAction(limb=limb, path=cleanPath):
+                    self.waitForMove()
+                else: 
+                    print 'Grasp From Tote Action Failed'
+                    self.moveToRestConfig()
+                    return False
+
+            self.waitForMove()
+
+            if self.evaluateObjectAction():
+                #self.pickedObject should be populated
+                #self.pickBin should be populated
+                if bin == None:
+                    bin = self.pickBin
+
+                self.waitForMove()
+                if self.placeInBinAction(limb=limb, bin=bin):
+                    #place successful
+                    #update result
+                    print 'Place successful'
+                    return True
+                else:
+                    turnOffVacuum(limb)
+                    print 'Place In Bin Action Failed'
+            else:
+                print 'Evaluating the object Failed'
+        else:
+            print 'Prep Grasp From Tote Action Failed'
+
 
         return False
 
@@ -1211,9 +1232,13 @@ class PickingController:
                         #time.sleep(5)
                         if REAL_CAMERA:
                             if doPerception:
-                                self.getPickPositionForStow(limb)
+                                return self.getPickPositionForStow(limb)
                         return True
                 else:
+                    if limb == 'left':
+                        print 'left arm state is', self.stateLeft
+                    else:
+                        print 'right arm state is ',self.stateRight
                     print "Error in moveArm (from viewToteAction)"
                     return False
             else:
@@ -1443,7 +1468,7 @@ class PickingController:
             if index == 1:
                 self.sendPath([reversePath])
             else:
-                self.sendPath(reversePath[::-1], limb=limb)
+                self.sendPath(reversePath[::-1], limb=limb, internalSpeed =8)
             self.waitForMove()
             if readPressure(limb):
                 print 'we actually got something'
@@ -1862,6 +1887,12 @@ class PickingController:
             return 'did not choose anything'
 
             return False
+
+
+    def vacuumSearch(self, timeout=300):
+        raise NotImplemented
+
+
 
 
     # Stowing Debug
@@ -4128,7 +4159,7 @@ class PickingController:
         print "Planning failed"
         return False
 
-    def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False, limb = None, readConstants=False):
+    def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False, limb = None, readConstants=False, internalSpeed=SPEED):
 
 
         # interpolate path linearly between two endpoints
@@ -4658,7 +4689,7 @@ class MyGLViewer(GLRealtimeProgram):
             self.planworld = self.picking_controller.getWorld()
             points = self.picking_controller.getPerceivedPoints()
             if points is not None:
-                self.glShowPointCloud(points)
+                self.glShowPointCloud(points, pt_size=1)
 
             glDisable(GL_LIGHTING)
             glColor3f(1, 0, 0)
@@ -5282,15 +5313,14 @@ def run_controller(controller,command_queue):
                 bin_letter = command_queue.get()
                 while bin_letter is None:
                     bin_letter = command_queue.get()
-                if bin_letter.lower()=='x':
-                    print 'Canceled'
-                    continue
                 if not ( ('a'<=bin_letter.lower()<='l') or bin_letter.lower()=='t' ):
                     print 'Unrecognized Letter. Canceled'
                     continue
-                if bin_letter.lower == 't':
+                if bin_letter.lower() == 't':
+                    print 'viewing tote'
                     controller.viewToteAction(limb=DEFAULT_LIMB, doPerception=False)
                 else:
+                    print 'viewing bin ', bin_letter.lower()
                     controller.viewBinAction('bin_'+bin_letter.upper(), limb=DEFAULT_LIMB, doPerception=False)
 
             elif c=='g':

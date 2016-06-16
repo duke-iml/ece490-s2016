@@ -18,7 +18,7 @@ sys.setrecursionlimit(10000)
 downsample_rate = 50
 
 RIGHT_CAMERA_IP = '10.236.66.147'
-LEFT_CAMERA_IP = '10.236.66.147'
+LEFT_CAMERA_IP = '10.236.67.183'
 
 class CameraData:
 	def __init__(self, color, cloud, depth_uv, color_uv):
@@ -571,12 +571,12 @@ class Perceiver(object):
 					camera = RemoteCamera(LEFT_CAMERA_IP, 30000)
 				else:
 					raise Exception('Unrecognized limb '+str(limb))
+				color, cloud, depth_uv, color_uv = camera.read()
+				camera.close()
 				break
 			except:
 				print 'Camera Connection Error. Retry in 1 second...'
 				time.sleep(1)
-		color, cloud, depth_uv, color_uv = camera.read()
-		camera.close()
 		if unit in ['meter', 'm']:
 			cloud /= 1000
 		elif unit in ['centimeter', 'centi-meter', 'cm']:
