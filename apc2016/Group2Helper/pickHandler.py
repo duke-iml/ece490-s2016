@@ -53,14 +53,6 @@ CONST_ITEM_NAMES = [
 "fiskars_scissors_red",
 "rolodex_jumbo_pencil_cup",
 "fitness_gear_3lb_dumbbell"]]
-CONST_ITEM_WEIGHTS=[3.2, 2.9, 1.6, 1.6, 11.2, 16.9, 16.9,
-6, 11.3, 4, 4, 16, 2,
-1, 11.8, 3.2, 4, 3.2,
-2.4, 4, 4, 3, 0.3, 0.5, 0.5,
-4.2, 1.6, 12, 1.4, 2, 2,
-6.4, 1.6, 48, 3.2, 7,
-12.8, 0.3, 0.3, 10, 2.1, 8,
-5.12, 4, 3, 3] 
 class pickHandler:
     def __init__(self,filename=None):
         self.filename=filename
@@ -113,71 +105,12 @@ class pickHandler:
         sortedHardTargetOrder=[self.hardTargetOrder[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
         sortedTargetOrder=sortedEasyTargetOrder+sortedMedTargetOrder+sortedHardTargetOrder
         sortedRight=[sortedBinInd[i]%3!=0 for i in range(len(sortedBinInd))]
-        # objectWeight=dict()
-        # binWeightDict=dict()
-        # binWeight=[]
-        # sortedBinIndex=[]
-        # objectOrder=[]
-        # threshold=10
-        # notTry=0
-        # giveup=True
-        # for i in range(len(CONST_ITEM_NAMES)):
-        #     objectWeight[CONST_ITEM_NAMES[i]]=CONST_ITEM_WEIGHTS[i]
-        # print i
-        # for i in range(len(CONST_BIN_NAMES)):
-        #     print i
-        #     target=workOrder[i]["item"]
-        #     objectOrder=objectOrder+[target]
-        #     numObject=numObject+[len(binMap[CONST_BIN_NAMES[i]])]
-        #     if i==9 or i==10 or i==11:
-        #         notTry+=1
-        #         numObject[i]=50
-        #         continue
-        #     weight=0
-        #     print target
-        #     if target=="rawlings_baseball" or target=="rolodex_jumbo_pencil_cup" or target=="scotch_duct_tape":
-        #         numObject[i]=50
-        #         notTry+=1
-        #         continue
-        #     for j in range(len(binMap[CONST_BIN_NAMES[i]])):
-        #         binList=binMap[CONST_BIN_NAMES[i]]
-        #         weight=weight+objectWeight[binList[j]]
-        #         if binList[j]=="creativity_chenille_stems":
-        #             numObject[i]=40
-        #         if objectWeight[binList[j]]==16.9 or objectWeight[binList[j]]==48:
-        #             numObject[i]=50
-        #             giveup=False
-        #             notTry+=1
-        #             continue
-        #     binWeightDict[CONST_BIN_NAMES[i]]=weight
-        #     binWeight=binWeight+[weight]
-        #     if weight>threshold and giveup:
-        #         numObject[i]=50
-        #         notTry+=1
-        # print numObject
-        # # print binWeight
-        # sortedBinIndex= sorted(range(len(numObject)), key=lambda k: numObject[k])
-        # sortedBinIndex=[sortedBinIndex[i] for i in range(len(sortedBinIndex)-notTry)]
-        # centerBins=[]
-        # sideBins=[]
-        # print sortedBinIndex
-        # for i in sortedBinIndex:
-        #     if i%3==1:
-        #         centerBins.append(i)
-        #     else:
-        #         sideBins.append(i)
-        # sortedBinIndex=sideBins+centerBins
-        # print sortedBinIndex
-        # BinOrder=[BinOrder[sortedBinIndex[i]] for i in range(len(sortedBinIndex))]
-        # oneOrNot=[numObject[i]==1 for i in sortedBinIndex]
-        # objectOrder=[objectOrder[i] for i in sortedBinIndex]
-        # return (BinOrder, objectOrder, oneOrNot)
         return (sortedBinOrder, sortedTargetOrder, sortedRight)
-if __name__ == "__main__":
-    JSON_FILES=["PickTestA.json","PickTestB.json","PickTestC.json","PickTestD.json","PickTestE.json"]
-    for i in range(len(JSON_FILES)):
-        a=pickHandler("../JSON_FILES/"+JSON_FILES[i])
-        [border,torder, aorder]=a.workBinOrder()
-        print border
-        print torder
-        print aorder
+# if __name__ == "__main__":
+#     JSON_FILES=["PickTestA.json","PickTestB.json","PickTestC.json","PickTestD.json","PickTestE.json"]
+#     for i in range(len(JSON_FILES)):
+#         a=pickHandler("../JSON_FILES/"+JSON_FILES[i])
+#         [border,torder, aorder]=a.workBinOrder()
+#         print border
+#         print torder
+#         print aorder
