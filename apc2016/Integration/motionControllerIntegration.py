@@ -89,7 +89,7 @@ TASK = 'stow'
 
 SHELF_STATIONARY = False
 
-PRESSURE_THRESHOLD = 850
+PRESSURE_THRESHOLD = 840
 
 SKIP_GRASP_FROM_TOTE= False
 SKIP_STOWING_INPUT = False
@@ -1094,11 +1094,12 @@ class PickingController:
 
             value = self.chooseLimb()
 
-            #print 'value = ', value
+            print 'value = ', value
             if value != False:
                 limb = value[0]
                 path = value[1]
             else:
+
                 return False
 
 
@@ -1198,7 +1199,7 @@ class PickingController:
             # ideally, this method will be called again
             return chosenLimb
 
-    def viewToteAction(self,limb ):
+    def viewToteAction(self,limb, doPerception=True):
 
         #start state = ready
         #end state = viewTote
@@ -1209,10 +1210,8 @@ class PickingController:
                         self.waitForMove()
                         #time.sleep(5)
                         if REAL_CAMERA:
-
-
-                            
-                            self.getPickPositionForStow(limb)
+                            if doPerception:
+                                self.getPickPositionForStow(limb)
                         return True
                 else:
                     print "Error in moveArm (from viewToteAction)"
@@ -1231,8 +1230,11 @@ class PickingController:
         # end state = prepTote
 
         #assumes we're using the constants file
+
+        #used to be Q_stow_arm_straight
+
         if limb is not None:
-            if self.moveArm(limb, statusConditional='ready', path_name='Q_STOW_'+limb.upper()+'_STRAIGHT', finalState='prepTote'):
+            if self.moveArm(limb, statusConditional='ready', path_name='PREP_TOTE_STOW_'+limb.upper(), finalState='prepTote'):
                 return True
             else:
                 print "Error in moveArm (from preGraspFromToteAction"
@@ -1254,6 +1256,7 @@ class PickingController:
         #endZ
 
         if path is not None:
+            print 'running moveIntoTote then returning from graspFromToteAction'
             return self.moveIntoTote(limb, path)
 
 
@@ -1314,7 +1317,7 @@ class PickingController:
         sortedSolutions=[]
 
         #q_start = [conf for conf in motion.robot.getKlamptSensedPosition()]
-        q_start = [conf for conf in self.controller.getSensedConfig()]
+        q_start = [conf for conf in self.simworld.robot(0).getConfig()]
 
 
 
@@ -1399,14 +1402,17 @@ class PickingController:
             print 'length of path is ', len(path)
 
 
+            self.waitForMove()
+            q_current = [v for v in self.simworld.robot(0).getConfig()]
+
             while (not pressureDrop) and index < len(path):
                 # print "milestone #",index
-                if i == 0:
+                if index == 0:
                     self.waitForMove()
                     print "1"
-                    self.controller.appendMilestone(path[index])
+                    #self.controller.appendMilestone(q_current, path[index])
                     print "2"
-                    #self.sendPath([path[index]])
+                    self.sendPath([q_current, path[index]])
                 else:
                     self.waitForMove()
                     self.sendPath([path[index-1], path[index]], INCREMENTAL=True)
@@ -1414,23 +1420,23 @@ class PickingController:
                 #getPressureReading
                 #reevaluate noPressureDrop                    
 
+                time.sleep(0.5)
                 pressureDrop = readPressure(limb)
                 print pressureDrop
-                time.sleep(0.5)
+
 
                 if pressureDrop:
                     #we did grab something 
                     #lift back out the reverse path
                     self.waitForMove()
-
                     # self.sendPath(path[::-1], limb=limb)
-                    self.sendPath(reversePath[::-1], limb=limb)
-
-                    self.waitForMove()
+                    # self.sendPath(reversePath[::-1], limb=limb)
+                    # self.waitForMove()
                     break
                     
                 else:
                     reversePath.append(path[index])
+
                 index= index+1
            
 
@@ -1512,7 +1518,7 @@ class PickingController:
 
         path_name = 'PREP_TOTE_STOW_'+limb.upper()
         print "self.moveArm(",path_name,")...",
-        if self.moveArm(limb = limb, path_name = path_name):
+        if self.moveArm(limb = limb, path_name = path_name, reverse=True):
             print "success"      
         else:
             print "fail"
@@ -1548,10 +1554,10 @@ class PickingController:
         #return False
         # self.graspFromBinAction(limb=limb, bin='bin_B')
         
-
-
         step1 = []
         step2 = []
+        step3 = []
+
         path_name = 'GRASP_TO_STOW_'+bin.upper() + '_'+limb.upper() + END_EFFECTOR
         
         if bin == None:
@@ -1644,10 +1650,12 @@ class PickingController:
             self.debugPoints.append(target2)
             self.sendPath(path = [step2], limb = limb)
 
+            step = 3
+
         if step==3: 
             #target2 = knowledge.getBinTrueCenter('bin_'+bin)
             target3 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .5])
-            ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
+            ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target3)
 
             print '\ttrying step3 ik'
             step3 = self.simpleIK(limb=limb, goal=ikGoal)
@@ -1831,9 +1839,13 @@ class PickingController:
         if self.leftStowPoints == []:
             if self.rightStowPoints == [] or self.rightStowPoints[-1][2] > TOTE_BOUNDS_Z_MAX:
                 return False
+            else:
+                return ['right', rPath]
         elif self.rightStowPoints == []:
             if self.leftStowPoints[-1][2] > TOTE_BOUNDS_Z_MAX:
                 return False
+            else:
+                return ['left', lPath]
         elif (len(self.leftStowPoints) )> len(self.rightStowPoints) and self.leftStowPoints[-1][2] < TOTE_BOUNDS_Z_MAX:
             #return we want to move the left arm along the left path
             return ['left', lPath]
@@ -1946,7 +1958,7 @@ class PickingController:
             print 'Error in View Bin Action'
             return False
 
-    def viewBinAction(self,b, limb):
+    def viewBinAction(self,b, limb, doPerception=True):
         self.waitForMove()
 
         if LOAD_PHYSICAL_TRAJECTORY:
@@ -1963,7 +1975,10 @@ class PickingController:
                             self.moveToOffset(limb, q_name = scan_name)                    
 
                             time.sleep(5)
-                            #self.getPickPositionForPick(bin_letter=b[4], limb=limb)
+                            
+                            if REAL_CAMERA:
+                                if doPerception:
+                                    self.getPickPositionForPick(bin_letter=b[4], limb=limb)
                             
                             if limb == 'left':
                                 self.left_bin = b
@@ -5262,8 +5277,22 @@ def run_controller(controller,command_queue):
             elif c=='f':
                 visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransform)
             elif c=='c':
-                print 'Viewing Tote: '
-                controller.viewToteAction(limb=DEFAULT_LIMB)
+
+                print 'View Tote or Bin without running perception'
+                bin_letter = command_queue.get()
+                while bin_letter is None:
+                    bin_letter = command_queue.get()
+                if bin_letter.lower()=='x':
+                    print 'Canceled'
+                    continue
+                if not ( ('a'<=bin_letter.lower()<='l') or bin_letter.lower()=='t' ):
+                    print 'Unrecognized Letter. Canceled'
+                    continue
+                if bin_letter.lower == 't':
+                    controller.viewToteAction(limb=DEFAULT_LIMB, doPerception=False)
+                else:
+                    controller.viewBinAction('bin_'+bin_letter.upper(), limb=DEFAULT_LIMB, doPerception=False)
+
             elif c=='g':
                 visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransformInv)
             elif c == '1':
@@ -5375,7 +5404,7 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
-    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.975, -2.566, -0.03])
+    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
     # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
