@@ -101,9 +101,14 @@ TOTE_BOUNDS = [[],[]]
 TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
 TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
 
+TOTE_BOUNDS_Z_MAX= max(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
+TOTE_BOUNDS_Z_MIN = min(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
+
 #KLAMPT_MODEL="baxter.rob"
 KLAMPT_MODEL="baxter_with_two_vacuums.rob"
 
+
+PERCEPTION_FAIL_THRESHOLD = 3
 #========================================================================================
 
 CALIBRATE = True
@@ -115,6 +120,8 @@ LOAD_TRAJECTORY_DEFAULT = False
 LOAD_PHYSICAL_TRAJECTORY = True
 FORCE_WAIT = False
 
+
+DRAW_STOW_DEBUG = True
 
 if TASK == 'stow':
     END_EFFECTOR = '_STRAIGHT'
@@ -706,9 +713,7 @@ class PickingController:
         self.perceptionTransform = ( so3.rotation([0,0,1], 1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
         # original mount = self.cameraTransform = ([-0.0039055289732684915, 0.9995575801140512, 0.0294854350481996, 0.008185473524082672, 0.029516627041260842, -0.9995307732887937, -0.9999588715875403, -0.0036623441468197717, -0.00829713014992245], [-0.17500000000000004, 0.020000000000000004, 0.075])
-        self.cameraTransform = ([-0.018413903172000288, 0.9997129126747357, -0.015330375121676166, -0.09940946303721014, -0.01708761023976607, -0.994899880508058, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, 0.009999999999999983, 0.024999999999999994])
-
-        
+        self.cameraTransform = ([-0.018413903172000288, 0.9997129126747357, -0.015330375121676166, -0.09940946303721014, -0.01708761023976607, -0.994899880508058, -0.9948762168373654, -0.016796005706505204, 0.09969557344075664], [-0.16500000000000004, 0.009999999999999983, 0.024999999999999994])       
         self.vacuumTransform = []
 
         if TASK == 'stow':
@@ -743,11 +748,20 @@ class PickingController:
         self.tote_render_ptsize = 1
         self.stow_pick_pos = None
         self.all_stow_pick_poss = None
+        self.perceptionFailCount = 0
         # self.left_arm_links = [self.robot.link(i) for i in left_arm_link_names]
         # self.right_arm_links = [self.robot.link(i) for i in right_arm_link_names]
         self.vacuum_link = self.robot.link("vacuum:vacuum")
         self.debugPoints = []
         self.debugFailedPoints = []
+
+
+
+        self.debugFailedLeftPoints = []
+        self.debugFailedRightPoints = []
+        self.leftStowPoints = []
+        self.rightStowPoints = []
+
         # mapping from "link ID" to "link index"
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
 
@@ -1031,10 +1045,7 @@ class PickingController:
             else:
                 numFailure += 1
         print "Summary ( Tote ):",numSuccess,"/",numTrials*sliceZ,"successful"
-
-            
-
-
+        
     #=======================================================
 
     # Process for stowing:
@@ -1070,7 +1081,6 @@ class PickingController:
     def runPickFromTote(self, limb, bin=None):
 
         #bin = getKnowledgeFromParser   
-        self.moveToRestConfig()
 
         if limb == 'left':
             self.moveArmAway('right')
@@ -1081,15 +1091,46 @@ class PickingController:
 
         if self.viewToteAction(limb=limb):
             self.waitForMove()
+
+            value = self.chooseLimb()
+
+            #print 'value = ', value
+            if value != False:
+                limb = value[0]
+                path = value[1]
+            else:
+                return False
+
+
+            self.moveToRestConfig()
+            self.waitForMove()
+
+            # need to clean path configs
+            if limb == 'left':
+                indices = self.right_arm_indices
+            else:
+                indices = self.left_arm_indices
+
+            cleanPath = []
+
+            for milestone in path:
+                for index in indices:
+                    milestone[index] = self.controller.getSensedConfig()[index]
+                cleanPath.append(milestone)
+            
+
+
             if self.prepGraspFromToteAction(limb=limb):
+
                 self.waitForMove()
                 if SKIP_GRASP_FROM_TOTE:
                     pass
                 else:
-                    if self.graspFromToteAction(limb=limb):
+                    if self.graspFromToteAction(limb=limb, path=cleanPath):
                         self.waitForMove()
                     else: 
                         print 'Grasp From Tote Action Failed'
+                        self.moveToRestConfig()
                         return False
 
                 if self.evaluateObjectAction():
@@ -1105,6 +1146,7 @@ class PickingController:
                         print 'Place successful'
                         return True
                     else:
+                        turnOffVacuum(limb)
                         print 'Place In Bin Action Failed'
                 else:
                     print 'Evaluating the object Failed'
@@ -1114,6 +1156,47 @@ class PickingController:
             print 'View action failed'
 
         return False
+
+    def runPickFromToteNew(self, limb, bin=None):
+        if limb == 'left':
+            self.moveArmAway('right')
+        elif limb == 'right':
+            self.moveArmAway('left')
+
+        
+        if self.all_stow_pick_poss is None or self.all_stow_pick_poss == []:
+
+            if self.viewToteAction(limb=limb) and self.perceptionFailCount < PERCEPTION_FAIL_THRESHOLD:
+                #perception hasn't failed yet
+                pass
+            else:
+                self.perceptionFailCount = self.perceptionFailCount + 1
+                if self.toteGraspBackup(limb=limb):
+                    #successful - go again
+                    return limb
+                else:
+                    #try the other limb
+                    if limb == 'left':
+                        return 'right'
+                    else:
+                        return 'left'
+        
+        stow_pick_pos = self.all_stow_pick_poss.pop(0)
+
+        [chosenLimb, chosenPath] = self.chooseLimb(target = stow_pick_pos)
+
+        self.prepGraspFromToteActionNew(limb=chosenLimb)
+        self.waitForMove()
+
+        if self.graspFromToteActionNew(limb=chosenLimb, path = chosenPath):
+            # we got something
+            bin = self.evaluateObjectAction()
+
+        else:
+            # we failed
+            # turn off the vacuum and return the most recently used limb
+            # ideally, this method will be called again
+            return chosenLimb
 
     def viewToteAction(self,limb ):
 
@@ -1144,12 +1227,12 @@ class PickingController:
 
     def prepGraspFromToteAction(self, limb):
 
-        # start state = viewTote
+        # start state = ready
         # end state = prepTote
 
         #assumes we're using the constants file
         if limb is not None:
-            if self.moveArm(limb, statusConditional='viewTote', path_name='Q_STOW_'+limb.upper()+'_STRAIGHT', finalState='prepTote'):
+            if self.moveArm(limb, statusConditional='ready', path_name='Q_STOW_'+limb.upper()+'_STRAIGHT', finalState='prepTote'):
                 return True
             else:
                 print "Error in moveArm (from preGraspFromToteAction"
@@ -1157,7 +1240,7 @@ class PickingController:
 
             print 'Error in viewTote action can\'t move with no limb'
 
-    def graspFromToteAction(self, limb, position=None, points=None, startZ = .54, endZ =.24):
+    def graspFromToteAction(self, limb, position=None, points=None, startZ = TOTE_BOUNDS_Z_MAX+.15, endZ =TOTE_BOUNDS_Z_MIN, path=None):
 
         #start state = prepTote
         # end state = graspTote
@@ -1169,6 +1252,9 @@ class PickingController:
 
         #startZ
         #endZ
+
+        if path is not None:
+            return self.moveIntoTote(limb, path)
 
 
         if REAL_CAMERA:
@@ -1231,6 +1317,7 @@ class PickingController:
         q_start = [conf for conf in self.controller.getSensedConfig()]
 
 
+
         link = self.robot.link(limb+'_wrist')
         # print 'Current limb is', limb
         # print self.simworld.robot(0).link('right_wrist').getName(), self.robot.link('right_wrist')
@@ -1289,80 +1376,90 @@ class PickingController:
             #print 'sending'
 
             #turn vacuum on
-            try:
-                turnOnVacuum(limb)
-            except:
-                print 'Error in vacuum Controller (controller is off?)'
+            return self.moveIntoTote(limb, path)
 
-            reversePath = []
-
-            if REAL_PRESSURE:
-                index = 0
-
-                pressureDrop = False
-                print 'length of path is ', len(path)
-
-
-                while (not pressureDrop) and index < len(path):
-                    # print "milestone #",index
-                    if i == 0:
-                        self.waitForMove()
-                        print "1"
-                        self.controller.appendMilestone(path[index])
-                        print "2"
-                        #self.sendPath([path[index]])
-                    else:
-                        self.waitForMove()
-                        self.sendPath([path[index-1], path[index]], INCREMENTAL=True)
-                    self.waitForMove()
-                    #getPressureReading
-                    #reevaluate noPressureDrop                    
-
-                    pressureDrop = readPressure(limb)
-                    print pressureDrop
-                    time.sleep(0.5)
-
-                    if pressureDrop:
-                        #we did grab something 
-                        #lift back out the reverse path
-                        self.waitForMove()
-
-                        # self.sendPath(path[::-1], limb=limb)
-                        self.sendPath(reversePath[::-1], limb=limb)
-
-                        self.waitForMove()
-
-                        return True
-                    else:
-                        reversePath.append(path[index])
-                    index= index+1
-                else:
-                    #we didn't grab anything
-                    self.sendPath(reversePath[::-1], limb=limb)
-                    self.waitForMove()
-                    if readPressure(limb):
-                        print 'we actually got something'
-                        return True
-                    else:
-                        print 'Didn\'t grab anything'
-                        return False
-
-            else:                
-                self.sendPath(path, limb=limb)
-                # print 'sent path to go down'
-                time.sleep(0.1)
-                # if FAKE_SIMULATION:
-                #     raw_input()
-                self.sendPath(path[::-1], limb=limb)
-                # print 'sent path to go up'
-
-
-            #print 'sent'
-            return True
 
         print "Failed to plan path"
         self.robot.setConfig(q_start)
         return False
+
+    def moveIntoTote(self, limb, path):
+
+        try:
+            turnOnVacuum(limb)
+        except:
+            print 'Error in vacuum Controller (controller is off?)'
+
+        reversePath = []
+
+        if REAL_PRESSURE:
+            index = 0
+
+            pressureDrop = False
+            print 'length of path is ', len(path)
+
+
+            while (not pressureDrop) and index < len(path):
+                # print "milestone #",index
+                if i == 0:
+                    self.waitForMove()
+                    print "1"
+                    self.controller.appendMilestone(path[index])
+                    print "2"
+                    #self.sendPath([path[index]])
+                else:
+                    self.waitForMove()
+                    self.sendPath([path[index-1], path[index]], INCREMENTAL=True)
+                self.waitForMove()
+                #getPressureReading
+                #reevaluate noPressureDrop                    
+
+                pressureDrop = readPressure(limb)
+                print pressureDrop
+                time.sleep(0.5)
+
+                if pressureDrop:
+                    #we did grab something 
+                    #lift back out the reverse path
+                    self.waitForMove()
+
+                    # self.sendPath(path[::-1], limb=limb)
+                    self.sendPath(reversePath[::-1], limb=limb)
+
+                    self.waitForMove()
+                    break
+                    
+                else:
+                    reversePath.append(path[index])
+                index= index+1
+           
+
+            if index == 1:
+                self.sendPath([reversePath])
+            else:
+                self.sendPath(reversePath[::-1], limb=limb)
+            self.waitForMove()
+            if readPressure(limb):
+                print 'we actually got something'
+                return True
+            else:
+                print 'Didn\'t grab anything'
+                print 'Or dropped something on the way back up '
+                turnOffVacuum(limb)
+                return False
+
+        else:                
+            self.sendPath(path, limb=limb)
+            # print 'sent path to go down'
+            time.sleep(0.1)
+            # if FAKE_SIMULATION:
+            #     raw_input()
+            self.sendPath(path[::-1], limb=limb)
+            # print 'sent path to go up'
+
+
+        #print 'sent'
+        return True
 
     def evaluateObjectAction(self):
 
@@ -1481,7 +1578,11 @@ class PickingController:
 
         if step==1:
             #move to the top center of the bin
-            target1 = knowledge.getBinFrontCenter('bin_'+bin)
+            #target1 = knowledge.getBinFrontCenter('bin_'+bin)
+            #x is more to the left, y is down, and z is to the back
+
+            target1 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, 0])
+
             ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
             #ik to top center of bin, normal to the shelf
             #use ik seed and knowledge of shelf
@@ -1520,7 +1621,8 @@ class PickingController:
             step =2
 
         if step==2: 
-            target2 = knowledge.getBinTrueCenter('bin_'+bin)
+            #target2 = knowledge.getBinTrueCenter('bin_'+bin)
+            target2 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .25])
             ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
 
             print '\ttrying step2 ik'
@@ -1532,13 +1634,39 @@ class PickingController:
                 print "\tIK solve failed, reverting to previous position"
                 self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
                 time.sleep(0.5)
+
+                # I recommend we keep this off if failed because we don't know if we made it
+                # try:
+                #     turnOffVacuum(limb)
+                # except:
+                #     print '\tError in vacuum Comms'
+                # return False
+            self.debugPoints.append(target2)
+            self.sendPath(path = [step2], limb = limb)
+
+        if step==3: 
+            #target2 = knowledge.getBinTrueCenter('bin_'+bin)
+            target3 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .5])
+            ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
+
+            print '\ttrying step3 ik'
+            step3 = self.simpleIK(limb=limb, goal=ikGoal)
+            if not step3:
+                #failed
+                #check pressure sensor for limb
+                # if still on, return to tote
+                print "\tIK solve failed, reverting to previous position"
+                self.sendPath(path = [step2, step1], limb = limb)
+                self.waitForMove()
+                self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
+                time.sleep(0.5)
                 try:
                     turnOffVacuum(limb)
                 except:
                     print '\tError in vacuum Comms'
                 return False
-            self.debugPoints.append(target2)
-            self.sendPath(path = [step2], limb = limb)
+            self.debugPoints.append(target3)
+            self.sendPath(path = [step3], limb = limb)
 
         #turn vacuum off
         self.waitForMove()
@@ -1550,9 +1678,180 @@ class PickingController:
 
         print "waiting for object to be released"
         time.sleep(5)
-        self.sendPath(path = [step1], limb=limb)
+        self.sendPath(path = [step2, step1], limb=limb)
         return True
     
+    def chooseLimb(self, target=None, endZ =TOTE_BOUNDS_Z_MIN , startZ = TOTE_BOUNDS_Z_MAX+.15, points = 10):
+        
+
+        while target is None:
+            myInts = []
+            myInput = raw_input("Where would you like to pick? (separated by commmas) ")
+            if myInput == 'skip':
+                target = [0.5, 0, 0]
+                break
+            myInput = myInput.split(',')
+            for el in myInput:
+                try:
+                    myInts.append(float(el))
+                    assert(len(myInput)==3 or len(myInput)==2)
+                    goodInput = True     
+                except:
+                    print 'Error bad input, try again'
+                    goodInput = False
+
+            if goodInput:
+                print myInts
+                self.stow_pick_pos = myInts
+                response = raw_input("Continue? y/n ")
+                if response == 'y' and len(myInts)>=2:
+                    target = myInts
+                else:
+                    myInts = []
+                    self.stow_pick_pos = None
+
+        #target is now set up
+
+
+        #print 'got to starting ik'
+
+        thresholdZ = TOTE_BOUNDS_Z_MAX
+        incZ = (endZ-startZ)/points
+        goalZ = startZ
+
+        #vacuum X_form
+        #match with several points going down
+        local1 = self.vacuumTransform[1]
+        local2 = vectorops.add(self.vacuumTransform[1], [0, 0, 0.5])
+        #along the axis of the wrist and 0.1m fruther
+        #q_start = [conf for conf in motion.robot.getKlamptSensedPosition()]
+
+
+
+        q_start = [conf for conf in self.controller.getSensedConfig()]
+
+        #print 'q_start =', q_start
+
+        test_config = [v for v in q_start]
+        for i in range(len(self.left_arm_indices)):
+            test_config[self.left_arm_indices[i]] = eval('PREP_TOTE_STOW_LEFT')[-1][i]
+        for i in range(len(self.right_arm_indices)):
+            test_config[self.right_arm_indices[i]] = eval('PREP_TOTE_STOW_RIGHT')[-1][i]    
+
+
+        #print 'test_config = ', test_config
+        leftLink = self.robot.link('left_wrist')
+        rightLink = self.robot.link('right_wrist')
+        # print 'Current limb is', limb
+        # print self.simworld.robot(0).link('right_wrist').getName(), self.robot.link('right_wrist')
+        # print self.simworld.robot(0).link('left_wrist').getName(), self.robot.link('left_wrist')
+        # print link.getName(), link
+        # print 'link_xform', link.getTransform()
+        rPath = []
+        lPath = []
+
+        # print 'beginning debugging'
+
+
+        self.leftStowPoints = []
+        self.rightStowPoints = []
+        self.debugFailedLeftPoints = []
+        self.debugFailedRightPoints = []
+
+        #print 'about to do left arm testing'
+
+        while goalZ >= endZ:
+            global1 = [target[0], target[1], goalZ]
+            global2 = [target[0],target[1], goalZ-0.5]
+
+            goal  = ik.objective(leftLink,local=[local1,local2],world=[global1,global2])
+            self.simworld.robot(0).setConfig([conf for conf in test_config])
+
+            milestone = []
+            milestone = self.simpleIK(goal = goal, limb = 'left')
+
+            if milestone:
+                #print milestone
+                lPath.append(milestone)
+                self.leftStowPoints.append(global1)
+                print 'Goal Z = ', goalZ, ' solved at ', i
+
+            else:
+                self.debugFailedLeftPoints.append(global1)
+                break
+                #currently skips lower points if we fail for 1
+
+            goalZ+=incZ
+
+        #print 'about to do right arm testing'
+
+        goalZ = startZ
+
+        while goalZ >= endZ:
+            global1 = [target[0], target[1], goalZ]
+            global2 = [target[0],target[1], goalZ-0.5]
+
+            goal  = ik.objective(rightLink,local=[local1,local2],world=[global1,global2])
+            self.simworld.robot(0).setConfig([conf for conf in test_config])
+
+            milestone = []
+            milestone = self.simpleIK(goal = goal, limb = 'right')
+
+            if milestone:
+                #print milestone
+                rPath.append(milestone)
+                self.rightStowPoints.append(global1)
+                print 'Goal Z = ', goalZ, ' solved at ', i
+
+            else:
+                self.debugFailedRightPoints.append(global1)
+                break
+                #currently skips lower points if we fail for 1
+
+
+            goalZ+=incZ      
+
+        #print 'lPath = ', lPath
+        #print 'rPath = ', rPath
+
+        #print 'about to choose data'
+
+        #print 'z of right', self.rightStowPoints[-1][2]
+        #print 'z of left', self.leftStowPoints[-1][2]
+        #print 'len of right', len(self.rightStowPoints)
+        #print 'len of left',len(self.leftStowPoints)
+        #print TOTE_BOUNDS_Z_MAX
+
+        #print self.rightStowPoints[-1][2] < TOTE_BOUNDS_Z_MAX
+        #print self.leftStowPoints[-1][2] < TOTE_BOUNDS_Z_MAX
+        #print (len(self.leftStowPoints) == len(self.rightStowPoints))
+
+
+
+        if self.leftStowPoints == []:
+            if self.rightStowPoints == [] or self.rightStowPoints[-1][2] > TOTE_BOUNDS_Z_MAX:
+                return False
+        elif self.rightStowPoints == []:
+            if self.leftStowPoints[-1][2] > TOTE_BOUNDS_Z_MAX:
+                return False
+        elif (len(self.leftStowPoints) )> len(self.rightStowPoints) and self.leftStowPoints[-1][2] < TOTE_BOUNDS_Z_MAX:
+            #return we want to move the left arm along the left path
+            return ['left', lPath]
+        elif (len(self.rightStowPoints) > len(self.leftStowPoints)) and self.rightStowPoints[-1][2] < TOTE_BOUNDS_Z_MAX:
+            return ['right', rPath]
+        elif (len(self.leftStowPoints) == len(self.rightStowPoints)) and self.rightStowPoints[-1][2] < TOTE_BOUNDS_Z_MAX:
+            #random 
+            randomChoice = random.random()
+            if randomChoice >=0.5:
+                return ['left', lPath]
+            else:
+                return ['right', rPath]
+        else:
+            return 'did not choose anything'
+
+            return False
+
+
     # Stowing Debug
 
     def isInTote(self, point):
@@ -4392,6 +4691,50 @@ class MyGLViewer(GLRealtimeProgram):
 
             #     glEnd()
             self.simworld.drawGL()
+
+
+        if DRAW_STOW_DEBUG:
+
+            glDisable(GL_LIGHTING)
+            glColor3f(0, 1, 0)
+            glPointSize(15)
+            glBegin(GL_POINTS)
+            for point in self.picking_controller.rightStowPoints:
+                glVertex3f(*point)
+
+            glEnd()
+            glEnable(GL_LIGHTING)
+
+            glDisable(GL_LIGHTING)
+            glColor3f(0, 0, 1)
+            glPointSize(15)
+            glBegin(GL_POINTS)
+            for point in self.picking_controller.leftStowPoints:
+                glVertex3f(*point)
+
+            glEnd()
+            glEnable(GL_LIGHTING)
+
+            glDisable(GL_LIGHTING)
+            glColor3f(.5, 0, .5)
+            glPointSize(15)
+            glBegin(GL_POINTS)
+            for point in self.picking_controller.debugFailedLeftPoints:
+                glVertex3f(*point)
+
+            glEnd()
+            glEnable(GL_LIGHTING)
+
+            glDisable(GL_LIGHTING)
+            glColor3f(.5, .5, 0)
+            glPointSize(15)
+            glBegin(GL_POINTS)
+            for point in self.picking_controller.debugFailedRightPoints:
+                glVertex3f(*point)
+
+            glEnd()
+            glEnable(GL_LIGHTING)
+
 
         if SHOW_BIN_CONTENT:
             points = self.picking_controller.bin_content_cloud

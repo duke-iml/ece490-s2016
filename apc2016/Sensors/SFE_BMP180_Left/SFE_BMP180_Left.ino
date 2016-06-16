@@ -73,12 +73,12 @@ void loop() {
   if (tiempo % 10 == 0) {
     //Check if pressure is above or below threshold
     if (avgPressure < pressureThreshold) {
-      Serial.println('<'+String(1)+'>');
-      //Serial.println('<'+String(avgPressure)+'>');
+      //Serial.println('<'+String(1)+'>');
+      Serial.println('<'+String(avgPressure)+'>');
     }
     else {
-    Serial.println('<'+String(0)+'>');
-    //Serial.println('<'+String(avgPressure)+'>');
+    //Serial.println('<'+String(0)+'>');
+    Serial.println('<'+String(avgPressure)+'>');
     }
   }
 }
