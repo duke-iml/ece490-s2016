@@ -1079,7 +1079,7 @@ class PickingController:
 
         self.waitForMove()
 
-        if self.viewToteAction(limb=limb)
+        if self.viewToteAction(limb=limb):
             self.waitForMove()
             if self.prepGraspFromToteAction(limb=limb):
                 self.waitForMove()
