@@ -96,7 +96,8 @@ class stowHandler:
         # ["hanes_tube_socks"],
         # ["dasani_water_bottle","dasani_water_bottle"],
         # ["fitness_gear_3lb_dumbbell"]]
-        self.weightClass=[["oral_b_toothbrush_green", "oral_b_toothbrush_red","expo_dry_erase_board_eraser","scotch_bubble_mailer"],
+
+        self.weightClass=[["expo_dry_erase_board_eraser","oral_b_toothbrush_green", "oral_b_toothbrush_red","scotch_bubble_mailer"],
         ["fiskars_scissors_red"],
         ["cloud_b_plush_bear","womens_knit_gloves"],
         ["safety_first_outlet_plugs","platinum_pets_dog_bowl"],
@@ -104,14 +105,14 @@ class stowHandler:
         ["cherokee_easy_tee_shirt"],
         ["cool_shot_glue_sticks"],
         ["dr_browns_bottle_brush","soft_white_lightbulb"],
-        ["ticonderoga_12_pencils","barkely_hide_bones","laugh_out_loud_joke_book","command_hooks","jane_eyre_dvd"],
+        ["barkely_hide_bones","command_hooks","jane_eyre_dvd","ticonderoga_12_pencils","laugh_out_loud_joke_book"],
         ["rolodex_jumbo_pencil_cup","creativity_chenille_stems"],
         ["i_am_a_bunny_book"],
         ["dove_beauty_bar"],
         ["staples_index_cards"],
         ["crayola_24_ct"],
         ["easter_turtle_sippy_cup","woods_extension_cord"],
-        ["rawlings_baseball","clorox_utility_brush","elmers_washable_no_run_school_glue","scotch_duct_tape"],
+        ["clorox_utility_brush","rawlings_baseball","elmers_washable_no_run_school_glue","scotch_duct_tape"],
         ["kleenex_tissue_box"],
         ["peva_shower_curtain_liner"],
         ["up_glucose_bottle"],
@@ -138,7 +139,7 @@ class stowHandler:
         classidx=0
 
         if objWeight<10:
-            return [None,None]
+            return [None,None,False]
         elif objWeight<23:
             classidx=0
             item = self.overlap[0]
@@ -213,21 +214,30 @@ class stowHandler:
             item = self.overlap[23]
         self.counter = self.counter+1
 
+        tilt=(classidx==8)
         if len(item)==0:
-            return None, None
+            return None, None, False
         copieditem=copy.copy(item)
         print "Possible items are:"+str(copieditem)
 
+        if tilt:
+            self.updateTote(item[0])
+            self.overlap[classidx].remove(item[0])
+            return copieditem[0], 'bin_B', tilt
         if(len(item)>1):
             if self.bin[classidx]==None:
                 (self.bin[classidx],binidx) = self.binSelector.chooseCenterBin(item[0])
         else:
             if self.bin[classidx]==None:
-                (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0],limb)
+                if classidx==5:
+                    self.bin[classidx]='bin_K'
+                    binidx=11
+                else:
+                    (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0],limb)
         
         self.updateTote(item[0])
         self.overlap[classidx].remove(item[0])
-        return copieditem[0], self.bin[classidx]
+        return copieditem[0], self.bin[classidx], tilt
 
     def updateWeight(self):
         self.currentWeight=float(self.scale.readData(10).split(' ')[0])

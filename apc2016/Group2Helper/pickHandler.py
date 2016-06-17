@@ -57,7 +57,7 @@ class pickHandler:
     def __init__(self,filename=None):
         self.filename=filename
         self.parser=json_parser_pick.json_parser_pick()
-        (self.binMap, self.workOrder)=self.parser.readInFile(filename)
+        (self.binMap,self.toteContents, self.workOrder)=self.parser.readInFile(filename)
         self.targetOrder=[]
         self.easyTargetOrder=[]
         self.medTargetOrder=[]
@@ -106,11 +106,34 @@ class pickHandler:
         sortedTargetOrder=sortedEasyTargetOrder+sortedMedTargetOrder+sortedHardTargetOrder
         sortedRight=[sortedBinInd[i]%3!=0 for i in range(len(sortedBinInd))]
         return (sortedBinOrder, sortedTargetOrder, sortedRight)
+
+    def getToteContents(self):
+        return self.toteContents
+
+    def updateBin(self, bin, item):
+        binidx=CONST_BIN_NAMES.index(bin)
+        print binidx
+        self.binMap[bin].remove(item)
+        self.workOrder.remove(self.workOrder[binidx])
+        return True
+
+    def updateTote(self,objAdded):
+        print "Object added:"+objAdded
+        self.toteContents.append(objAdded)
+        return True
+        
+    def jsonOutput(self, filename):
+        self.parser.writeOutFile(filename, self.binMap, self.toteContents, self.workOrder)
+
 # if __name__ == "__main__":
 #     JSON_FILES=["PickTestA.json","PickTestB.json","PickTestC.json","PickTestD.json","PickTestE.json"]
 #     for i in range(len(JSON_FILES)):
 #         a=pickHandler("../JSON_FILES/"+JSON_FILES[i])
 #         [border,torder, aorder]=a.workBinOrder()
-#         print border
-#         print torder
-#         print aorder
+#         a.updateBin(border[0],torder[0])
+#         a.updateBin(border[1],torder[1])
+#         a.updateBin(border[2],torder[2])
+#         a.updateTote(torder[0])
+#         a.updateTote(torder[1])
+#         a.updateTote(torder[2])
+#         a.jsonOutput("../JSON_FILES/Out"+JSON_FILES[i])
