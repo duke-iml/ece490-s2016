@@ -101,6 +101,8 @@ TOTE_BOUNDS = [[],[]]
 TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
 TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
 
+SHELF_CALIBRATION = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
+
 TOTE_BOUNDS_Z_MAX= max(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 TOTE_BOUNDS_Z_MIN = min(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 
@@ -136,8 +138,8 @@ JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
 
 
-PICK_TIME = 9000
-STOW_TIME = 9000
+PICK_TIME = 900
+STOW_TIME = 900
 
 
 visualizer = None
@@ -161,6 +163,7 @@ if REAL_JSON:
     global binMap
     binMap=pickHandler.binMap
     (binList, orderList, rightTrueList) = pickHandler.workBinOrder()
+    print 'binList is ', binList
 
 
 perceiver = perception.Perceiver()
@@ -715,7 +718,13 @@ class PickingController:
         self.perceptionTransform = ( so3.rotation([0,0,1], 1*INIT_DEGREE_OFFSET*math.pi/180), [0,0,0])
         self.shelf_xform = ([1,0,0,0,1,0,0,0,1],[0,0,0])
 
-        self.cameraTransform = ([-0.03151165720197297, 0.9960601487728902, -0.08289267450695526, 0.10155570356746327, -0.07931390469484959, -0.9916631200135334, -0.9943306565390143, -0.039667172177848, -0.0986562766280485], [-0.11570000000000003, -1.3877787807814457e-17, 0.10100000000000002])
+
+        # calibration constants
+        #==========================================================================================================================
+
+        self.cameraTransform_LEFT = ([-0.0011963120477381838, 0.9991595344703198, -0.040973082804945785, 0.02110884648019782, -0.04093875104569311, -0.9989386544043113, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.13570000000000004, 0.009999999999999983, 0.08100000000000003])
+        self.cameraTransform_RIGHT = ([-0.0011963120477381838, 0.9991595344703198, -0.040973082804945785, 0.02110884648019782, -0.04093875104569311, -0.9989386544043113, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.13570000000000004, 0.009999999999999983, 0.08100000000000003])
+
         self.vacuumTransform = []
 
         if TASK == 'stow':
@@ -765,6 +774,10 @@ class PickingController:
 
         self.targetOffsetPoints = []
 
+        if REAL_JSON:
+            self.binQueue = binList
+        else:
+            self.binQueue = None
         # mapping from "link ID" to "link index"
         id_to_index = dict([(self.robot.link(i).getID(),i) for i in range(self.robot.numLinks())])
 
@@ -816,7 +829,7 @@ class PickingController:
         self.perceptionTransform = perceiver.get_shelf_transformation(bin_letter, *self.getCameraToWorldXform(limb), limb=limb)
         print self.perceptionTransform
         self.perceptionTransformInv = se3.inv(self.perceptionTransform)
-        knowledge.shelf_xform = self.perceptionTransform
+        knowledge.shelf_xform = se3.mul(self.perceptionTransform, knowledge.shelf_xform)
         self.world.terrain(0).geometry().transform(self.perceptionTransform[0], self.perceptionTransform[1])
         # except:
         #     print "perception calibration not working"
@@ -1088,6 +1101,8 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
+
+
         if REAL_SCALE:
             toteContents = stowHandler.getToteContents()
             #get toteContents 
@@ -1096,6 +1111,7 @@ class PickingController:
         print endTime - startTime 
 
         #print toteContents == []
+        self.evaluateShelf()
 
         while (endTime - startTime < STOW_TIME and not toteContents == []):
 
@@ -1999,7 +2015,8 @@ class PickingController:
 
 
     def vacuumSearch(self, timeout=300):
-        raise NotImplemented
+        return False
+        #raise NotImplemented
 
 
 
@@ -2051,11 +2068,60 @@ class PickingController:
 
     '''
 
+    def getMostEmptyBin(self):
+
+        bin = None
+        arm = None
+
+        leftList = ['bin_A', 'bin_D', 'bin_G', 'bin_H']
+
+        if TASK == 'stow':
+            bin= stowHandler.mostEmptyBin()
+
+            if bin in leftList:
+                arm = 'left'
+            else:
+                arm = 'right'
+        elif TASK == 'pick':
+            bin = pickHandler.mostEmptyBin()
+            if bin in leftList:
+                arm = 'left'
+            else:
+                arm = 'right'
+        else:
+            bin = 'bin_C'
+            arm = 'right'
+            
+
+        return [bin, arm]
+
+
+    def evaluateShelf(self):
+
+
+        bin,limb = self.getMostEmptyBin()
+
+        print 'evaluating bin ', bin
+        self.viewBinAction(b = bin, limb = limb, doPerception = False)
+
+        self.waitForMove()
+        time.sleep(3)
+
+        self.calibratePerception(bin[4].upper(), limb)
+        
+        self.moveToRestConfig()
+        self.waitForMove()
+
+
     def runPickingTask(self):
         #
         startTime = time.clock()
         #print startTime
         endTime = time.clock()
+
+        #self.evaluateShelf()
+        self.stateLeft = 'ready'
+        self.stateRight = 'ready'
 
         self.binQueue = binList
         self.armQueue = ['right' if rightTrueList[i] else 'left' for i in range(len(rightTrueList))]
@@ -2064,6 +2130,8 @@ class PickingController:
         print binMap
         while (endTime - startTime < PICK_TIME and self.binQueue is not []):
 
+            turnOffVacuum('right')
+            turnOffVacuum('left')
             self.runPickFromBin(bin = self.binQueue.pop(0), limb = self.armQueue.pop(0))
             endTime = time.clock()
 
@@ -2073,6 +2141,9 @@ class PickingController:
 
         self.moveToRestConfig()
         self.waitForMove()
+        if len(bin) == 1:
+            bin = 'bin_'+bin.upper()
+
         if self.viewBinAction(b=bin, limb = limb):
             self.waitForMove()
             if self.prepGraspFromBinAction(limb=limb):
@@ -2091,18 +2162,30 @@ class PickingController:
                     self.binQueue.append(eval('self.'+limb+'_bin'))
                     self.armQueue.append(limb)
                     orderList.append(self.currentPickObject)
+
+                    self.moveToRestConfig()
+                    self.waitForMove()
                     print 'Error in graspFromBinAction'
                     return False
             else:
                 self.binQueue.append(eval('self.'+limb+'_bin'))
                 self.armQueue.append(limb)
                 orderList.append(self.currentPickObject)
+
+                self.moveToRestConfig()
+                self.waitForMove()
                 print 'Error in prepGraspFromBinAction'
                 return False
         else:
             self.binQueue.append(eval('self.'+limb+'_bin'))
             self.armQueue.append(limb)
             orderList.append(self.currentPickObject)
+
+            #if first time, view again
+
+            self.moveToRestConfig()
+            self.waitForMove()
+
             print 'Error in View Bin Action'
             return False
 
@@ -2110,40 +2193,42 @@ class PickingController:
         self.waitForMove()
 
         if LOAD_PHYSICAL_TRAJECTORY:
+
+            print limb
             if limb is not None:
                 if b in apc.bin_names:
                     path_name = 'CAMERA_TO_' + b.upper() + '_'+limb.upper()
                     #EX: 'CAMERA_TO_BIN_A_LEFT'
                     if self.moveArm(limb, statusConditional='ready', path_name=path_name, finalState='scan'):
 
-                            self.waitForMove()
+                        self.waitForMove()
 
-                            scan_name = 'Q_SCAN_'+b.upper() + '_'+limb.upper()
+                        scan_name = 'Q_SCAN_'+b.upper() + '_'+limb.upper()
 
-                            self.moveToOffset(limb, q_name = scan_name)                    
+                        self.moveToOffset(limb, q_name = scan_name)                    
 
-                            self.waitForMove()
-                            time.sleep(5)
+                        self.waitForMove()
+                        time.sleep(5)
 
-                            if limb == 'left':
-                                self.left_bin = b
-                            elif limb == 'right':
-                                self.right_bin = b
+                        if limb == 'left':
+                            self.left_bin = b
+                        elif limb == 'right':
+                            self.right_bin = b
 
-                            if REAL_CAMERA:
-                                if doPerception:
+                        if REAL_CAMERA:
+                            if doPerception:
 
-                                    if b == None:
-                                        self.currentPickObject = orderList.pop(0)
-                                    else:
-                                        index = binList.index(b)
-                                        self.currentPickObject = orderList[index] 
-
-                                    if self.getPickPositionForPick(bin_letter=b[4],target_item=self.currentPickObject,possible_items=binMap[b], limb=limb):
-                                        return True
-                                    else:
-                                        print 'perception failed'
-                                        return False
+                                #if not bin in self.binQueue:
+                                #self.currentPickObject = orderList.pop(0)
+                                #else:
+                                #index = binList.index(b)
+                                #self.currentPickObject = orderList[index] 
+                                if self.getPickPositionForPick(bin_letter=b[4],target_item=self.currentPickObject,possible_items=binMap[b], limb=limb):
+                                #if self.getPickPositionForPick(bin_letter=b[4],target_item=self.currentPickObject,possible_items=binMap[b], limb=limb):
+                                    return True
+                                else:
+                                    print 'perception failed'
+                                    return False
 
                 else:
                     print "Error in moveArm (from viewBinAction)"
@@ -3382,7 +3467,7 @@ class PickingController:
             if step==6:
 
                 #keep the x, y - throw out the z
-                target6 = vectorops.sub(target4, [0,0,-.005])
+                target6 = vectorops.sub(target4, [0,0,.005])
                     #go down 1/2cm
                 #check to make sure target is actually in bin
                 ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target6)
@@ -3403,12 +3488,11 @@ class PickingController:
 
             if step == 7:
 
+                self.sendPath(path = [step5, step3, step1], limb=limb)
                 self.waitForMove()
-                self.sendPath(path = [step5], limb=limb)
-                self.waitForMove()
-                self.sendPath(path=[step3], limb=limb)
-                self.waitForMove()
-                self.sendPath(path=[step1], limb=limb)
+
+
+                return True
 
 
         else:
@@ -3827,7 +3911,7 @@ class PickingController:
             pathL = path
             pathR = path
             if self.moveBothArms(statusConditional, path_nameL, pathL, path_nameR, pathR, finalState, reverseL, reverseR):
-                pass
+                return True
         #wasn't able to move
         print 'Error with move'+limb+'arm'
         return False
@@ -4633,6 +4717,8 @@ class PickingController:
 
     def calibrateShelf(self):
         #blocking
+        global SHELF_CALIBRATION
+
         while(True):
             try:
                 input_var = raw_input("Shelf: Enter joint and angle to change to separated by a comma: ").split(',');
@@ -4658,9 +4744,9 @@ class PickingController:
                     break
 
                 time.sleep(0.1);
-
                 calibrate = (calibrateR, calibrateT)
-                print 'calibrate = ', calibrate
+                SHELF_CALIBRATION = se3.mul(calibrate, SHELF_CALIBRATION)
+                print 'calibration Overall = ', SHELF_CALIBRATION
                 self.simworld.terrain(0).geometry().transform( calibrate[0], calibrate[1] )
                 self.shelf_xform = se3.mul(calibrate, self.shelf_xform)
 
@@ -4678,8 +4764,8 @@ class PickingController:
             try:
                 input_var = raw_input("Camera: Enter joint and angle to change to separated by a comma: ").split(',');
                 #translational transformation
-                calibrateR = self.cameraTransform[0]
-                calibrateT = self.cameraTransform[1]
+                calibrateR = eval('self.cameraTransform_'+limb.upper())[0]
+                calibrateT = eval('self.cameraTransform_'+limb.upper())[1]
 
                 if(input_var[0] == "x" ):
                     calibrateT[0] = calibrateT[0] + float(input_var[1])
@@ -5665,22 +5751,23 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
-    calibration = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
+
     # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
     # ([ 0.99631874, -0.01459558,  0.08447454, 0.01519797,  0.9998634,  -0.00649233, -0.08436826,  0.00775227,  0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
+    shelfCalibration = SHELF_CALIBRATION
 
     world.terrain(0).geometry().transform( newTransform[0], newTransform[1])
-    world.terrain(0).geometry().transform(calibration[0], calibration[1])
+    world.terrain(0).geometry().transform(shelfCalibration[0], shelfCalibration[1])
 
     testingTransform = (so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
     world.terrain(0).geometry().transform(*testingTransform)
     knowledgeTransform = (so3.rotation([0,1,0], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
 
     #knowledge.shelf_xform = se3.mul(reorient, calibration)
-    knowledge.shelf_xform = se3.mul(calibration, reorient)
+    knowledge.shelf_xform = se3.mul(shelfCalibration, reorient)
     knowledge.shelf_xform = se3.mul(testingTransform, knowledge.shelf_xform)
 
 
