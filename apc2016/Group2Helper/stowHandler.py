@@ -96,6 +96,7 @@ class stowHandler:
         # ["hanes_tube_socks"],
         # ["dasani_water_bottle","dasani_water_bottle"],
         # ["fitness_gear_3lb_dumbbell"]]
+
         self.weightClass=[["oral_b_toothbrush_green", "oral_b_toothbrush_red","expo_dry_erase_board_eraser","scotch_bubble_mailer"],
         ["fiskars_scissors_red"],
         ["cloud_b_plush_bear","womens_knit_gloves"],
@@ -138,7 +139,7 @@ class stowHandler:
         classidx=0
 
         if objWeight<10:
-            return [None,None]
+            return [None,None,False]
         elif objWeight<23:
             classidx=0
             item = self.overlap[0]
@@ -213,21 +214,30 @@ class stowHandler:
             item = self.overlap[23]
         self.counter = self.counter+1
 
+        tilt=(classidx==8)
         if len(item)==0:
-            return None, None
+            return None, None, False
         copieditem=copy.copy(item)
         print "Possible items are:"+str(copieditem)
 
+        if tilt:
+            self.updateTote(item[0])
+            self.overlap[classidx].remove(item[0])
+            return copieditem[0], 'bin_B', tilt
         if(len(item)>1):
             if self.bin[classidx]==None:
                 (self.bin[classidx],binidx) = self.binSelector.chooseCenterBin(item[0])
         else:
             if self.bin[classidx]==None:
-                (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0],limb)
+                if classidx==5:
+                    self.bin[classidx]='bin_K'
+                    binidx=11
+                else:
+                    (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0],limb)
         
         self.updateTote(item[0])
         self.overlap[classidx].remove(item[0])
-        return copieditem[0], self.bin[classidx]
+        return copieditem[0], self.bin[classidx], tilt
 
     def updateWeight(self):
         self.currentWeight=float(self.scale.readData(10).split(' ')[0])
