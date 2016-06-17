@@ -1,3 +1,15 @@
+CONST_BIN_NAMES = ['bin_A',
+'bin_B',
+'bin_C',
+'bin_D',
+'bin_E',
+'bin_F',
+'bin_G',
+'bin_H',
+'bin_I',
+'bin_J',
+'bin_K',
+'bin_L']
 CONST_ITEM_NAMES = ["i_am_a_bunny_book",
 "laugh_out_loud_joke_book",
 "scotch_bubble_mailer",
@@ -123,6 +135,11 @@ class stowHandler:
         ["fitness_gear_3lb_dumbbell"]]
         self.overlap = [filter(lambda x: x in sublist, self.toteContents) for sublist in self.weightClass]
         print self.overlap
+
+    def mostEmptyBin(self):
+        numObj=[len(self.binMap[CONST_BIN_NAMES[i]]) for i in range(len(CONST_BIN_NAMES))]
+        sortedNumObj=sorted(range(len(numObj)), key=lambda k: numObj[k])
+        return CONST_BIN_NAMES[sortedNumObj[0]]
 
     def pickWhichObj(self, limb, debug=False):
 
@@ -262,15 +279,16 @@ class stowHandler:
     def jsonOutput(self, filename):
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
-# if __name__ == "__main__":
-#     JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
-#     # for i in range(len(JSON_FILES)):
-#     a=stowHandler("../JSON_FILES/"+JSON_FILES[0])
-#     for i in range(50):
-#         # time.sleep(5)
-#         (targetitem,targetbin)=a.pickWhichObj('left',True);
-#         print "TI"
-#         print targetitem
-#         if targetitem!=None:
-#             a.updateBin(targetbin,targetitem)
-#         a.jsonOutput("../JSON_FILES/StowTestBOut.json")
+if __name__ == "__main__":
+    JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
+    # for i in range(len(JSON_FILES)):
+    a=stowHandler("../JSON_FILES/"+JSON_FILES[0])
+    print a.mostEmptyBin()
+    # for i in range(50):
+    #     # time.sleep(5)
+    #     (targetitem,targetbin)=a.pickWhichObj('left',True);
+    #     print "TI"
+    #     print targetitem
+    #     if targetitem!=None:
+    #         a.updateBin(targetbin,targetitem)
+    #     a.jsonOutput("../JSON_FILES/StowTestBOut.json")
