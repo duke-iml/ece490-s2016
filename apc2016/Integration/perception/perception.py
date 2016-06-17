@@ -92,7 +92,7 @@ class Perceiver(object):
 		print 'subtract_model: keep %i points out of %i points'%(len(keep_idxs), len(all_idxs))
 		return list(keep_idxs)
 
-	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, colorful=True, fit=True, threshold=0.01,
+	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, colorful=True, fit=False, threshold=0.01,
 		crop=False, bin_bound=None, perturb_xform=None):
 		'''
 		return a point cloud (either colored or not) of the current bin content in the global frame. shelf is removed. 
@@ -311,6 +311,8 @@ class Perceiver(object):
 			scoring_func = lambda item: self.calculate_uv_matching(cur_uv_hist, self.load_uv_hist_for_item(item), suppress_center=True)
 			f_score = scoring_func(target_item)
 			g_score = max([scoring_func(non_target_item) for non_target_item in possible_items if non_target_item!=target_item])
+			print f_score
+			print g_score
 			score_diff = f_score - g_score
 			print 'CC %i with %i points has score diff of %f'%(i, len(np.where(labels==i)[0]), score_diff)
 			if score_diff>0 and (best_score is None or score_diff > best_score):
@@ -637,6 +639,7 @@ class Perceiver(object):
 			except:
 				print 'Camera Connection Error. Retry in 1 second...'
 				time.sleep(1)
+		print 'image taken'
 		if unit in ['meter', 'm']:
 			cloud /= 1000
 		elif unit in ['centimeter', 'centi-meter', 'cm']:
