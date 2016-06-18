@@ -65,18 +65,29 @@ class pickHandler:
         self.easyBinInd=[]
         self.medBinInd=[]
         self.hardBinInd=[]
+        self.easymedBinInd=[]
+        self.easymedTargetOrder=[]
 
         for i in range(len(CONST_BIN_NAMES)):
             self.targetOrder.append(self.workOrder[i]["item"])
-            if(CONST_ITEM_NAMES[0].count(self.workOrder[i]["item"])>0):
-                self.easyTargetOrder.append(self.workOrder[i]["item"])
-                self.easyBinInd.append(i)
-            elif(CONST_ITEM_NAMES[1].count(self.workOrder[i]["item"])>0):
-                self.medTargetOrder.append(self.workOrder[i]["item"])
-                self.medBinInd.append(i)
+            if(CONST_ITEM_NAMES[0].count(self.workOrder[i]["item"])+CONST_ITEM_NAMES[1].count(self.workOrder[i]["item"])>0):
+                self.easymedTargetOrder.append(self.workOrder[i]["item"])
+                self.easymedBinInd.append(i)
             else:
                 self.hardTargetOrder.append(self.workOrder[i]["item"])
                 self.hardBinInd.append(i)
+
+        # for i in range(len(CONST_BIN_NAMES)):
+        #     self.targetOrder.append(self.workOrder[i]["item"])
+        #     if(CONST_ITEM_NAMES[0].count(self.workOrder[i]["item"])>0):
+        #         self.easyTargetOrder.append(self.workOrder[i]["item"])
+        #         self.easyBinInd.append(i)
+        #     elif(CONST_ITEM_NAMES[1].count(self.workOrder[i]["item"])>0):
+        #         self.medTargetOrder.append(self.workOrder[i]["item"])
+        #         self.medBinInd.append(i)
+        #     else:
+        #         self.hardTargetOrder.append(self.workOrder[i]["item"])
+        #         self.hardBinInd.append(i)
         # self.binSelector=binSelector()
         # self.binSelector.initialize(filename)
     def mostEmptyBin(self):
@@ -90,27 +101,35 @@ class pickHandler:
         BinOrder=CONST_BIN_NAMES
         # filename=filenames[l]
         numObject=[len(self.binMap[BinOrder[i]]) for i in range(len(BinOrder))]
-        easyNumObject=[numObject[self.easyBinInd[i]] for i in range(len(self.easyBinInd))]
-        medNumObject=[numObject[self.medBinInd[i]] for i in range(len(self.medBinInd))]
+        # easyNumObject=[numObject[self.easyBinInd[i]] for i in range(len(self.easyBinInd))]
+        # medNumObject=[numObject[self.medBinInd[i]] for i in range(len(self.medBinInd))]
         hardNumObject=[numObject[self.hardBinInd[i]] for i in range(len(self.hardBinInd))]
-        print easyNumObject
-        print medNumObject
+        easymedNumObject=[numObject[self.easymedBinInd[i]] for i in range(len(self.easymedBinInd))]
+        easymedFirstGroup=[easymedNumObject[i]<5 for i in range(len(easymedNumObject))]
+        # print easyNumObject
+        # print medNumObject
         print hardNumObject
-        sortedEasyNumInd=sorted(range(len(easyNumObject)), key=lambda k: easyNumObject[k])
-        sortedMedNumInd=sorted(range(len(medNumObject)), key=lambda k: medNumObject[k])
+        # sortedEasyNumInd=sorted(range(len(easyNumObject)), key=lambda k: easyNumObject[k])
+        # sortedMedNumInd=sorted(range(len(medNumObject)), key=lambda k: medNumObject[k])
         sortedHardNumInd=sorted(range(len(hardNumObject)), key=lambda k: hardNumObject[k])
-        sortedEasyBinInd=[self.easyBinInd[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
-        sortedMedBinInd=[self.medBinInd[sortedMedNumInd[i]] for i in range(len(sortedMedNumInd))]
+        sortedEasymedNumInd=sorted(range(len(easymedNumObject)), key=lambda k: easymedNumObject[k])
+        # sortedEasyBinInd=[self.easyBinInd[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
+        # sortedMedBinInd=[self.medBinInd[sortedMedNumInd[i]] for i in range(len(sortedMedNumInd))]
         sortedHardBinInd=[self.hardBinInd[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
-        sortedBinInd=sortedEasyBinInd+sortedMedBinInd+sortedHardBinInd
+        sortedEasymedBinInd=[self.easymedBinInd[sortedEasymedNumInd[i]] for i in range(len(sortedEasymedNumInd))]
+        # sortedBinInd=sortedEasyBinInd+sortedMedBinInd+sortedHardBinInd
+        sortedBinInd=sortedEasymedBinInd+sortedHardBinInd
         print sortedBinInd
         sortedBinOrder=[BinOrder[sortedBinInd[i]] for i in range(len(sortedBinInd))]
-        sortedEasyTargetOrder=[self.easyTargetOrder[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
-        sortedMedTargetOrder=[self.medTargetOrder[sortedMedNumInd[i]] for i in range(len(sortedMedNumInd))]
+        # sortedEasyTargetOrder=[self.easyTargetOrder[sortedEasyNumInd[i]] for i in range(len(sortedEasyNumInd))]
+        # sortedMedTargetOrder=[self.medTargetOrder[sortedMedNumInd[i]] for i in range(len(sortedMedNumInd))]
         sortedHardTargetOrder=[self.hardTargetOrder[sortedHardNumInd[i]] for i in range(len(sortedHardNumInd))]
-        sortedTargetOrder=sortedEasyTargetOrder+sortedMedTargetOrder+sortedHardTargetOrder
+        sortedEasymedTargetOrder=[self.easymedTargetOrder[sortedEasymedNumInd[i]] for i in range(len(sortedEasymedNumInd))]
+        # sortedTargetOrder=sortedEasyTargetOrder+sortedMedTargetOrder+sortedHardTargetOrder
+        sortedTargetOrder=sortedEasymedTargetOrder+sortedHardTargetOrder
         sortedRight=[sortedBinInd[i]%3!=0 for i in range(len(sortedBinInd))]
-        return (sortedBinOrder, sortedTargetOrder, sortedRight)
+        binEasiness=[0]*easymedFirstGroup.count(True)+[2]*easymedFirstGroup.count(False)+[4]*len(sortedHardTargetOrder)
+        return (sortedBinOrder, sortedTargetOrder, sortedRight, binEasiness)
 
     def getToteContents(self):
         return self.toteContents
@@ -135,7 +154,7 @@ class pickHandler:
 #     for i in range(len(JSON_FILES)):
 #         a=pickHandler("../JSON_FILES/"+JSON_FILES[i])
 #         print a.mostEmptyBin()
-        # [border,torder, aorder]=a.workBinOrder()
+#         print a.workBinOrder()
         # a.updateBin(border[0],torder[0])
         # a.updateBin(border[1],torder[1])
         # a.updateBin(border[2],torder[2])
