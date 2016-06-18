@@ -79,6 +79,11 @@ class pickHandler:
                 self.hardBinInd.append(i)
         # self.binSelector=binSelector()
         # self.binSelector.initialize(filename)
+    def mostEmptyBin(self):
+        numObj=[len(self.binMap[CONST_BIN_NAMES[i]]) for i in range(len(CONST_BIN_NAMES))]
+        sortedNumObj=sorted(range(len(numObj)), key=lambda k: numObj[k])
+        return CONST_BIN_NAMES[sortedNumObj[0]]
+
     def workBinOrder(self):
         # filenames=['pickA.json','pickB.json','pickC.json','pickD.json','pickE.json']
         # for l in range(5):
@@ -129,11 +134,12 @@ class pickHandler:
 #     JSON_FILES=["PickTestA.json","PickTestB.json","PickTestC.json","PickTestD.json","PickTestE.json"]
 #     for i in range(len(JSON_FILES)):
 #         a=pickHandler("../JSON_FILES/"+JSON_FILES[i])
-#         [border,torder, aorder]=a.workBinOrder()
-#         a.updateBin(border[0],torder[0])
-#         a.updateBin(border[1],torder[1])
-#         a.updateBin(border[2],torder[2])
-#         a.updateTote(torder[0])
-#         a.updateTote(torder[1])
-#         a.updateTote(torder[2])
-#         a.jsonOutput("../JSON_FILES/Out"+JSON_FILES[i])
+#         print a.mostEmptyBin()
+        # [border,torder, aorder]=a.workBinOrder()
+        # a.updateBin(border[0],torder[0])
+        # a.updateBin(border[1],torder[1])
+        # a.updateBin(border[2],torder[2])
+        # a.updateTote(torder[0])
+        # a.updateTote(torder[1])
+        # a.updateTote(torder[2])
+        # a.jsonOutput("../JSON_FILES/Out"+JSON_FILES[i])
