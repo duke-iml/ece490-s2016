@@ -10,6 +10,7 @@ from Trajectories.camera_to_bin import *
 from Trajectories.view_to_grasp import *
 from Trajectories.grasp_to_stow_90 import *
 from Trajectories.grasp_to_stow_straight import *
+from Trajectories.grasp_to_rest import *
 
 if(len(sys.argv) == 2):
 	print sys.argv[1]

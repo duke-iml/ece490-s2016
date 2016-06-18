@@ -85,7 +85,7 @@ REAL_JSON = True
 REAL_PRESSURE = True
 
 TASK = 'pick'
-# TASK = 'stow'
+#TASK = 'stow'
 
 SHELF_STATIONARY = False
 
@@ -103,6 +103,7 @@ TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947
 
 SHELF_CALIBRATION = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
 
+PERCEPTION_OFFSET_DISTANCE = .02
 
 TOTE_BOUNDS_Z_MAX= max(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 TOTE_BOUNDS_Z_MIN = min(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
@@ -1110,7 +1111,7 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-
+        self.evaluateShelf()
 
         if REAL_SCALE:
             toteContents = stowHandler.getToteContents()
@@ -2125,7 +2126,7 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-        #self.evaluateShelf()
+        self.evaluateShelf()
         self.stateLeft = 'ready'
         self.stateRight = 'ready'
 
@@ -3454,7 +3455,7 @@ class PickingController:
             if step==1:
                 #move to the top center of the bin
                 target1 = knowledge.getBinFrontCenterTop(bin)
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1, targetFurtherBack=True)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -3493,7 +3494,7 @@ class PickingController:
                 target3 = knowledge.getBinMidCenterTop(bin)
                 target3[0] = target[0]
                 target3[1] = target[1]
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target3)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target3, targetFurtherBack=True)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -3517,7 +3518,7 @@ class PickingController:
                 #keep the x, y - throw out the z
                 target4 = target
                 #check to make sure target is actually in bin
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target4)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target4, targetFurtherBack=True)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -3526,6 +3527,7 @@ class PickingController:
                 if step4 is None:
                     print 'ik failed in step4 of moveToObjectInBinFromTop'
                     self.sendPath(path=[step1], limb=limb)
+                    self.waitForMove()
                     return False
                 self.debugPoints.append(target4)
                 self.sendPath(path=[step4], limb = limb)
@@ -3541,9 +3543,9 @@ class PickingController:
                         # I got something
                         print 'chose step 5'
                         step = 5
-                else:
-                    print 'chose step 6'
-                    step = 6
+                    else:
+                        print 'chose step 6'
+                        step = 6
 
 
 
@@ -3561,10 +3563,10 @@ class PickingController:
             if step==6:
 
                 #keep the x, y - throw out the z
-                target6 = vectorops.sub(target4, [0,0,.005])
+                target6 = vectorops.sub(target, [0,0,.005])
                     #go down 1/2cm
                 #check to make sure target is actually in bin
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target6)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target6, targetFurtherBack=True)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -3572,9 +3574,14 @@ class PickingController:
                 step6 = self.simpleIK(limb=limb, goal=ikGoal)
                 if step6 is None:
                     print 'ik failed in step6 of moveToObjectInBinFromTop'
+                    
+                    self.sendPath(path =[step3],  limb=limb)
+                    self.waitForMove()
                     self.sendPath(path=[step1], limb=limb)
+                    self.waitForMove()
                     return False
                 self.debugPoints.append(target6)
+                self.waitForMove()
                 self.sendPath(path=[step6], limb = limb)
                 self.waitForMove()
 
@@ -3636,9 +3643,6 @@ class PickingController:
         DEFAULT_GOAL = [1.1151453560415345, -0.046864004769163026, 1.1370113707939946]
         DEFAULT_NORMAL = [0, 1, 1] #45 degree angle
 
-        target = []
-        normal = []
-
         step1 =[]
         step2 = []
         step3 = []
@@ -3647,14 +3651,23 @@ class PickingController:
 
         if position != None:
             self.pick_pick_pos = position
+            target = position
 
         if naiive:
             #fix the suction cup's direction aim for the top of the bin, ik to a position slightly above the object
             #ik down
             #
 
-            target = []
-            normal = []
+            bin = None
+            if limb =='left':
+                bin = self.left_bin
+            elif limb =='right':
+                bin = self.right_bin
+                
+            # if not self.isInBin(bin=bin, point=checkPoint):
+            #     print 'Error, point not in ', bin
+            #     return False 
+
             try:
                 target = self.pick_pick_pos
                 assert self.pick_pick_pos is not None, 'Perception failed, falling back to DEFAULT'
@@ -3682,32 +3695,26 @@ class PickingController:
 
             step = 1
 
-            bin = 'bin_H'
-            if limb =='left':
-                #bin = self.left_bin
-                pass
-            elif limb =='right':
-                #bin = self.right_bin
-                pass
 
             if step==1:
                 #move to the top center of the bin
-                target = knowledge.getBinFrontCenterTop(bin)
-                self.debugPoints.append(target)
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target)
+                target1 = knowledge.getBinFrontCenterTop(bin)
+                self.debugPoints.append(target1)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1, targetFurtherBack=True)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                print target
+                print target1
                 print 'trying step1 ik'
                 step1 = self.simpleIK(limb=limb, goal=ikGoal)
                 if step1 is None:
                     print 'ik failed in step1 of moveToObjectInBinFromSide'
                     self.sendPath(path=[step1], limb=limb)
                     return False
-                self.sendPath(path=step1, limb=limb)
+                self.sendPath(path=[step1], limb=limb)
                 time.sleep(2)
-
+                self.waitForMove()
+                
                 step =2
 
             if step==2:
@@ -3715,7 +3722,7 @@ class PickingController:
                 self.debugPoints.append(target)
 
                 #dummy = knowledge.applyShelfXform([target[0], 0, 0])
-                dummy = se3.mul(self.percetionTransform, [target[0], 0, 0])
+                dummy = se3.apply(self.perceptionTransform, [target[0], 0, 0], targetFurtherBack = True)
 
                 target2[0] = dummy[0]
 
@@ -3733,8 +3740,8 @@ class PickingController:
                     self.sendPath(path=[step1], limb=limb)
                     return False
                 self.sendPath(path=[step2], limb=limb)
-                time.sleep(2)
-
+                self.waitForMove()
+                
                 step =3
 
 
@@ -3746,7 +3753,7 @@ class PickingController:
                 target3 = target
 
                 self.debugPoints.append(vectorops.add(target, vectorops.mul(vectorops.unit(normal), 0.05)))
-                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target3, normal = vectorops.unit(normal), normalDisplacement = 0.05)
+                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target3, normal = vectorops.unit(normal), normalDisplacement = 0.05, targetFurtherBack=True)
                 print 'trying step3 ik'
                 step3 = self.simpleIK(limb=limb, goal=ikGoal)
                 if step3 is None:
@@ -3754,7 +3761,9 @@ class PickingController:
                     self.sendPath(path=[step1], limb=limb)
                     return False
                 self.sendPath(path=[step3], limb=limb)
-                time.sleep(2)
+                turnOnVacuum(limb)
+                self.waitForMove()
+
                 step=4
 
             if step==4 :           
@@ -3767,7 +3776,7 @@ class PickingController:
                     print 'Error in vacuum Controller'
 
                 target4= target
-                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target4, normal = vectorops.unit(normal), normalDisplacement = 0)
+                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target4, normal = vectorops.unit(normal), normalDisplacement = 0, targetFurtherBack=True)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -3782,6 +3791,8 @@ class PickingController:
                     self.waitForMove()
                     return False
                 self.sendPath(path=[step4], limb = limb)
+                self.waitForMove()
+                
 
                 print 'Got to step 4'
 
@@ -3796,7 +3807,16 @@ class PickingController:
                 self.waitForMove()
                 #check that object is still held
 
-                return True
+                if REAL_PRESSURE:
+                    time.sleep(.5)
+                    if readPressure(limb):
+                        return True
+                    else:
+                        time.sleep(1)
+                        turnOffVacuum(limb)
+                        return False
+                else:
+                    return True
 
         else:
             if step==1:
@@ -4269,7 +4289,7 @@ class PickingController:
         appliedTransform = self.perceptionTransform
 
         if targetFurtherBack:
-            target =  vectorops.add(target, so3.apply(appliedTransform[0],0.02))
+            target =  vectorops.add(target, so3.apply(appliedTransform[0],[PERCEPTION_OFFSET_DISTANCE,0,0]))
             self.targetOffsetPoints.append(target)
 
         targetZOffset = vectorops.add(target, [0,0,-offset])
@@ -4293,9 +4313,14 @@ class PickingController:
 
         return ik.objective(self.robot.link(limb+'_wrist'), local = [vacuumPoint, vacuumOffset, vacuumAxisOffset], world=[target, targetZOffset, targetAxisConstraint])
 
-    def buildIKGoalSuctionNormal(self, limb, target, normal, offset = 0.5, normalDisplacement = 0, debug=False):
+    def buildIKGoalSuctionNormal(self, limb, target, normal, offset = 0.5, normalDisplacement = 0, debug=False, targetFurtherBack = False):
 
         #appliedTransform = knowledge.shelf_xform
+        
+        if targetFurtherBack:
+            target =  vectorops.add(target, so3.apply(appliedTransform[0],[PERCEPTION_OFFSET_DISTANCE,0,0]))
+            self.targetOffsetPoints.append(target)
+
         target = vectorops.add(target, vectorops.mul(normal, normalDisplacement))
 
 
@@ -5161,7 +5186,7 @@ class MyGLViewer(GLRealtimeProgram):
             glBegin(GL_POINTS)
 
             for point in self.picking_controller.targetOffsetPoints:
-                glVetex3f(*point)
+                glVertex3f(*point)
 
             glEnd()
 
