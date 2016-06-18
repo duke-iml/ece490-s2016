@@ -103,6 +103,7 @@ TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947
 
 SHELF_CALIBRATION = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
 
+
 TOTE_BOUNDS_Z_MAX= max(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 TOTE_BOUNDS_Z_MIN = min(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 
@@ -136,7 +137,7 @@ JSON_PICK_OUTPUT_FILE = "../JSON_FILES/JSON_pick_file_output.json"
 JSON_STOW_INPUT_FILE = "../JSON_FILES/apc_stow_task.json"
 JSON_PICK_INPUT_FILE = "../JSON_FILES/apc_pick_task.json"
 
-
+MIDDLE_BINS = ['bin_B', 'bin_E', 'bin_H', 'bin_K']
 
 PICK_TIME = 900
 STOW_TIME = 900
@@ -194,6 +195,9 @@ GRASP_STATE = 'grasp'
 GRASP_PREPPED_STATE = 'graspPrepped'
 REST_STATE = 'ready'
 STOW_STATE = 'stow'
+
+LEFT_BIN_VIEW_SHORTCUTS = {'bin_A': [], 'bin_B': [], 'bin_C': [], 'bin_D': [], 'bin_E': ['bin_F'], 'bin_F': ['bin_E'], 'bin_G': [], 'bin_H': ['bin_I', 'bin_K', 'bin_L'], 'bin_I':['bin_K', 'bin_H', 'bin_L'], 'bin_J':[], 'bin_K':['bin_I', 'bin_H', 'bin_L'], 'bin_L':['bin_I', 'bin_K', 'bin_H']}
+RIGHT_BIN_VIEW_SHORTCUTS = {'bin_A': ['bin_B'], 'bin_B': ['bin_A'], 'bin_C':[], 'bin_D':['bin_E', 'bin_H', 'bin_G'], 'bin_E':['bin_D', 'bin_H', 'bin_G'], 'bin_F':[], 'bin_G': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_H'], 'bin_H': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_G'], 'bin_I': [], 'bin_J':['bin_H', 'bin_K', 'bin_G'], 'bin_K':['bin_H', 'bin_J', 'bin_G'], 'bin_L':[]}
 
 
 class KnowledgeBase:
@@ -670,7 +674,7 @@ class PhysicalLowLevelController(LowLevelController):
         return
 
     def appendMilestoneRight(self, destination, dt=2):
-        print "appending milestone right...len(destination)=", len(destination)
+        #print "appending milestone right...len(destination)=", len(destination)
         if len(destination) == 7:
             #while len(destination) < len(self.right_arm_indices):
             #    destination = destination + [0]
@@ -723,14 +727,15 @@ class PickingController:
         #==========================================================================================================================
 
         self.cameraTransform_LEFT = ([-0.0011963120477381838, 0.9991595344703198, -0.040973082804945785, 0.02110884648019782, -0.04093875104569311, -0.9989386544043113, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.13570000000000004, 0.009999999999999983, 0.08100000000000003])
-        self.cameraTransform_RIGHT = ([-0.0011963120477381838, 0.9991595344703198, -0.040973082804945785, 0.02110884648019782, -0.04093875104569311, -0.9989386544043113, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.13570000000000004, 0.009999999999999983, 0.08100000000000003])
+        self.cameraTransform_RIGHT = ([-0.001407337179312747, 0.999518957597277, -0.03098181411277777, 0.021095828125576088, -0.030945275306251838, -0.9992984318870506, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.14070000000000005, -0.010000000000000014, 0.08100000000000003])
 
         self.vacuumTransform = []
 
         if TASK == 'stow':
             self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.01, -0.01, 0.55])
         else:
-            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.04, 0.035, 0.51])                 #90 degrees
+            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.03, 0.005, 0.54])
+               #90 degrees
 
 
         #transform to end effector
@@ -774,6 +779,8 @@ class PickingController:
 
         self.targetOffsetPoints = []
 
+        self.full_run = False
+
         if REAL_JSON:
             self.binQueue = binList
         else:
@@ -789,6 +796,8 @@ class PickingController:
 
         self.pickBin = None
         self.pickedObject = None
+        self.numStowFails = 0
+        self.shortcutViewBin = False
         #for use in picking
 
         self.toteContents = []
@@ -997,8 +1006,8 @@ class PickingController:
             for point in points:
 
                 self.waitForMove()
-                #self.moveToObjectInBinFromSide()
-                if self.moveToObjectInBinFromTop(position=point, limb=limb):
+                if self.moveToObjectInBinFromSide(position=point, limb=limb, normal = [0,1,0]):
+                #if self.moveToObjectInBinFromTop(position=point, limb=limb):
                     #print point, 'Successful for ', bin
                     numSuccess+=1
                 else:
@@ -1139,8 +1148,9 @@ class PickingController:
         self.waitForMove()
 
 
-        if self.all_stow_pick_poss is None or self.all_stow_pick_poss == []:
+        if self.all_stow_pick_poss is None or self.all_stow_pick_poss == [] or self.numStowFails >= PERCEPTION_FAIL_THRESHOLD:
 
+            self.numStowFails = 0
             if REAL_CAMERA:
 
                 time.sleep(2)
@@ -1685,8 +1695,6 @@ class PickingController:
             print '\ttrying step1 ik'
             step1 = self.simpleIK(limb=limb, goal=ikGoal)
 
-
-
             if not step1:
                 #failed
                 #check pressure sensor for limb
@@ -2095,7 +2103,6 @@ class PickingController:
 
         return [bin, arm]
 
-
     def evaluateShelf(self):
 
 
@@ -2112,7 +2119,6 @@ class PickingController:
         self.moveToRestConfig()
         self.waitForMove()
 
-
     def runPickingTask(self):
         #
         startTime = time.clock()
@@ -2123,6 +2129,8 @@ class PickingController:
         self.stateLeft = 'ready'
         self.stateRight = 'ready'
 
+        self.full_run = True
+
         self.binQueue = binList
         self.armQueue = ['right' if rightTrueList[i] else 'left' for i in range(len(rightTrueList))]
         print self.binQueue
@@ -2130,21 +2138,31 @@ class PickingController:
         print binMap
         while (endTime - startTime < PICK_TIME and self.binQueue is not []):
 
+            print self.binQueue
+
             turnOffVacuum('right')
             turnOffVacuum('left')
             self.runPickFromBin(bin = self.binQueue.pop(0), limb = self.armQueue.pop(0))
             endTime = time.clock()
 
+        if self.binQueue is []:
+            print 'Ended - bin queue is empty'
+        else:
+            print 'Ended - out of time'
+
         pickHandler.jsonOutput(JSON_PICK_OUTPUT_FILE)
 
     def runPickFromBin(self, bin, limb):
+
+
 
         self.moveToRestConfig()
         self.waitForMove()
         if len(bin) == 1:
             bin = 'bin_'+bin.upper()
 
-        if self.viewBinAction(b=bin, limb = limb):
+        if self.viewBinAction(b=bin, limb = limb, shortcut = self.shortcutViewBin):
+            self.shortcutViewBin = False
             self.waitForMove()
             if self.prepGraspFromBinAction(limb=limb):
                 self.waitForMove()
@@ -2157,39 +2175,70 @@ class PickingController:
                         return True
                     else:
                         print 'Error in placeInToteAction'
-                        return False
                 else:
-                    self.binQueue.append(eval('self.'+limb+'_bin'))
-                    self.armQueue.append(limb)
-                    orderList.append(self.currentPickObject)
-
-                    self.moveToRestConfig()
-                    self.waitForMove()
                     print 'Error in graspFromBinAction'
-                    return False
             else:
-                self.binQueue.append(eval('self.'+limb+'_bin'))
-                self.armQueue.append(limb)
-                orderList.append(self.currentPickObject)
-
-                self.moveToRestConfig()
-                self.waitForMove()
                 print 'Error in prepGraspFromBinAction'
-                return False
         else:
-            self.binQueue.append(eval('self.'+limb+'_bin'))
-            self.armQueue.append(limb)
-            orderList.append(self.currentPickObject)
 
-            #if first time, view again
+            shortCutList = eval(limb.upper()+'_BIN_VIEW_SHORTCUTS')[bin]
+            
+            print shortCutList
+            print self.binQueue[0]
 
-            self.moveToRestConfig()
-            self.waitForMove()
+            if self.binQueue[0] in shortCutList:
+            # if we can shortcut
+            # move to the desired bin 
+            # return 
+            # call this function again with viewBinActionDifferent
+                self.shortcutViewBin=True
+
+                if bin in MIDDLE_BINS:
+                    if limb == 'left':
+                        self.armQueue.append('right')
+                    else:
+                        self.armQueue.append('left')
+                
+                self.binQueue.append(eval('self.'+limb+'_bin'))
+
+                orderList.append(self.currentPickObject)
+                #stay in the current config, we're going to shortcut from here
+
+                self.armQueue.pop(0)
+                self.armQueue.insert(0, limb.lower())
+
+                return False
+            else:
+                self.shortcutViewBin = False
+
 
             print 'Error in View Bin Action'
-            return False
 
-    def viewBinAction(self,b, limb, doPerception=True):
+        if self.currentPickObject is not None:
+
+            print 'readding things to queue'
+
+            if bin in MIDDLE_BINS:
+                if limb == 'left':
+                    self.armQueue.append('right')
+                else:
+                    self.armQueue.append('left')
+            else:
+                self.armQueue.append(limb)
+            
+            self.binQueue.append(eval('self.'+limb+'_bin'))
+
+            print eval('self.'+limb+'_bin')
+
+            orderList.append(self.currentPickObject)
+
+        turnOffVacuum(limb)
+        self.moveToRestConfig()
+        self.waitForMove()
+
+        return False
+
+    def viewBinAction(self,b, limb, doPerception=True, shortcut = False):
         self.waitForMove()
 
         if LOAD_PHYSICAL_TRAJECTORY:
@@ -2199,40 +2248,74 @@ class PickingController:
                 if b in apc.bin_names:
                     path_name = 'CAMERA_TO_' + b.upper() + '_'+limb.upper()
                     #EX: 'CAMERA_TO_BIN_A_LEFT'
-                    if self.moveArm(limb, statusConditional='ready', path_name=path_name, finalState='scan'):
+                    if shortcut:
 
-                        self.waitForMove()
+                            # if we want to shortcut, just move to the bin position (we were previously at the other bin)
+                            scan_name = 'Q_SCAN_'+b.upper() + '_'+limb.upper()+'_NEW'
+                            try:
+                                eval(scan_name)
+                            except:
+                                print 'Failed to evaluate new scan name -reverting to old scan name'                           
+                                scan_name = 'Q_SCAN_'+b.upper() + '_'+limb.upper()
 
-                        scan_name = 'Q_SCAN_'+b.upper() + '_'+limb.upper()
+                            self.moveToOffset(limb, q_name = scan_name)                    
+                            self.waitForMove()
+                            time.sleep(5)
+                            if limb == 'left':
+                                self.left_bin = b
+                            elif limb == 'right':
+                                self.right_bin = b
+                            if REAL_CAMERA:
+                                if doPerception:
+                                    if REAL_JSON:
+                                        if self.full_run:
+                                            self.currentPickObject = orderList.pop(0)
+                                        else:
+                                            index =  binList.index(b)
+                                            self.currentPickObject = orderList[index]
+                                    
+                                    if self.getPickPositionForPick(bin_letter=b[4],target_item=self.currentPickObject,possible_items=binMap[b], limb=limb):
+                                        return True
+                                    else:
+                                        print 'perception failed'
+                                        return False
 
-                        self.moveToOffset(limb, q_name = scan_name)                    
+                    else:
 
-                        self.waitForMove()
-                        time.sleep(5)
+                        #typical motion
 
-                        if limb == 'left':
-                            self.left_bin = b
-                        elif limb == 'right':
-                            self.right_bin = b
+                        if self.moveArm(limb, statusConditional='ready', path_name=path_name, finalState='scan'):
+                            self.waitForMove()
+                            scan_name = 'Q_SCAN_'+b.upper() + '_'+limb.upper()+'_NEW'
+                            try:
+                                eval(scan_name)
+                            except:
+                                print 'Failed to evaluate new scan name -reverting to old scan name'                           
+                                scan_name = 'Q_SCAN_'+b.upper() + '_'+limb.upper()
 
-                        if REAL_CAMERA:
-                            if doPerception:
-
-                                #if not bin in self.binQueue:
-                                #self.currentPickObject = orderList.pop(0)
-                                #else:
-                                #index = binList.index(b)
-                                #self.currentPickObject = orderList[index] 
-                                if self.getPickPositionForPick(bin_letter=b[4],target_item=self.currentPickObject,possible_items=binMap[b], limb=limb):
-                                #if self.getPickPositionForPick(bin_letter=b[4],target_item=self.currentPickObject,possible_items=binMap[b], limb=limb):
-                                    return True
-                                else:
-                                    print 'perception failed'
-                                    return False
-
-                else:
-                    print "Error in moveArm (from viewBinAction)"
-                    return False
+                            self.moveToOffset(limb, q_name = scan_name)                    
+                            self.waitForMove()
+                            time.sleep(5)
+                            if limb == 'left':
+                                self.left_bin = b
+                            elif limb == 'right':
+                                self.right_bin = b
+                            if REAL_CAMERA:
+                                if doPerception:
+                                    if REAL_JSON:
+                                        if self.full_run:
+                                            self.currentPickObject = orderList.pop(0)
+                                        else:
+                                            index =  binList.index(b)
+                                            self.currentPickObject = orderList[index]                                  
+                                    if self.getPickPositionForPick(bin_letter=b[4],target_item=self.currentPickObject,possible_items=binMap[b], limb=limb):
+                                        return True
+                                    else:
+                                        print 'perception failed'
+                                        return False
+                        else:
+                            print "Error in moveArm (from viewBinAction)"
+                            return False
             else:
                 print 'Error in viewTote action can\'t move with no limb'
                 return False
@@ -2311,9 +2394,14 @@ class PickingController:
                     #check pressure here
                     # if true updateBin
 
+
+
                     if REAL_PRESSURE:
+                        time.sleep(.5)
+                        #let stuff catch up
                         if readPressure(limb):
                             pickHandler.updateBin(bin, self.currentPickObject)
+                            return True
                         else:
                             print 'did not grasp item'
                             return False
@@ -2323,9 +2411,12 @@ class PickingController:
                     print 'Movement Unsuccessful'
 
                     if REAL_PRESSURE:
+                        time.sleep(.5)
+                        # let stuff catch up
                         if readPressure(limb):
                             pickHandler.updateBin(bin, self.currentPickObject)
                             print 'still got something'
+                            return True
                         else:
                             try:
                                 turnOffVacuum(limb)
@@ -2333,7 +2424,7 @@ class PickingController:
                                 print 'Error in vacuum comms'
                             return False
                     #TODO
-                    return True
+                    return False
                     #return False
             elif graspDirection[0] =='side':
                 try:
@@ -2342,8 +2433,6 @@ class PickingController:
                     print 'Error perception code for point not set up'
 
                 if self.moveToObjectInBinFromSide(position=position, limb=limb, step=-1):
-
-
 
                     if limb == 'left':
                         self.stateLeft = 'grasp'
@@ -2388,6 +2477,7 @@ class PickingController:
                             if readPressure(limb):
                                 pickHandler.updateTote(self.currentPickObject)
                             else:
+                                self.currentPickObject = None
                                 print 'dropped object'
                                 return False
 
@@ -3439,6 +3529,8 @@ class PickingController:
                     return False
                 self.debugPoints.append(target4)
                 self.sendPath(path=[step4], limb = limb)
+                
+                time.sleep(1)
                 self.waitForMove()
                 #print 'Got to step 4'
 
@@ -3447,19 +3539,21 @@ class PickingController:
                 if REAL_PRESSURE:
                     if readPressure(limb):
                         # I got something
+                        print 'chose step 5'
                         step = 5
                 else:
+                    print 'chose step 6'
                     step = 6
 
-                step = 5
+
 
             if step==5:
                 #pull back out
 
+                self.sendPath(path=[step3] , limb=limb)
                 self.waitForMove()
-                self.sendPath(path=[step3], limb=limb)
+                self.sendPath(path=[step1],limb=limb)
                 self.waitForMove()
-                self.sendPath(path=[step1], limb=limb)
 
                 #check that object is still held
                 return True
@@ -3488,7 +3582,11 @@ class PickingController:
 
             if step == 7:
 
-                self.sendPath(path = [step5, step3, step1], limb=limb)
+                self.sendPath(path = [step5], limb=limb)
+                self.waitForMove()
+                self.sendPath(path =[step3],  limb=limb)
+                self.waitForMove()
+                self.sendPath(path = [step1], limb=limb)
                 self.waitForMove()
 
 
@@ -3526,7 +3624,7 @@ class PickingController:
         # print 'physical simulation is on'
         # PHYSICAL_SIMULATION = 1
 
-    def moveToObjectInBinFromSide(self, position, limb, step, naiive = True):
+    def moveToObjectInBinFromSide(self, position, limb, normal=None, step=0, naiive = True):
         #Assumes we have moved so that we are in a configuration where we are ready to pick up things from a bin
         #Assumes we have scanned the bin already and determined the x,y,z of where we want to move
         #Assumes we have determined we want to pick up the object from above
@@ -3547,6 +3645,9 @@ class PickingController:
         step4 = []
         step5 = []
 
+        if position != None:
+            self.pick_pick_pos = position
+
         if naiive:
             #fix the suction cup's direction aim for the top of the bin, ik to a position slightly above the object
             #ik down
@@ -3562,11 +3663,13 @@ class PickingController:
                 target = DEFAULT_GOAL
 
 
-            try:
-                target = perception.getNormal()
-            except:
-                print 'perception normal not set up yet'
-                normal = DEFAULT_NORMAL
+
+            if normal is None:
+                try:
+                    normal = perception.getNormal()
+                except:
+                    print 'perception normal not set up yet'
+                    normal = DEFAULT_NORMAL
 
 
             #step 1 move to the top middle of the front face of the given bin
@@ -3598,6 +3701,10 @@ class PickingController:
                 print target
                 print 'trying step1 ik'
                 step1 = self.simpleIK(limb=limb, goal=ikGoal)
+                if step1 is None:
+                    print 'ik failed in step1 of moveToObjectInBinFromSide'
+                    self.sendPath(path=[step1], limb=limb)
+                    return False
                 self.sendPath(path=step1, limb=limb)
                 time.sleep(2)
 
@@ -3620,8 +3727,12 @@ class PickingController:
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
                 print target
                 print 'trying step2 ik'
-                step1 = self.simpleIK(limb=limb, goal=ikGoal)
-                self.sendPath(path=[step1], limb=limb)
+                step2 = self.simpleIK(limb=limb, goal=ikGoal)
+                if step2 is None:
+                    print 'ik failed in step2 of moveToObjectInBinFromSide'
+                    self.sendPath(path=[step1], limb=limb)
+                    return False
+                self.sendPath(path=[step2], limb=limb)
                 time.sleep(2)
 
                 step =3
@@ -3638,6 +3749,10 @@ class PickingController:
                 ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target3, normal = vectorops.unit(normal), normalDisplacement = 0.05)
                 print 'trying step3 ik'
                 step3 = self.simpleIK(limb=limb, goal=ikGoal)
+                if step3 is None:
+                    print 'ik failed in step3 of moveToObjectInBinFromSide'
+                    self.sendPath(path=[step1], limb=limb)
+                    return False
                 self.sendPath(path=[step3], limb=limb)
                 time.sleep(2)
                 step=4
@@ -3652,14 +3767,20 @@ class PickingController:
                     print 'Error in vacuum Controller'
 
                 target4= target
-                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target4, normal = klampt.vectorops.unit(normal), normalDisplacement = 0)
+                ikGoal = self.buildIKGoalSuctionNormal(limb = limb, target=target4, normal = vectorops.unit(normal), normalDisplacement = 0)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
 
                 print 'trying step4 ik'
                 step4 = self.simpleIK(limb=limb, goal=ikGoal)
-
+                if step4 is None:
+                    print 'ik failed in step1 of moveToObjectInBinFromSide'
+                    self.sendPath(path=[step2], limb=limb)
+                    self.waitForMove()
+                    self.sendPath(path = [step1], limb=limb)
+                    self.waitForMove()
+                    return False
                 self.sendPath(path=[step4], limb = limb)
 
                 print 'Got to step 4'
@@ -3668,8 +3789,11 @@ class PickingController:
 
             if step ==5:
                 self.sendPath(path = [step3], limb=limb)
+                self.waitForMove()
                 self.sendPath(path = [step2], limb = limb)
+                self.waitForMove()
                 self.sendPath(path=[step1], limb=limb)
+                self.waitForMove()
                 #check that object is still held
 
                 return True
@@ -4790,13 +4914,15 @@ class PickingController:
 
             time.sleep(0.1);
             calibrate = (calibrateR, calibrateT)
-            self.cameraTransform = ( calibrate[0], calibrate[1] )
-            
+            if limb == 'left':
+                self.cameraTransform_LEFT = ( calibrate[0], calibrate[1] )
+            else:
+                self.cameraTransform_RIGHT = ( calibrate[0], calibrate[1] )
 
             print self.simworld.robot(0).link(limb + '_wrist').getTransform()
             totalCameraXform = self.getCameraToWorldXform(limb)
 
-            print self.cameraTransform
+            print limb.upper(), ' camera transform is ', eval('self.cameraTransform_'+limb.upper())
 
             current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb, tolist=False)
             self.points = current_cloud.tolist()
@@ -4846,7 +4972,7 @@ class PickingController:
         '''
         get current transformation (R, t) of camera in world frame. 
         '''
-        return se3.mul(self.simworld.robot(0).link(limb + '_wrist').getTransform(), self.cameraTransform)
+        return se3.mul(self.simworld.robot(0).link(limb + '_wrist').getTransform(), eval('self.cameraTransform_'+limb.upper()))
 
         #return se3.mul(self.cameraTransform, self.simworld.robot(0).link(limb)+'_wrist').getTransform())
         #IMPORTANT

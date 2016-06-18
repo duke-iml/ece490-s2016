@@ -256,8 +256,8 @@ class Perceiver(object):
 		long_names = ['rawlings_baseball', 'cloud_b_plush_bear', 'barkely_hide_bones', 'platinum_pets_dog_bowl', 
 		'dr_browns_bottle_brush', 'soft_white_lightbulb', 'i_am_a_bunny_book', 'folgers_classic_roast_coffee', 'woods_extension_cord', 
 		'crayola_24_ct', 'easter_turtle_sippy_cup', 'peva_shower_curtain_liner', 'fitness_gear_3lb_dumbbell', 'jane_eyre_dvd', 
-		'kyjen_squieakin_eggs_plush_puppies', 'expo_dry_erase_board_eraser', 'womens_knit_gloves', 'up_glucose_bottle', 'elmers_washable_no_run_school_glue', 
-		'cool_shot_glue_sticks', 'command_hooks', 'staples_index_cards', 'laugh_out_loud_joke_book', 'scotch_bublle_mailer', 
+		'kyjen_squeakin_eggs_plush_puppies', 'expo_dry_erase_board_eraser', 'womens_knit_gloves', 'up_glucose_bottle', 'elmers_washable_no_run_school_glue', 
+		'cool_shot_glue_sticks', 'command_hooks', 'staples_index_cards', 'laugh_out_loud_joke_book', 'scotch_bubble_mailer', 
 		'kleenex_paper_towels', 'ticonderoga_12_pencils', 'safety_first_outlet_plugs', 'rolodex_jumbo_pencil_cup', 
 		'fiskars_scissors_red', 'cherokee_easy_tee_shirt', 'dove_beauty_bar', 'hanes_tube_socks', 'creativity_chenille_stems', 
 		'scotch_duct_tape', 'kleenex_tissue_box', 'oral_b_toothbrush_green', 'oral_b_toothbrush_red', 'clorox_utility_brush', 'dasani_water_bottle']
