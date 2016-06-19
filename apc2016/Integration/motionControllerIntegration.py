@@ -37,6 +37,7 @@ from Trajectories.camera_to_bin import *
 from Trajectories.view_to_grasp import *
 from Trajectories.grasp_to_stow_90 import *
 from Trajectories.grasp_to_stow_straight import *
+from Trajectories.grasp_to_rest import *
 #-----------------------------------------------------------
 #Imports require internal folders
 
@@ -69,7 +70,7 @@ PHYSICAL_SIMULATION = 1
 #============================================================
 # configuration variables
 
-
+MAX_RATING = 4
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
@@ -89,7 +90,7 @@ TASK = 'pick'
 
 SHELF_STATIONARY = False
 
-PRESSURE_THRESHOLD = 840
+PRESSURE_THRESHOLD = 845
 
 SKIP_GRASP_FROM_TOTE= False
 SKIP_STOWING_INPUT = False
@@ -98,8 +99,12 @@ SKIP_STOWING_INPUT = False
 INIT_DEGREE_OFFSET = 0
 
 TOTE_BOUNDS = [[],[]]
-TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
-TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
+#TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
+#TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
+
+TOTE_BONDS[0] = [0.7594104984418184, -0.23794247248958153, 0.360228946896485]
+TOTE_BOUNDS[1] = [0.5045347771579406, 0.25661248473716464, 0.5386900356225808]
+
 
 SHELF_CALIBRATION = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
 
@@ -163,8 +168,9 @@ if REAL_JSON:
     global rightTrueList
     global orderList
     global binMap
+    global easinessList
     binMap=pickHandler.binMap
-    (binList, orderList, rightTrueList) = pickHandler.workBinOrder()
+    (binList, orderList, rightTrueList, easinessList) = pickHandler.workBinOrder()
     print 'binList is ', binList
 
 
@@ -197,8 +203,8 @@ GRASP_PREPPED_STATE = 'graspPrepped'
 REST_STATE = 'ready'
 STOW_STATE = 'stow'
 
-LEFT_BIN_VIEW_SHORTCUTS = {'bin_A': [], 'bin_B': [], 'bin_C': [], 'bin_D': [], 'bin_E': ['bin_F'], 'bin_F': ['bin_E'], 'bin_G': [], 'bin_H': ['bin_I', 'bin_K', 'bin_L'], 'bin_I':['bin_K', 'bin_H', 'bin_L'], 'bin_J':[], 'bin_K':['bin_I', 'bin_H', 'bin_L'], 'bin_L':['bin_I', 'bin_K', 'bin_H']}
-RIGHT_BIN_VIEW_SHORTCUTS = {'bin_A': ['bin_B'], 'bin_B': ['bin_A'], 'bin_C':[], 'bin_D':['bin_E', 'bin_H', 'bin_G'], 'bin_E':['bin_D', 'bin_H', 'bin_G'], 'bin_F':[], 'bin_G': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_H'], 'bin_H': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_G'], 'bin_I': [], 'bin_J':['bin_H', 'bin_K', 'bin_G'], 'bin_K':['bin_H', 'bin_J', 'bin_G'], 'bin_L':[]}
+RIGHT_BIN_VIEW_SHORTCUTS = {'bin_A': [], 'bin_B': [], 'bin_C': [], 'bin_D': [], 'bin_E': ['bin_F'], 'bin_F': ['bin_E'], 'bin_G': [], 'bin_H': ['bin_I', 'bin_K', 'bin_L'], 'bin_I':['bin_K', 'bin_H', 'bin_L'], 'bin_J':[], 'bin_K':['bin_I', 'bin_H', 'bin_L'], 'bin_L':['bin_I', 'bin_K', 'bin_H']}
+LEFT_BIN_VIEW_SHORTCUTS = {'bin_A': ['bin_B'], 'bin_B': ['bin_A'], 'bin_C':[], 'bin_D':['bin_E', 'bin_H', 'bin_G'], 'bin_E':['bin_D', 'bin_H', 'bin_G'], 'bin_F':[], 'bin_G': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_H'], 'bin_H': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_G'], 'bin_I':[], 'bin_J':['bin_G', 'bin_K', 'bin_H'], 'bin_K':['bin_H', 'bin_J', 'bin_G'], 'bin_L':[]}
 
 
 class KnowledgeBase:
@@ -681,7 +687,7 @@ class PhysicalLowLevelController(LowLevelController):
             #    destination = destination + [0]
             if not motion.robot.right_mq.appendLinear(dt, destination): raise RuntimeError()
         else:
-            print 'Desitnation is: ', [destination[v] for v in self.right_arm_indices[:7]]
+            #print 'Desitnation is: ', [destination[v] for v in self.right_arm_indices[:7]]
             if not motion.robot.right_mq.appendLinear(dt, [destination[v] for v in self.right_arm_indices[:7]]): raise RuntimeError()
         return True
     def appendMilestoneLeft(self, destination, dt=2):
@@ -727,15 +733,22 @@ class PickingController:
         # calibration constants
         #==========================================================================================================================
 
-        self.cameraTransform_LEFT = ([-0.0011963120477381838, 0.9991595344703198, -0.040973082804945785, 0.02110884648019782, -0.04093875104569311, -0.9989386544043113, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.13570000000000004, 0.009999999999999983, 0.08100000000000003])
-        self.cameraTransform_RIGHT = ([-0.001407337179312747, 0.999518957597277, -0.03098181411277777, 0.021095828125576088, -0.030945275306251838, -0.9992984318870506, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.14070000000000005, -0.010000000000000014, 0.08100000000000003])
+
+        if TASK == 'pick:'
+            self.cameraTransform_LEFT = ([-0.005265452449771632, 0.9995690377458444, 0.02887929691576046, 0.08081924076130616, 0.02921060091028254, -0.9963006529744064, -0.9967148666159592, -0.002911970863461065, -0.08093821774925046], [-0.15570000000000006, 0.019999999999999983, 0.11299999999999999])
+            self.cameraTransform_RIGHT = ([-0.10121140701250368, 0.9943198755486343, -0.03292774179168634, 0.021095828125576088, -0.030945275306251838, -0.9992984318870506, -0.9946412504648348, -0.10183503829807747, -0.01784398634228295], [-0.14070000000000005, 0.041999999999999996, 0.08100000000000003])
+        else:
+            self.cameraTransform_LEFT = []
+            self.cameraTransform_RIGHT = []
+
 
         self.vacuumTransform = []
 
         if TASK == 'stow':
             self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.01, -0.01, 0.55])
         else:
-            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.03, 0.005, 0.54])
+            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.02, 0.0, 0.55])
+
                #90 degrees
 
 
@@ -1111,8 +1124,6 @@ class PickingController:
         #print startTime
         endTime = time.clock()
 
-        self.evaluateShelf()
-
         if REAL_SCALE:
             toteContents = stowHandler.getToteContents()
             #get toteContents 
@@ -1121,7 +1132,8 @@ class PickingController:
         print endTime - startTime 
 
         #print toteContents == []
-        self.evaluateShelf()
+        if REAL_CAMERA:
+            self.evaluateShelf()
 
         while (endTime - startTime < STOW_TIME and not toteContents == []):
 
@@ -2027,9 +2039,6 @@ class PickingController:
         return False
         #raise NotImplemented
 
-
-
-
     # Stowing Debug
 
     def isInTote(self, point):
@@ -2146,6 +2155,13 @@ class PickingController:
             self.runPickFromBin(bin = self.binQueue.pop(0), limb = self.armQueue.pop(0))
             endTime = time.clock()
 
+
+            print 'binQueue is ', self.binQueue
+            print 'armQueue is ', self.armQueue
+            print 'easinessList is ', easinessList
+
+            print endTime - startTime
+
         if self.binQueue is []:
             print 'Ended - bin queue is empty'
         else:
@@ -2155,6 +2171,9 @@ class PickingController:
 
     def runPickFromBin(self, bin, limb):
 
+        rating =easinessList.pop(0)
+        if rating < MAX_RATING:
+            rating = rating+1
 
 
         self.moveToRestConfig()
@@ -2182,35 +2201,27 @@ class PickingController:
                 print 'Error in prepGraspFromBinAction'
         else:
 
+
+
             shortCutList = eval(limb.upper()+'_BIN_VIEW_SHORTCUTS')[bin]
             
             print shortCutList
-            print self.binQueue[0]
+            
+            if REAL_JSON:
+                print self.binQueue[0]
 
-            if self.binQueue[0] in shortCutList:
-            # if we can shortcut
-            # move to the desired bin 
-            # return 
-            # call this function again with viewBinActionDifferent
-                self.shortcutViewBin=True
+                if self.binQueue[0] in shortCutList:
+                # if we can shortcut
+                    rating =easinessList.pop(0)
+                    rating = rating+1
+                # move to the desired bin 
+                # return 
+                # call this function again with viewBinActio                
 
-                if bin in MIDDLE_BINS:
-                    if limb == 'left':
-                        self.armQueue.append('right')
-                    else:
-                        self.armQueue.append('left')
-                
-                self.binQueue.append(eval('self.'+limb+'_bin'))
-
-                orderList.append(self.currentPickObject)
-                #stay in the current config, we're going to shortcut from here
-
-                self.armQueue.pop(0)
-                self.armQueue.insert(0, limb.lower())
-
-                return False
-            else:
-                self.shortcutViewBin = False
+                    self.updateQueue(bin, limb, rating)
+                    return False
+                else:
+                    self.shortcutViewBin = False
 
 
             print 'Error in View Bin Action'
@@ -2219,6 +2230,43 @@ class PickingController:
 
             print 'readding things to queue'
 
+            if REAL_JSON:
+
+                rating = easinessList.pop()
+                rating = rating+1
+
+                self.updateQueue(bin, limb, rating)
+
+        else:
+            rating = easinessList.pop()
+
+
+        turnOffVacuum(limb)
+        self.moveToRestConfig()
+        self.waitForMove()
+
+        return False
+
+    def updateQueue(self, bin, limb, rating):
+        for i in range(len(easinessList)):
+            if easinessList[i] > rating:
+                myIndex = i
+                if bin in MIDDLE_BINS:
+                    if limb == 'left':
+                        self.armQueue.insert(myIndex, 'right')
+                    else:
+                        self.armQueue.insert(myIndex, 'left')
+                else:
+                    self.armQueue.insert(myIndex, limb)
+                
+                self.binQueue.insert(myIndex, eval('self.'+limb+'_bin'))
+
+                print eval('self.'+limb+'_bin')
+
+                orderList.insert(myIndex, self.currentPickObject)
+                easinessList.insert(myIndex, rating)
+                break
+        else:
             if bin in MIDDLE_BINS:
                 if limb == 'left':
                     self.armQueue.append('right')
@@ -2232,12 +2280,8 @@ class PickingController:
             print eval('self.'+limb+'_bin')
 
             orderList.append(self.currentPickObject)
+            easinessList.append(rating)
 
-        turnOffVacuum(limb)
-        self.moveToRestConfig()
-        self.waitForMove()
-
-        return False
 
     def viewBinAction(self,b, limb, doPerception=True, shortcut = False):
         self.waitForMove()
@@ -2280,7 +2324,8 @@ class PickingController:
                                     else:
                                         print 'perception failed'
                                         return False
-
+                            else:
+                                return True
                     else:
 
                         #typical motion
@@ -2314,6 +2359,8 @@ class PickingController:
                                     else:
                                         print 'perception failed'
                                         return False
+                            else:
+                                return True
                         else:
                             print "Error in moveArm (from viewBinAction)"
                             return False
@@ -2367,7 +2414,7 @@ class PickingController:
             #self.moveToOffset(limb, milestone=eval(), finalState = 'grasp')
             # covered in self.move_from_scan_to_grasp
 
-            graspDirection = ['up', [0,0,1]]
+            graspDirection = ['up', [0,1,0]]
             #graspDirection[0] = direction
             #graspDirection[1] = normal in vector format
 
@@ -2433,7 +2480,7 @@ class PickingController:
                 except:
                     print 'Error perception code for point not set up'
 
-                if self.moveToObjectInBinFromSide(position=position, limb=limb, step=-1):
+                if self.moveToObjectInBinFromSide(position=position, limb=limb, normal=vectorops.unit(graspDirection[1]), step=-1):
 
                     if limb == 'left':
                         self.stateLeft = 'grasp'
@@ -3589,7 +3636,7 @@ class PickingController:
 
             if step == 7:
 
-                self.sendPath(path = [step5], limb=limb)
+                self.sendPath(path = [step4], limb=limb)
                 self.waitForMove()
                 self.sendPath(path =[step3],  limb=limb)
                 self.waitForMove()
@@ -3700,7 +3747,7 @@ class PickingController:
                 #move to the top center of the bin
                 target1 = knowledge.getBinFrontCenterTop(bin)
                 self.debugPoints.append(target1)
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1, targetFurtherBack=True)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -3722,8 +3769,7 @@ class PickingController:
                 self.debugPoints.append(target)
 
                 #dummy = knowledge.applyShelfXform([target[0], 0, 0])
-                dummy = se3.apply(self.perceptionTransform, [target[0], 0, 0], targetFurtherBack = True)
-
+                dummy = se3.apply(self.perceptionTransform, [target[0], 0, 0])
                 target2[0] = dummy[0]
 
                 #target should be the middle of the bin, near the top but only so far in as would be indicated by x
@@ -3931,13 +3977,11 @@ class PickingController:
         elif(self.stateLeft == 'grasp' or self.stateLeft == 'graspPrepped' ):
             #not set up yet
             # go to store then rest
-            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT'+END_EFFECTOR)
+            lPath = eval('GRASP_TO_REST_' + self.left_bin.upper()[4]+'_LEFT')
 
             if lPath !=[]:
                 for milestone in lPath:
                     path.append(milestone)
-
-            path.append(eval('Q_OUT_OF_TOTE_LEFT'))
 
         elif self.stateLeft == 'stow':
             #go right ahead through the code
@@ -4008,12 +4052,10 @@ class PickingController:
         elif(self.stateRight == 'grasp' or self.stateRight == 'graspPrepped'):
             #not set up yet
             # go to store then rest
-            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()[4]+'_RIGHT'+END_EFFECTOR)
+            rPath = eval('GRASP_TO_REST_' + self.right_bin.upper()[4]+'_RIGHT')
             if rPath != []:
                 for milestone in rPath:
                     path.append(milestone)
-
-            path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
 
         elif self.stateRight == 'stow':
             #go right ahead through the code
@@ -4316,7 +4358,9 @@ class PickingController:
     def buildIKGoalSuctionNormal(self, limb, target, normal, offset = 0.5, normalDisplacement = 0, debug=False, targetFurtherBack = False):
 
         #appliedTransform = knowledge.shelf_xform
-        
+        appliedTransform = self.perceptionTransform
+
+
         if targetFurtherBack:
             target =  vectorops.add(target, so3.apply(appliedTransform[0],[PERCEPTION_OFFSET_DISTANCE,0,0]))
             self.targetOffsetPoints.append(target)
@@ -4324,7 +4368,6 @@ class PickingController:
         target = vectorops.add(target, vectorops.mul(normal, normalDisplacement))
 
 
-        appliedTransform = self.perceptionTransform
 
         targetAxisConstraint = vectorops.add(target, so3.apply(appliedTransform[0], [offset, 0,0]))
         targetZOffset = vectorops.add(target, vectorops.mul(normal, -offset))
@@ -4944,7 +4987,7 @@ class PickingController:
             else:
                 self.cameraTransform_RIGHT = ( calibrate[0], calibrate[1] )
 
-            print self.simworld.robot(0).link(limb + '_wrist').getTransform()
+            #print self.simworld.robot(0).link(limb + '_wrist').getTransform()
             totalCameraXform = self.getCameraToWorldXform(limb)
 
             print limb.upper(), ' camera transform is ', eval('self.cameraTransform_'+limb.upper())
