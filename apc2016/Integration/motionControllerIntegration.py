@@ -2172,7 +2172,7 @@ class PickingController:
     def runPickFromBin(self, bin, limb):
 
         rating =easinessList.pop(0)
-        if rating < MAX_RATING:
+        if rating < MAX_RATING-1:
             rating = rating+1
 
 
@@ -2231,9 +2231,6 @@ class PickingController:
             print 'readding things to queue'
 
             if REAL_JSON:
-
-                rating = easinessList.pop()
-                rating = rating+1
 
                 self.updateQueue(bin, limb, rating)
 
