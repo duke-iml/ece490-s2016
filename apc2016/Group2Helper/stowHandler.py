@@ -279,11 +279,11 @@ class stowHandler:
     def jsonOutput(self, filename):
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
-if __name__ == "__main__":
-    JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
-    # for i in range(len(JSON_FILES)):
-    a=stowHandler("../JSON_FILES/"+JSON_FILES[0])
-    print a.mostEmptyBin()
+# if __name__ == "__main__":
+#     JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
+#     # for i in range(len(JSON_FILES)):
+#     a=stowHandler("../JSON_FILES/"+JSON_FILES[0])
+#     print a.mostEmptyBin()
     # for i in range(50):
     #     # time.sleep(5)
     #     (targetitem,targetbin)=a.pickWhichObj('left',True);
