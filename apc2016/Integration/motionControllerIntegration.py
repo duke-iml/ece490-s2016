@@ -85,8 +85,8 @@ REAL_CAMERA = True
 REAL_JSON = True
 REAL_PRESSURE = True
 
-TASK = 'pick'
-#TASK = 'stow'
+#TASK = 'pick'
+TASK = 'stow'
 
 SHELF_STATIONARY = False
 
@@ -102,7 +102,7 @@ TOTE_BOUNDS = [[],[]]
 #TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
 #TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
 
-TOTE_BONDS[0] = [0.7594104984418184, -0.23794247248958153, 0.360228946896485]
+TOTE_BOUNDS[0] = [0.7594104984418184, -0.23794247248958153, 0.360228946896485]
 TOTE_BOUNDS[1] = [0.5045347771579406, 0.25661248473716464, 0.5386900356225808]
 
 
@@ -117,7 +117,7 @@ TOTE_BOUNDS_Z_MIN = min(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 KLAMPT_MODEL="baxter_with_two_vacuums.rob"
 
 
-PERCEPTION_FAIL_THRESHOLD = 3
+PERCEPTION_FAIL_THRESHOLD = 2
 #========================================================================================
 
 CALIBRATE = True
@@ -734,12 +734,14 @@ class PickingController:
         #==========================================================================================================================
 
 
-        if TASK == 'pick:'
+        if TASK == 'pick':
             self.cameraTransform_LEFT = ([-0.005265452449771632, 0.9995690377458444, 0.02887929691576046, 0.08081924076130616, 0.02921060091028254, -0.9963006529744064, -0.9967148666159592, -0.002911970863461065, -0.08093821774925046], [-0.15570000000000006, 0.019999999999999983, 0.11299999999999999])
             self.cameraTransform_RIGHT = ([-0.10121140701250368, 0.9943198755486343, -0.03292774179168634, 0.021095828125576088, -0.030945275306251838, -0.9992984318870506, -0.9946412504648348, -0.10183503829807747, -0.01784398634228295], [-0.14070000000000005, 0.041999999999999996, 0.08100000000000003])
         else:
-            self.cameraTransform_LEFT = []
-            self.cameraTransform_RIGHT = []
+            self.cameraTransform_LEFT = ([-0.07741092270722004, -0.008883962956966026, -0.9969596903826132, 0.004215694668159291, -0.9999542762926548, 0.008583311860728818, -0.9969903595141133, -0.003538435560092878, 0.07744483526811462], [-0.11, -0.015, 0.049999999999999996])
+
+            self.cameraTransform_RIGHT = ([-0.0068680743279194295, 0.049534345302957125, 0.998748806352445, -0.0843214069774556, 0.9951864873435861, -0.049937518301143125, -0.9964149386075908, -0.08455887915613661, -0.002658209075564383], [-0.11000000000000001, 0.11, 0.10999999999999999])
+
 
 
         self.vacuumTransform = []
@@ -793,6 +795,8 @@ class PickingController:
 
         self.targetOffsetPoints = []
 
+
+        self.tilt = False
         self.full_run = False
 
         if REAL_JSON:
@@ -1089,7 +1093,7 @@ class PickingController:
                 # print 'x, y is : ', curX, ' ',curY
             curX = curX + (maxX-minX)*1.0/sliceX
 
-        self.viewToteAction(limb=limb)
+        self.viewToteAction(limb=limb, doPerception=False)
         self.waitForMove()
         self.prepGraspFromToteAction(limb=limb)
         self.waitForMove()
@@ -1251,46 +1255,6 @@ class PickingController:
 
         return False
 
-    def runPickFromToteNew(self, limb, bin=None):
-        if limb == 'left':
-            self.moveArmAway('right')
-        elif limb == 'right':
-            self.moveArmAway('left')
-
-        
-        if self.all_stow_pick_poss is None or self.all_stow_pick_poss == []:
-
-            if self.viewToteAction(limb=limb) and self.perceptionFailCount < PERCEPTION_FAIL_THRESHOLD:
-                #perception hasn't failed yet
-                pass
-            else:
-                self.perceptionFailCount = self.perceptionFailCount + 1
-                if self.toteGraspBackup(limb=limb):
-                    #successful - go again
-                    return limb
-                else:
-                    #try the other limb
-                    if limb == 'left':
-                        return 'right'
-                    else:
-                        return 'left'
-        
-        stow_pick_pos = self.all_stow_pick_poss.pop(0)
-
-        [chosenLimb, chosenPath] = self.chooseLimb(target = stow_pick_pos)
-
-        self.prepGraspFromToteActionNew(limb=chosenLimb)
-        self.waitForMove()
-
-        if self.graspFromToteActionNew(limb=chosenLimb, path = chosenPath):
-            # we got something
-            bin = self.evaluateObjectAction()
-
-        else:
-            # we failed
-            # turn off the vacuum and return the most recently used limb
-            # ideally, this method will be called again
-            return chosenLimb
 
     def viewToteAction(self,limb, doPerception=True):
 
@@ -1357,39 +1321,41 @@ class PickingController:
             return self.moveIntoTote(limb, path)
 
 
-        if REAL_CAMERA:
 
-            goalXY = self.stow_pick_pos
-        else:
-            if position is None:
+        if position is None:
+            position = self.stow_pick_pos
 
-                myInts = []
-                while( 1):
-                    myInput = raw_input("Where would you like to pick? (separated by commmas) ")
-                    if myInput == 'skip':
-                        self.stow_pick_pos = [0.5, 0, 0]
+        # if still none - get input
+
+        if position is None:
+
+            myInts = []
+            while( 1):
+                myInput = raw_input("Where would you like to pick? (separated by commmas) ")
+                if myInput == 'skip':
+                    self.stow_pick_pos = [0.5, 0, 0]
+                    break
+
+                myInput = myInput.split(',')
+                for el in myInput:
+                    try:
+                        myInts.append(float(el))
+                        assert(len(myInput)==3 or len(myInput)==2)
+                        goodInput = True     
+                    except:
+                        goodInput = False
+
+                if goodInput:
+                    print myInts
+                    self.stow_pick_pos = myInts
+                    response = raw_input("Continue? y/n ")
+                    if response == 'y' and len(myInts)>=2:
                         break
-
-                    myInput = myInput.split(',')
-                    for el in myInput:
-                        try:
-                            myInts.append(float(el))
-                            assert(len(myInput)==3 or len(myInput)==2)
-                            goodInput = True     
-                        except:
-                            goodInput = False
-
-                    if goodInput:
-                        print myInts
-                        self.stow_pick_pos = myInts
-                        response = raw_input("Continue? y/n ")
-                        if response == 'y' and len(myInts)>=2:
-                            break
-                        else:
-                            myInts = []
-                            self.stow_pick_pos = None
-            else:
-                self.stow_pick_pos = position
+                    else:
+                        myInts = []
+                        self.stow_pick_pos = None
+        else:
+            self.stow_pick_pos = position
 
 
         if not self.isInTote(self.stow_pick_pos):
@@ -1548,6 +1514,8 @@ class PickingController:
             else:
                 print 'Didn\'t grab anything'
                 print 'Or dropped something on the way back up '
+
+                self.numStowFails = self.numStowFails + 1
                 turnOffVacuum(limb)
                 return False
 
@@ -1580,9 +1548,10 @@ class PickingController:
         time.sleep(2)
 
         if REAL_SCALE:
-            (self.stowItems, self.pickBin) = stowHandler.pickWhichObj(limb, True)
+            (self.stowItems, self.pickBin, self.tilt) = stowHandler.pickWhichObj(limb, True)
             if self.pickBin==None:
                 print "No target object in the weight range"
+                return False
             # if len(items)>1:
             #     print 'More than One Item'
             #     self.pickBin = stowHandler.getBin(items)
@@ -1607,6 +1576,12 @@ class PickingController:
 
 
         # limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False
+
+        if self.tilt:
+            self.tilt = False
+            return self.placeHardcoded(limb)
+
+
         if limb == 'left':
             if len(bin)==1:
                 self.left_bin = 'bin_'+bin
@@ -1624,7 +1599,10 @@ class PickingController:
 
         path_name = 'PREP_TOTE_STOW_'+limb.upper()
         print "self.moveArm(",path_name,")...",
-        if self.moveArm(limb = limb, path_name = path_name, reverse=True):
+        
+        path = [eval(path_name)[-1]]
+
+        if self.moveArm(limb = limb, path = path, reverse=True):
             print "success"      
         else:
             print "fail"
@@ -1647,7 +1625,12 @@ class PickingController:
                     self.waitForMove()
                     return True
             else:
+                print "moveArm(",path_name,")...",
+                if self.moveArm(limb=limb, path_name = path_name, finalState = 'toteStow'):
+                    print "success"
+                    self.waitForMove()
                 print 'Error in moving into the bin'
+                return False
 
             #then actually move into bin a bi
         else:
@@ -2040,6 +2023,29 @@ class PickingController:
         #raise NotImplemented
 
     # Stowing Debug
+
+    def placeHarcoded(self, limb):
+
+
+        path_name = 'GRASP_TO_STOW_B_' + limb.upper() + '_HARDCODED'
+        self.moveArm(limb = limb, path_name = path_name, reverse=True, finalState = 'placeInBin')
+
+        success = False
+
+        self.waitForMove()
+        time.sleep(.5)
+
+        if REAL_PRESSURE:
+            if readPressure(limb):
+                success = True
+                stowHandler.updateBin(bin='bin_B',item=self.stowItems)
+
+        time.sleep(2)
+        turnOffVacuum(limb)
+
+        self.moveArm(limb = limb, path_name = path_name, finalState = 'toteStow')
+
+        return success
 
     def isInTote(self, point):
         tote1 = TOTE_BOUNDS[0]
@@ -3984,7 +3990,12 @@ class PickingController:
             #go right ahead through the code
 
             path.append(eval('Q_OUT_OF_TOTE_LEFT'))
-    
+
+        elif self.stateLeft == 'toteStow':
+            lpath = (eval('PREP_TOTE_STOW_LEFT'))
+            if lPath !=[]:
+                for milestone in lPath:
+                    path.append(milestone)    
 
         elif self.stateLeft == 'viewTote':
             lPath = eval('Q_VIEW_TOTE_LEFT')
@@ -4057,6 +4068,13 @@ class PickingController:
         elif self.stateRight == 'stow':
             #go right ahead through the code
             path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
+
+
+        elif self.stateRight == 'toteStow':
+            rpath = (eval('PREP_TOTE_STOW_RIGHT'))
+            if rPath !=[]:
+                for milestone in rPath:
+                    path.append(milestone)    
 
         elif self.stateRight == 'viewTote':
             rPath = eval('Q_VIEW_TOTE_RIGHT')
@@ -4239,7 +4257,7 @@ class PickingController:
                 self.stateLeft = finalState
             return True
         else:
-            print "Error, arm is not in state "+ statusConditional
+            print "Error, arm is not in state ", statusConditional
             return False
 
     def moveRightArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
@@ -4317,7 +4335,7 @@ class PickingController:
         
             return True
         else:
-            print "Error, arm is not in state "+ statusConditional
+            print "Error, arm is not in state ", statusConditional
             return False
 
     #=============================================================================================================================================

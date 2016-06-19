@@ -141,7 +141,7 @@ class stowHandler:
         bins.remove('bin_J')
         bins.remove('bin_K')
         bins.remove('bin_H')
-        numObj=[len(self.binMap[bins[i]]) for i in range(len(bins))]
+        numObj=[len(self.binContents[bins[i]]) for i in range(len(bins))]
         sortedNumObj=sorted(range(len(numObj)), key=lambda k: numObj[k])
         return bins[sortedNumObj[0]]
 
