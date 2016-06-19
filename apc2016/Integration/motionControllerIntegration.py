@@ -90,7 +90,7 @@ TASK = 'stow'
 
 SHELF_STATIONARY = False
 
-PRESSURE_THRESHOLD = 845
+PRESSURE_THRESHOLD = 850
 
 SKIP_GRASP_FROM_TOTE= False
 SKIP_STOWING_INPUT = False
@@ -102,8 +102,10 @@ TOTE_BOUNDS = [[],[]]
 #TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
 #TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
 
-TOTE_BOUNDS[0] = [0.7594104984418184, -0.23794247248958153, 0.360228946896485]
-TOTE_BOUNDS[1] = [0.5045347771579406, 0.25661248473716464, 0.5386900356225808]
+TOTE_BOUNDS[0] = [0.7560075384967612, -0.21018285279301704, 0.34623535198332]
+TOTE_BOUNDS[1] = [0.49803990865039477, 0.28197204467225134, 0.5341581622402093]
+
+
 
 
 SHELF_CALIBRATION = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
@@ -117,7 +119,7 @@ TOTE_BOUNDS_Z_MIN = min(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 KLAMPT_MODEL="baxter_with_two_vacuums.rob"
 
 
-PERCEPTION_FAIL_THRESHOLD = 2
+PERCEPTION_FAIL_THRESHOLD = 3
 #========================================================================================
 
 CALIBRATE = True
@@ -1515,8 +1517,12 @@ class PickingController:
                 print 'Didn\'t grab anything'
                 print 'Or dropped something on the way back up '
 
+
+
                 self.numStowFails = self.numStowFails + 1
                 turnOffVacuum(limb)
+                time.sleep(3)
+                #let it fall off
                 return False
 
         else:                
@@ -1535,13 +1541,13 @@ class PickingController:
     def evaluateObjectAction(self, limb):
 
         #start state = graspTote
-        #end state = graspTote
+        #end state = evaluateObject
 
         #TODO - 
 
         path_name = 'Q_EVAL_SCALE_'+limb.upper()
         print "self.moveArm(",path_name,")...",
-        self.moveArm(limb = limb, path_name = path_name)
+        self.moveArm(limb = limb, path_name = path_name, finalState = 'evaluateObject')
 
         self.waitForMove()
 
@@ -1551,6 +1557,15 @@ class PickingController:
             (self.stowItems, self.pickBin, self.tilt) = stowHandler.pickWhichObj(limb, True)
             if self.pickBin==None:
                 print "No target object in the weight range"
+
+                self.moveArm(limb = limb, path_name = 'Q_REPLACE_'+limb.upper())
+                self.waitForMove()
+                
+                turnOffVacuum(limb)
+
+                time.sleep(2)
+                self.moveArm(limb = limb, path_name = path_name)
+                self.waitForMove()
                 return False
             # if len(items)>1:
             #     print 'More than One Item'
@@ -1720,7 +1735,7 @@ class PickingController:
 
         if step==2: 
             #target2 = knowledge.getBinTrueCenter('bin_'+bin)
-            target2 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .25])
+            target2 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .35])
             ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
 
             print '\ttrying step2 ik'
@@ -1733,6 +1748,8 @@ class PickingController:
                 self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
                 time.sleep(0.5)
 
+
+                return False
                 # I recommend we keep this off if failed because we don't know if we made it
                 # try:
                 #     turnOffVacuum(limb)
@@ -1746,7 +1763,7 @@ class PickingController:
 
         if step==3: 
             #target2 = knowledge.getBinTrueCenter('bin_'+bin)
-            target3 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .5])
+            target3 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .7])
             ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target3)
 
             print '\ttrying step3 ik'
@@ -1803,7 +1820,7 @@ class PickingController:
                     turnOffVacuum(limb)
                 except:
                     print '\tError in vacuum Comms'
-                return False
+                return True
             self.debugPoints.append(target4)
             self.sendPath(path = [step4], limb = limb)
 
@@ -1830,7 +1847,7 @@ class PickingController:
                     turnOffVacuum(limb)
                 except:
                     print '\tError in vacuum Comms'
-                return False
+                return True
             self.debugPoints.append(target5)
             self.sendPath(path = [step5], limb = limb)
 
@@ -3969,6 +3986,9 @@ class PickingController:
     def getLeftRestPath(self):
         path =  [[self.simworld.robot(0).getConfig()[v] for v in self.left_arm_indices]]
 
+        print 'left state is ', self.stateLeft
+
+
         if(self.stateLeft == 'scan'):
             lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
             #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
@@ -3991,11 +4011,11 @@ class PickingController:
 
             path.append(eval('Q_OUT_OF_TOTE_LEFT'))
 
-        elif self.stateLeft == 'toteStow':
-            lpath = (eval('PREP_TOTE_STOW_LEFT'))
+        elif self.stateLeft == 'evaluateObject' or self.stateLeft == 'toteStow' or self.stateLeft == 'prepTote':
+            lPath = (eval('PREP_TOTE_STOW_LEFT'))[::-1]
             if lPath !=[]:
                 for milestone in lPath:
-                    path.append(milestone)    
+                    path.append(milestone)  
 
         elif self.stateLeft == 'viewTote':
             lPath = eval('Q_VIEW_TOTE_LEFT')
@@ -4050,6 +4070,9 @@ class PickingController:
     def getRightRestPath(self):
         path = [[self.simworld.robot(0).getConfig()[v] for v in self.right_arm_indices]]
 
+        print 'right state is ', self.stateRight
+        
+
         if(self.stateRight == 'scan'):
             rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
             #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
@@ -4070,11 +4093,11 @@ class PickingController:
             path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
 
 
-        elif self.stateRight == 'toteStow':
-            rpath = (eval('PREP_TOTE_STOW_RIGHT'))
+        elif self.stateRight == 'evaluateObject' or self.stateRight == 'prepTote' or self.stateRight =='toteStow':
+            rPath = (eval('PREP_TOTE_STOW_RIGHT'))[::-1]
             if rPath !=[]:
                 for milestone in rPath:
-                    path.append(milestone)    
+                    path.append(milestone)               
 
         elif self.stateRight == 'viewTote':
             rPath = eval('Q_VIEW_TOTE_RIGHT')
