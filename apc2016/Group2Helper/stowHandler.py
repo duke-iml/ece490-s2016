@@ -137,9 +137,13 @@ class stowHandler:
         print self.overlap
 
     def mostEmptyBin(self):
-        numObj=[len(self.binMap[CONST_BIN_NAMES[i]]) for i in range(len(CONST_BIN_NAMES))]
+        bins=CONST_BIN_NAMES
+        bins.remove('bin_J')
+        bins.remove('bin_K')
+        bins.remove('bin_H')
+        numObj=[len(self.binMap[bins[i]]) for i in range(len(bins))]
         sortedNumObj=sorted(range(len(numObj)), key=lambda k: numObj[k])
-        return CONST_BIN_NAMES[sortedNumObj[0]]
+        return bins[sortedNumObj[0]]
 
     def pickWhichObj(self, limb, debug=False):
 
