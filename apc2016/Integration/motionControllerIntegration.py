@@ -262,8 +262,8 @@ class KnowledgeBase:
         #center of the front face of the bin
         bmin,bmax = apc.bin_bounds[bin_name]
 
-        globPoint1 = se3.apply(knowledge.shelf_xform, bmin)
-        globPoint2 = se3.apply(knowledge.shelf_xform, bmax)
+        globPoint1 = se3.apply(knowledge.shelf_xform_canonical, bmin)
+        globPoint2 = se3.apply(knowledge.shelf_xform_canonical, bmax)
 
         if globPoint1[0] > globPoint2[0]:
             xmax = globPoint1[0]
@@ -2083,6 +2083,8 @@ class PickingController:
         #TODO - may need work
 
         minMax = knowledge.getGlobalBounds(bin)
+
+        point = se3.apply(se3.inv(self.perceptionTransform), point)
 
         xVal = minMax[0][0] <= point[0] <=minMax[1][0]
         yVal = minMax[0][1] <= point[1] <= minMax[1][1]
@@ -6001,7 +6003,7 @@ def load_apc_world():
     #knowledge.shelf_xform = se3.mul(reorient, calibration)
     knowledge.shelf_xform = se3.mul(shelfCalibration, reorient)
     knowledge.shelf_xform = se3.mul(testingTransform, knowledge.shelf_xform)
-
+    knowledge.shelf_xform_canonical = knowledge.shelf_xform
 
     # world.terrain(0).geometry().transform(*perceptionTransform)
 
