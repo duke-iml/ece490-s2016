@@ -48,7 +48,7 @@ class CommVacuum:
             self.com.setDTR(True)
 
             print "connected to Arduino Mega"
-            # print('connected to an arduino... checking ID...')
+            # print('connected to an arduino... checking ID...')`
             # time.sleep(0.01)
 
             # arduinoID = self.com.readline()

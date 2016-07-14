@@ -1,24 +1,38 @@
 
 from __future__ import division
+
+FAST_NN = False
+KMEAN_OVER_SEGMENT = False
+COLOR_WEIGHING = False
+
 import numpy as np
 from realsense_utils.client import RemoteCamera
 from realsense_utils.common_utils import render_3d_scatter
 from realsense_utils import colorize_point_cloud
 # def colorize_point_cloud(cloud, color, depth_uv, rgb_table=None)
-import struct, icp, sys, threading, colorsys, time
+import struct, icp, sys, threading, colorsys, time, traceback
 from scipy.spatial import KDTree
+if FAST_NN:
+	print 'WARNING: Using Grid Nearest Neighbor'
+	from grid_nn import GridPointLocation as KDTree
 from scipy.sparse import dok_matrix
 from scipy.stats import gaussian_kde
 import matplotlib.pyplot as plt
 from klampt import se3
 from segmentation import distance_label
 from scipy.sparse.csgraph import connected_components
+# from sklearn.cluster import KMeans
 
 sys.setrecursionlimit(10000)
 downsample_rate = 50
 
-RIGHT_CAMERA_IP = '10.236.66.147'
-LEFT_CAMERA_IP = '10.236.67.183'
+if FAST_NN:
+	initial_threshold = 0.1
+else:
+	initial_threshold = None
+
+RIGHT_CAMERA_IP = '169.254.65.112'
+LEFT_CAMERA_IP = '169.254.97.254'
 
 class CameraData:
 	def __init__(self, color, cloud, depth_uv, color_uv):
@@ -44,15 +58,11 @@ class Perceiver(object):
 	DONE def save_canonical_tote_cloud(self, R, t)
 	DONE def save_R_t(self, filename, R, t)
 	DONE def load_R_t(self, filename, nparray=True)
-	UNFINISHED def get_position_of_item_in_bin(self, item_name, possible_items=None, return_normal=False)
-	UNFINISHED def get_picking_position_for_stowing(self)
-	UNFINISHED def perceive_single_object(self, possible_items=None)
-	UNFINISHED def get_bin_empty_location(self)
 	'''
 
 	def __init__(self):
 		# self.prefix = ''
-		self.prefix = '/home/group3/ece490-s2016/apc2016/Integration/perception/'
+		self.prefix = '/home/hskim/Documents/GitHub/ece490-s2016/apc2016/Integration/perception/'
 		self.shelf_perturb_R = np.eye(3)
 		self.shelf_perturb_t = np.array([0,0,0])
 		# if camera_connect:
@@ -95,7 +105,7 @@ class Perceiver(object):
 	def get_current_bin_content_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, colorful=True, fit=False, threshold=0.01,
 		crop=False, bin_bound=None, perturb_xform=None):
 		'''
-		return a point cloud (either colored or not) of the current bin content in the global frame. shelf is removed. 
+		return a point cloud (either colored or not) of the current bin content in the global frame. shelf is removed.
 		if fit is True, a new round of ICP is done on the model shelf
 		cur_camera_R and cur_camera_t are the current camera transformation in world
 		'''
@@ -119,7 +129,7 @@ class Perceiver(object):
 		assert (self.shelf_perturb_R is not None) and (self.shelf_perturb_t is not None), 'Shelf perturbation has not been calibrated'
 		model_cloud = model_cloud.dot(self.shelf_perturb_R.T) + self.shelf_perturb_t # apply perturbation transformation found by ICP
 		if fit:
-			R, t = icp.match(model_cloud, scene_tree)
+			R, t = icp.match(model_cloud, scene_tree, initial_threshold=initial_threshold) # initial threshold of 1 meter
 			model_cloud = model_cloud.dot(R.T) + t
 		keep_idxs = self.subtract_model(model_cloud, scene_tree=scene_tree, threshold=threshold)
 		bin_content_cloud = scene_cloud[keep_idxs, :]
@@ -134,14 +144,14 @@ class Perceiver(object):
 		crop the cloud to keep only those that are in the bin_bound transformed by perturb_xform
 
 		bin_bound is a list of two lists of three numbers: [[xmin, ymin, zmin], [xmax, ymax, zmax]]
-		
-		solution: rather than transforming the bin_bound and test for inside-ness of skewed cube, inverse transform 
-		the cloud and test for inside-ness of axis-parallel cube. 
+
+		solution: rather than transforming the bin_bound and test for inside-ness of skewed cube, inverse transform
+		the cloud and test for inside-ness of axis-parallel cube.
 		'''
 		assert len(cloud.shape)==2, 'cloud shape must be N x 3 or N x 4 (with color)'
 		if bin_bound is None:
 			return cloud
-		
+
 		min_list, max_list = bin_bound
 		xmin, ymin, zmin = min_list
 		xmax, ymax, zmax = max_list
@@ -187,9 +197,9 @@ class Perceiver(object):
 		labels, n_components = self.segment_cloud(cropped_cloud, threshold=threshold)
 		return cropped_cloud, labels, n_components
 
-	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, crop=False, bin_bound=None, 
+	def get_current_bin_content_cc_cloud(self, bin_letter, cur_camera_R, cur_camera_t, limb, crop=False, bin_bound=None,
 		perturb_xform=None, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, n=None):
-		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
+		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb,
 			colorful=False, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
 		labels, n_components = self.segment_cloud(bin_content_cloud, cc_threshold)
 		sizes = [len(np.where(labels==i)[0]) for i in xrange(n_components)]
@@ -208,105 +218,97 @@ class Perceiver(object):
 			cc_cloud = np.vstack( [cc_cloud, cur_cc_cloud] )
 		return cc_cloud
 
-	def get_picking_position_for_single_item_bin(self, bin_letter, cur_camera_R, cur_camera_t, limb, 
-		colorful=True, fit=False, threshold=0.01, crop=False, bin_bound=None, perturb_xform=None, 
-		return_bin_content_cloud=False, return_normal=False):
+	def get_picking_position_for_single_item_bin(self, bin_letter, cur_camera_R, cur_camera_t, limb,
+		colorful=True, fit=False, threshold=0.01, crop=False, bin_bound=None, perturb_xform=None,
+		return_bin_content_cloud=False, return_dir_suggestion=False):
 		'''
-		physical pre-condition: place the camera to the hard-coded tote-viewing position. 
+		physical pre-condition: place the camera to the hard-coded tote-viewing position.
 
-		return (x,y,z) coordinate in global frame of position that has something to suck. 
+		return (x,y,z) coordinate in global frame of position that has something to suck.
 		'''
-		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
+		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb,
 			colorful=colorful, fit=fit, threshold=threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
 		pos = self.find_max_density_3d(bin_content_cloud)
 		bin_content_tree = KDTree(bin_content_cloud[:,0:3])
 		neighbor_idxs = bin_content_tree.query_ball_point(pos, r=0.002)
-		print 'neighbor_idxs is of type', neighbor_idxs.__class__
-		if len(neighbor_idxs)==0:
-			print 'no neighbors!'
-			normal = [-1,0,0]
-		else:
-			pts = bin_content_tree[neighbor_idxs,0:3]
-			normal = get_normal(pts)
+		# print 'neighbor_idxs is of type', neighbor_idxs.__class__
 		return_list = [pos]
 		if return_bin_content_cloud:
 			return_list += [bin_content_cloud]
-		if return_normal:
-			return_list += [normal]
+		if return_dir_suggestion:
+			assert bin_bound is not None, 'bin_bound must be given to give direction suggestion'
+			cloud_zs = list(bin_content_cloud[:,2].flat)
+			z_top = sorted(cloud_zs)[int(len(cloud_zs)*0.8)]
+			zmin, zmax = bin_bound[0][2], bin_bound[1][2]
+			if z_top<zmin+0.5*(zmax-zmin):
+				direction = 'from top'
+			else:
+				ymin, ymax = bin_bound[0][1], bin_bound[1][1]
+				pos_y = pos[1]
+				y_center = (ymin + ymax ) / 2
+				if pos_y < y_center:
+					direction = 'from left'
+				else:
+					direction = 'from right'
+			return_list += [direction]
 		if len(return_list)==1:
 			return return_list[0]
 		else:
 			return return_list
 
-	def get_normal(self, pts):
-		pts = np.array(pts)
-		assert pts.shape[1]==3, 'pts must have shape N x 3'
-		return [-1,0,0]
-
-	def long_name_to_short(self, name):
+	def cc_label_to_list(self, labels, n_components, cloud, max_num_comp=None):
 		'''
-		translate official APC item name to short name stored in uv_hist
+		convert a cloud that is already being cc-ed to list of separate clouds
 		'''
-		short_names = ['baseball', 'bear', 'bones', 'bowl', 'brush', 'bulb', 'bunny', 
-		'coffee', 'cord', 'crayola24', 'cup', 'curtain', 'dumbbell', 'dvd', 'eggs', 
-		'expo', 'gloves', 'glucose', 'glue', 'glue_stick', 'hooks', 'index_card', 
-		'joke', 'mailer', 'paper_towel', 'pencil', 'plug', 'rolodex', 'scissor', 'shirt', 
-		'soap', 'socks', 'stems', 'tape', 'tissue', 'toothbrush_green', 'toothbrush_red', 
-		'util_brush', 'water']
-		long_names = ['rawlings_baseball', 'cloud_b_plush_bear', 'barkely_hide_bones', 'platinum_pets_dog_bowl', 
-		'dr_browns_bottle_brush', 'soft_white_lightbulb', 'i_am_a_bunny_book', 'folgers_classic_roast_coffee', 'woods_extension_cord', 
-		'crayola_24_ct', 'easter_turtle_sippy_cup', 'peva_shower_curtain_liner', 'fitness_gear_3lb_dumbbell', 'jane_eyre_dvd', 
-		'kyjen_squeakin_eggs_plush_puppies', 'expo_dry_erase_board_eraser', 'womens_knit_gloves', 'up_glucose_bottle', 'elmers_washable_no_run_school_glue', 
-		'cool_shot_glue_sticks', 'command_hooks', 'staples_index_cards', 'laugh_out_loud_joke_book', 'scotch_bubble_mailer', 
-		'kleenex_paper_towels', 'ticonderoga_12_pencils', 'safety_first_outlet_plugs', 'rolodex_jumbo_pencil_cup', 
-		'fiskars_scissors_red', 'cherokee_easy_tee_shirt', 'dove_beauty_bar', 'hanes_tube_socks', 'creativity_chenille_stems', 
-		'scotch_duct_tape', 'kleenex_tissue_box', 'oral_b_toothbrush_green', 'oral_b_toothbrush_red', 'clorox_utility_brush', 'dasani_water_bottle']
-		assert name in (long_names+short_names), 'name: %s must be either long form or short form'%name
-		if name in long_names:
-			name = short_names[long_names.index(name)]
-		return name
+		if max_num_comp is None:
+			max_num_comp = float('inf')
+		sizes = [len(np.where(labels==i)[0]) for i in xrange(n_components)]
+		sorted_idxs = [ i for _,i in sorted([(v,i) for i,v in enumerate(sizes)]) ][::-1]
+		sorted_idxs = sorted_idxs[0:min(n_components, max_num_comp)]
+		cc_cloud_list = [cloud[np.where(labels==i)[0], :] for i in sorted_idxs]
+		return cc_cloud_list
 
-
-
-	def get_picking_position_for_bin(self, target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb, 
-		colorful=True, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, crop=False, bin_bound=None, perturb_xform=None, return_bin_content_cloud=False):
+	def kmean_over_segment(self, cc_cloud_list, target_num_comp):
 		'''
-		perception API for picking from bin
-		will return None if perception failed (e.g. not able to find specified object)
+		recursively segement the largest cluster into 2 until there are target_num_comp clouds
 		'''
-		assert target_item in possible_items, 'target item must be in the list of possible items'
-		if len(possible_items)==1: # single object localization
-			return self.get_picking_position_for_single_item_bin(bin_letter, cur_camera_R, cur_camera_t, limb, 
-				colorful=colorful, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, 
-				perturb_xform=perturb_xform, return_bin_content_cloud=return_bin_content_cloud)
+		print cc_cloud_list.__class__
+		cloud = cc_cloud_list[0]
+		cc_cloud_list = cc_cloud_list[1:]
+		cloud_xyz = cloud[0:3]
+		kmeans = KMeans(n_clusters=2)
+		labels = kmeans.fit_predict(cloud_xyz)
+		cloud0 = cloud[np.where(labels==0)[0], :]
+		cloud1 = cloud[np.where(labels==1)[0], :]
+		cc_cloud_list += [cloud0, cloud1]
+		cc_cloud_list = sorted(cc_cloud_list, key=lambda x:-x.shape[0])
+		if len(cc_cloud_list)<target_num_comp:
+			return self.kmean_over_segment(cc_cloud_list, target_num_comp)
 		else:
-			target_item = self.long_name_to_short(target_item)
-			possible_items = map(self.long_name_to_short, possible_items)
-			return self.get_picking_position_for_multi_item_bin(target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb, 
-				colorful=colorful, fit=fit, shelf_subtraction_threshold=shelf_subtraction_threshold, cc_threshold=cc_threshold, 
-				crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform, return_bin_content_cloud=return_bin_content_cloud)
+			return cc_cloud_list
 
-	def get_picking_position_for_multi_item_bin(self, target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb, 
-		colorful=True, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, crop=False, bin_bound=None, perturb_xform=None, return_bin_content_cloud=False):
+	def get_picking_position_for_multi_item_bin(self, target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb,
+		colorful=True, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.02, crop=False, bin_bound=None, perturb_xform=None,
+		return_bin_content_cloud=False, return_dir_suggestion=False):
 		'''
-		return (x,y,z) coordinate in global frame of position that has something to suck. 
+		return (x,y,z) coordinate in global frame of position that has something to suck.
 		'''
-		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb, 
+		bin_content_cloud = self.get_current_bin_content_cloud(bin_letter, cur_camera_R, cur_camera_t, limb,
 			colorful=colorful, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform)
 		assert bin_content_cloud.shape[1]==4, 'Color channel seems to be missing'
 		labels, n_components = self.segment_cloud(bin_content_cloud, cc_threshold)
 
 		'''
-		Better way: return cloud that maximizes f-g, 
+		Better way: return cloud that maximizes f-g,
 		where f is correlation with target object, and g is max correlation with non-target object.
 		'''
-		sizes = [len(np.where(labels==i)[0]) for i in xrange(n_components)]
-		sorted_idxs = [ i for _,i in sorted([(v,i) for i,v in enumerate(sizes)]) ][::-1]
-		sorted_idxs = sorted_idxs[0:min(n_components, len(possible_items)+1)]
+		cc_cloud_list = self.cc_label_to_list(labels, n_components, bin_content_cloud, max_num_comp=len(possible_items)+1)
+		cc_cloud_list = sorted(cc_cloud_list, key=lambda x:-x.shape[0]) # this should do nothing because cc_label_to_list has sorted, but just in case...
+		if KMEAN_OVER_SEGMENT and len(possible_items)>=4:
+			cc_cloud_list = self.kmean_over_segment(cc_cloud_list, len(possible_items)*2+1)
 		best_score = None
 		best_cloud = None
-		for i in sorted_idxs:
-			cur_cloud = bin_content_cloud[np.where(labels==i)[0], :]
+		for i, cur_cloud in enumerate(cc_cloud_list):
 			cur_uv_hist = self.make_uv_hist_from_cloud(cur_cloud)
 			scoring_func = lambda item: self.calculate_uv_matching(cur_uv_hist, self.load_uv_hist_for_item(item), suppress_center=True)
 			f_score = scoring_func(target_item)
@@ -321,11 +323,82 @@ class Perceiver(object):
 		if best_cloud is None:
 			print 'No positive score difference for item %s among items %s'%(target_item, str(possible_items))
 			return None
-		pos = self.find_max_density_3d(best_cloud)
-		if not return_bin_content_cloud:
-			return pos
+		if COLOR_WEIGHING:
+			pos = self.find_max_density_3d(best_cloud, with_color=True, uv_hist=self.load_uv_hist_for_item(item))
 		else:
-			return pos, best_cloud
+			pos = self.find_max_density_3d(best_cloud)
+		return_list = [pos]
+		if return_bin_content_cloud:
+			return_list += [best_cloud]
+		if return_dir_suggestion:
+			assert bin_bound is not None, 'bin_bound must be given to give direction suggestion'
+			zmin, zmax = bin_bound[0][2], bin_bound[1][2]
+			z_cloud_max = max(list(best_cloud[:,2].flat))
+			if z_cloud_max<zmin+0.6*(zmax-zmin):
+				direction = 'from top'
+			else:
+				ymin, ymax = bin_bound[0][1], bin_bound[1][1]
+				pos_y = pos[1]
+				y_center = (ymin + ymax ) / 2
+				if pos_y < y_center:
+					direction = 'from left'
+				else:
+					direction = 'from right'
+			return_list += [direction]
+		if len(return_list)==1:
+			return return_list[0]
+		else:
+			return return_list
+
+	def long_name_to_short(self, name):
+		'''
+		translate official APC item name to short name stored in uv_hist
+		'''
+		short_names = ['baseball', 'bear', 'bones', 'bowl', 'brush', 'bulb', 'bunny',
+		'coffee', 'cord', 'crayola24', 'cup', 'curtain', 'dumbbell', 'dvd', 'eggs',
+		'expo', 'gloves', 'glucose', 'glue', 'glue_stick', 'hooks', 'index_card',
+		'joke', 'mailer', 'paper_towel', 'pencil', 'plug', 'rolodex', 'scissor', 'shirt',
+		'soap', 'socks', 'stems', 'tape', 'tissue', 'toothbrush_green', 'toothbrush_red',
+		'util_brush', 'water']
+		long_names = ['rawlings_baseball', 'cloud_b_plush_bear', 'barkely_hide_bones', 'platinum_pets_dog_bowl',
+		'dr_browns_bottle_brush', 'soft_white_lightbulb', 'i_am_a_bunny_book', 'folgers_classic_roast_coffee', 'woods_extension_cord',
+		'crayola_24_ct', 'easter_turtle_sippy_cup', 'peva_shower_curtain_liner', 'fitness_gear_3lb_dumbbell', 'jane_eyre_dvd',
+		'kyjen_squeakin_eggs_plush_puppies', 'expo_dry_erase_board_eraser', 'womens_knit_gloves', 'up_glucose_bottle', 'elmers_washable_no_run_school_glue',
+		'cool_shot_glue_sticks', 'command_hooks', 'staples_index_cards', 'laugh_out_loud_joke_book', 'scotch_bubble_mailer',
+		'kleenex_paper_towels', 'ticonderoga_12_pencils', 'safety_first_outlet_plugs', 'rolodex_jumbo_pencil_cup',
+		'fiskars_scissors_red', 'cherokee_easy_tee_shirt', 'dove_beauty_bar', 'hanes_tube_socks', 'creativity_chenille_stems',
+		'scotch_duct_tape', 'kleenex_tissue_box', 'oral_b_toothbrush_green', 'oral_b_toothbrush_red', 'clorox_utility_brush', 'dasani_water_bottle']
+		assert name in (long_names+short_names), 'name: %s must be either long form or short form'%name
+		if name in long_names:
+			name = short_names[long_names.index(name)]
+		return name
+
+	def get_picking_position_for_bin(self, target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb,
+		colorful=True, fit=False, shelf_subtraction_threshold=0.01, cc_threshold=0.025, crop=False, bin_bound=None, perturb_xform=None,
+		return_bin_content_cloud=False, return_dir_suggestion=False):
+		'''
+		perception API for picking from bin
+		will return None if perception failed (e.g. not able to find specified object)
+		'''
+		try:
+			assert target_item in possible_items, 'target item must be in the list of possible items'
+			if len(possible_items)==1: # single object localization
+				return self.get_picking_position_for_single_item_bin(bin_letter, cur_camera_R, cur_camera_t, limb,
+					colorful=colorful, fit=fit, threshold=shelf_subtraction_threshold, crop=crop, bin_bound=bin_bound,
+					perturb_xform=perturb_xform, return_bin_content_cloud=return_bin_content_cloud,
+					return_dir_suggestion=return_dir_suggestion)
+			else:
+				target_item = self.long_name_to_short(target_item)
+				possible_items = map(self.long_name_to_short, possible_items)
+				return self.get_picking_position_for_multi_item_bin(target_item, possible_items, bin_letter, cur_camera_R, cur_camera_t, limb,
+					colorful=colorful, fit=fit, shelf_subtraction_threshold=shelf_subtraction_threshold, cc_threshold=cc_threshold,
+					crop=crop, bin_bound=bin_bound, perturb_xform=perturb_xform, return_bin_content_cloud=return_bin_content_cloud,
+					return_dir_suggestion=return_dir_suggestion)
+		except:
+			print 'PERCEPTION EXCEPTION!!!!!!!!!!!!!'
+			traceback.print_exc()
+			return None
+
 
 	def rgb_to_uv(self, rgb):
 		r, g, b = rgb
@@ -383,20 +456,20 @@ class Perceiver(object):
 
 	def get_current_point_cloud(self, cur_camera_R, cur_camera_t, limb, colorful=False, tolist=True):
 		'''
-		physical pre-condition: place the camera to the desired viewing angle. 
+		physical pre-condition: place the camera to the desired viewing angle.
 
-		return the point cloud that the camera is currently perceiving. 
+		return the point cloud that the camera is currently perceiving.
 
 		if colorful is True, a colorized point cloud is returned, (it may take longer);
-		else, a black point cloud is returned. 
-		
-		the black point cloud is a numpy matrix of h x w x 3, where point_cloud[i,j,:] 
-		gives the 3D coordinate of that point in camera frame in meter. 
+		else, a black point cloud is returned.
 
-		the colored point cloud is a numpy matrix of h x w x 4, where the last layer is the rgb color, 
+		the black point cloud is a numpy matrix of h x w x 3, where point_cloud[i,j,:]
+		gives the 3D coordinate of that point in camera frame in meter.
+
+		the colored point cloud is a numpy matrix of h x w x 4, where the last layer is the rgb color,
 		packed in PCL format into a single float. RGB can be retrieved by pcl_float_to_rgb(f) function
-		defined above. 
-		
+		defined above.
+
 		if there is an error in retrieving data, None is returned
 		'''
 		color, cloud, depth_uv, _ = self.read_once(limb, unit='meter', Nx3_cloud=False)
@@ -412,7 +485,7 @@ class Perceiver(object):
 		cloud = cloud[keep_idxs, :]
 		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
 		cur_camera_t = np.array(cur_camera_t)
-		cloud_xyz = cloud[:,0:3] 
+		cloud_xyz = cloud[:,0:3]
 		cloud_xyz = cloud_xyz.dot(cur_camera_R.T) + cur_camera_t
 		cloud[:,0:3] = cloud_xyz
 		if tolist:
@@ -424,24 +497,28 @@ class Perceiver(object):
 
 	def get_picking_position_for_stowing(self, cur_camera_R, cur_camera_t, limb, fit=False, return_tote_content_cloud=False):
 		'''
-		physical pre-condition: place the camera to the hard-coded tote-viewing position. 
+		physical pre-condition: place the camera to the hard-coded tote-viewing position.
 
-		return (x,y) coordinate in global frame of position that has something to suck. 
+		return (x,y) coordinate in global frame of position that has something to suck.
 		'''
 		tote_content_cloud = self.get_current_tote_content_cloud(cur_camera_R, cur_camera_t, limb, fit=fit)
 		tote_content_cloud = self.crop_tote_cloud(tote_content_cloud)
 		return self.find_max_density_xy(tote_content_cloud, return_tote_content_cloud)
 
-	def get_candidate_picking_positions_for_stowing(self, cur_camera_R, cur_camera_t, limb, fit=False, return_tote_content_cloud=False):
+	def get_candidate_picking_positions_for_stowing(self, cur_camera_R, cur_camera_t, limb, fit=False, return_tote_content_cloud=False, avoid_poss=[], avoid_radius=0.03):
 		'''
-		physical pre-condition: place the camera to the hard-coded tote-viewing position. 
+		physical pre-condition: place the camera to the hard-coded tote-viewing position.
+		avoid_poss is a list of list of two numbers, specifying list of points to avoid
 
-		return a list of (x,y) coordinate in global frame of position that has something to suck. 
+		return a list of (x,y) coordinate in global frame of position that has something to suck.
 		'''
+		avoid_poss = [[x,y] for (x,y) in avoid_poss]
+		print "avoid_poss", avoid_poss
 		tote_content_cloud = self.get_current_tote_content_cloud(cur_camera_R, cur_camera_t, limb, fit=fit)
 		tote_content_cloud = self.crop_tote_cloud(tote_content_cloud)
 		xs = tote_content_cloud[:,0]
 		ys = tote_content_cloud[:,1]
+		zs = tote_content_cloud[:,2]
 		xs_sorted = sorted(list(xs.flat))
 		ys_sorted = sorted(list(ys.flat))
 		N = len(xs_sorted)
@@ -462,10 +539,25 @@ class Perceiver(object):
 		all_idxs = self.get_all_local_maxima(densities)
 		# all_idxs = sorted(all_idxs, key=lambda idx:-densities[idx[0], idx[1]]) # sort in descending order of density
 		all_locs = [[x_grid[x_idx,y_idx], y_grid[x_idx,y_idx]] for x_idx,y_idx in all_idxs]
+		safe_locs = []
+		for loc in all_locs:
+			keep = True
+			for avoid_pos in avoid_poss:
+				# print 'loc:', loc
+				# print 'avoid_pos', avoid_pos
+				# print 'dist', (loc[0]-avoid_pos[0])**2+(loc[0]-avoid_pos[0])**2
+				if (loc[0]-avoid_pos[0])**2+(loc[1]-avoid_pos[1])**2<=avoid_radius**2:
+					# print 'avoided'
+					keep = False
+				break
+			if keep:
+				avoid_poss.append(loc)
+				safe_locs.append(loc)
+		print '%i safe locs remain from %i total points'%(len(safe_locs), len(all_locs))
 		if not return_tote_content_cloud:
-			return all_locs
+			return safe_locs[0:5], max(list(zs.flat))
 		else:
-			return all_locs, tote_content_cloud
+			return safe_locs[0:5], tote_content_cloud, max(list(zs.flat))
 
 	def remove_local_max(self, mat, x, y):
 		h, w = mat.shape
@@ -511,7 +603,7 @@ class Perceiver(object):
 
 		model_cloud = self.load_model_tote_cloud(limb, downsample=True)
 		assert model_cloud is not None, 'Error loading tote model'
-		
+
 		model_xform_R, model_xform_t = self.load_R_t(self.get_tote_viewing_camera_xform_path(limb), nparray=True)
 		model_cloud = model_cloud.dot(model_xform_R) + model_xform_t
 
@@ -519,13 +611,13 @@ class Perceiver(object):
 		cur_camera_t = np.array(cur_camera_t)
 		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R.T) + cur_camera_t # transform scene cloud
 		scene_cloud[:, 0:3] = scene_cloud_xyz
-		
+
 		print "Making scene cloud with %i points"%scene_cloud.shape[0]
 		scene_tree = KDTree(scene_cloud_xyz)
 		print "Done"
-		
+
 		if fit:
-			R, t = icp.match(model_cloud, scene_tree)
+			R, t = icp.match(model_cloud, scene_tree, iterations=10, initial_threshold=initial_threshold)
 			model_cloud = model_cloud.dot(R.T) + t
 
 		keep_idxs = self.subtract_model(model_cloud, scene_tree=scene_tree, threshold=threshold)
@@ -542,6 +634,9 @@ class Perceiver(object):
 		content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
 		print "Clean cloud has %i points"%content_cloud.shape[0]
 
+		if content_cloud.shape[0] > 1000:
+			return content_cloud
+
 		print "Making content cloud with %i points"%content_cloud.shape[0]
 		content_tree = KDTree(content_cloud[:, 0:3])
 		print "Done. Querying neighbors within 0.03 m"
@@ -549,6 +644,9 @@ class Perceiver(object):
 		unisolated_flag = map(lambda x: len(x)>=4, idxs)
 		content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
 		print "Clean cloud has %i points"%content_cloud.shape[0]
+
+		if content_cloud.shape[0] > 500:
+			return content_cloud
 
 		print "Making content cloud with %i points"%content_cloud.shape[0]
 		content_tree = KDTree(content_cloud[:, 0:3])
@@ -558,7 +656,7 @@ class Perceiver(object):
 		content_cloud = content_cloud[np.where(unisolated_flag)[0], :]
 		print "Clean cloud has %i points"%content_cloud.shape[0]
 		return content_cloud
-		
+
 
 	def get_shelf_transformation(self, bin_letter, cur_camera_R, cur_camera_t, limb):
 		'''
@@ -566,12 +664,12 @@ class Perceiver(object):
 
 		bin_letter is one of ['A', 'B', ..., 'L']
 
-		return the shelf transformation as (R, t), where R is a column-major order flattened array of rotation matrix, 
-		and t is an array of 3 numbers for transformation. 
+		return the shelf transformation as (R, t), where R is a column-major order flattened array of rotation matrix,
+		and t is an array of 3 numbers for transformation.
 		'''
 		shelf_perturb_R, shelf_perturb_t = self.icp_get_bin_transform(bin_letter, cur_camera_R, cur_camera_t, limb)
 		# save perturbation transformation for shelf subtraction during perception
-		
+
 		#self.shelf_perturb_R = shelf_perturb_R
 		#self.shelf_perturb_t = shelf_perturb_t
 		return shelf_perturb_R, shelf_perturb_t
@@ -581,8 +679,8 @@ class Perceiver(object):
 		(private) get the current bin transform relative to canonical position for the specified bin
 		bin_letter is one of ['A', 'B', ..., 'L'] and is used to load the pre-computed shelf cloud
 
-		return (R, t), where R is a column-major order flattened array of rotation matrix, 
-		and t is an array of 3 numbers for transformation. 
+		return (R, t), where R is a column-major order flattened array of rotation matrix,
+		and t is an array of 3 numbers for transformation.
 		'''
 		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
 		cur_camera_t = np.array(cur_camera_t).flatten()
@@ -596,7 +694,7 @@ class Perceiver(object):
 		np.save(self.prefix+'tmp/model_cloud_xformed.npy', model_cloud_xformed)
 		np.save(self.prefix+'tmp/scene_cloud_xformed.npy', scene_cloud_xformed)
 		scene_tree = KDTree(scene_cloud_xformed)
-		relative_R, relative_t = icp.match(model_cloud_xformed, scene_tree)
+		relative_R, relative_t = icp.match(model_cloud_xformed, scene_tree, initial_threshold=initial_threshold)
 		relative_R = list(relative_R.flatten(order='F'))
 		relative_t = list(relative_t.flat)
 		return relative_R, relative_t
@@ -673,7 +771,7 @@ class Perceiver(object):
 	def save_canonical_bin_point_cloud(self, bin_letter, R, t, limb):
 		'''
 		physical pre-condition: place the camera to the position viewing specified bin
-		when the shelf is NOT perturbed. 
+		when the shelf is NOT perturbed.
 
 		bin_letter is one of ['A', 'B', ..., 'L']
 
@@ -725,46 +823,10 @@ class Perceiver(object):
 			t = np.array(t)
 		return R, t
 
-	def get_position_of_item_in_bin(self, item_name, possible_items=None, return_normal=False):
-		'''
-		physical pre-condition: place the camera to the calibrated bin-viewing position.
-		calibrated position is the IK-solved position that is constant ***relative to the shelf***
-
-		***setting item_name to None*** suggests that there is only one item in the bin. Thus, no vision
-		algorithm is used. 
-
-		possible_items is a list of item names that can possibly be in the bin.
-		if None is provided, it will try to choose among all items. 
-
-		return (x,y,z) coordinate of the center of detected item. If return_normal is True, return local 
-		normal vector possibly for choosing suction direction (this operation may be slow). 
-		'''
-		raise NotImplemented
-
-	def perceive_single_object(self, possible_items=None):
-		'''
-		physical pre-condition: place the camera in a position to view an object being picked up 
-		by another object
-
-		this method is called if the scale is not enough to discriminate object (e.g. when two or more 
-		objects have similar weights). 
-
-		possible_items is a list of item names that can possibly be the item being picked (similar weights).
-		if None is provided, it will try to choose among all items. 
-	
-		return the official name of predicted item. 
-		'''
-		raise NotImplemented
-
-	def get_bin_empty_location(self):
-		'''
-		physical pre-condition: place the camera to the calibrated bin-viewing position. 
-
-		return (x,y,z) coordinate of with deepest z value. useful for determining stowing location. 
-		'''
-		raise NotImplemented
-
-	def find_max_density_3d(self, cloud, return_cloud=False):
+	def find_max_density_3d(self, cloud, return_cloud=False, with_color=False, uv_hist=None):
+		if with_color:
+			assert cloud.shape[1]==4 and uv_hist is not None, 'no color channel detected for finding color-weighted max-density'
+			assert uv_hist.shape==(64,64), 'wrong uv histogram shape. currently only 64 x 64 shape is supported. '
 		xs = cloud[:,0]
 		ys = cloud[:,1]
 		zs = cloud[:,2]
@@ -784,12 +846,42 @@ class Perceiver(object):
 		inrange = reduce(np.logical_and, [x_inrange, y_inrange, z_inrange])
 		bin_content_cloud_inrange = cloud[inrange, :]
 		cloud_inrange_xyz = bin_content_cloud_inrange[:, 0:3]
+		print 'cloud in range shape!!!', cloud_inrange_xyz.shape
 		gaussian_kernel = gaussian_kde(cloud_inrange_xyz.T)
+		x_bins = np.linspace(xmin, xmax, 30)
+		y_bins = np.linspace(ymin, ymax, 30)
+		z_bins = np.linspace(zmin, zmax, 30)
 		print 'making grid'
-		x_grid, y_grid, z_grid = np.meshgrid(np.linspace(xmin, xmax, 30), np.linspace(ymin, ymax, 30), np.linspace(zmin, zmax, 30), indexing='ij')
+		x_grid, y_grid, z_grid = np.meshgrid(x_bins, y_bins, z_bins, indexing='ij')
 		positions = np.vstack([x_grid.ravel(), y_grid.ravel(), z_grid.ravel()])
 		print 'calculating density'
 		densities = np.reshape(gaussian_kernel(positions).T, x_grid.shape)
+		if with_color:
+			try:
+				# weigh densities by color
+				self.suppress(uv_hist)
+				uv_hist = uv_hist / uv_hist.sum()
+				multiplier = np.ones(densities.shape)
+				for p in cloud:
+					count_dict = {}
+					x, y, z, pcl_float = list(p.flat)
+					r, g, b = pcl_float_to_rgb(pcl_float)
+					u, v = rgb_to_uv([r,g,b])
+					x_idx = int((x-xmin)/((xmax-xmin)/29))
+					y_idx = int((y-ymin)/((ymax-ymin)/29))
+					z_idx = int((z-zmin)/((zmax-zmin)/29))
+					u_idx = int(u/4)
+					v_idx = int(v/4)
+					hist_val = uv_hist[u_idx, v_idx]
+					if (xidx,yidx,zidx) not in count_dict:
+						count_dict[(xidx,yidx,zidx)] = 0
+					count_dict[(xidx,yidx,zidx)] += 1
+					multiplier[xidx, yidx, zidx] *= (hist_val+1)
+				for xidx, yidx, zidx in count_dict:
+					multiplier[xidx, yidx, zidx] = multiplier[xidx, yidx, zidx]**(1/count_dict[(xidx,yidx,zidx)])
+				densities = np.multiply(densities, multiplier)
+			except:
+				traceback.print_exc()
 		print 'argmax-ing'
 		max_idx = densities.argmax()
 		print 'done'
@@ -837,7 +929,7 @@ def remove_invalid_points(cloud):
 
 def f_addr_to_i(f):
 	return struct.unpack('I', struct.pack('f', f))[0]
-	
+
 def i_addr_to_f(i):
 	return struct.unpack('f', struct.pack('I', i))[0]
 
@@ -934,7 +1026,22 @@ def save_bin():
 	perceiver.save_canonical_bin_point_cloud('A')
 	raw_input('Press to save new bin_A model')
 	perceiver.save_canonical_bin_point_cloud('A_perturbed')
-	
+
 
 if __name__ == '__main__':
 	test_tote_subtraction()
+
+
+
+	# def get_normal(self, pts):
+	# 	'''
+	# 	Normal vector is the eigenvector corresponding to the smallest eigenvalue of the covariance matrix
+	# 	'''
+	# 	pts = np.array(pts)
+	# 	assert pts.shape[1]==3, 'pts must have shape N x 3'
+	# 	cov_matrix = np.cov(pts, rowvar=False)
+	# 	w, v = np.linalg.eig(cov_matrix)
+	# 	w = list(w.flat)
+	# 	ind = w.index(min(w))
+	# 	normal = -v[:,ind]/v[0,ind] # normalize to have x==-1
+	# 	return normal
