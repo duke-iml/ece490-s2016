@@ -1,2 +1,0 @@
-/usr/bin/ar cr lib/libsspp.a  CMakeFiles/sspp.dir/src/sspp/Topic.cpp.o CMakeFiles/sspp.dir/src/sspp/Send.cpp.o CMakeFiles/sspp.dir/src/sspp/Spiffy.cpp.o CMakeFiles/sspp.dir/src/sspp/Service.cpp.o
-/usr/bin/ranlib lib/libsspp.a
