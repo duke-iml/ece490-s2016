@@ -4,7 +4,7 @@ using namespace std;
 
 namespace SSPP {
 
-string server = "tcp://localhost:4567";
+string server = SSPP_DEFAULT_TOPIC_SERVER;
 string context = ".";
 
 Mutex globalMutex;
@@ -14,7 +14,7 @@ map<string,int> writeOnly;
 class SpiffyPushService:public Service
 {
 public:
-  SpiffyPushService(const char* host="tcp://localhost:4567")
+  SpiffyPushService(const char* host)
   {
     if(!OpenClient(host)) return;
     for(map<string,vector<AnySpiffy*> >::iterator i=pushVariables.begin();i!=pushVariables.end();i++) {
@@ -87,12 +87,12 @@ public:
   }
 };
 
-  class SpiffySynchronizedService : public Service
+class SpiffySynchronizedService : public Service
 {
 public:
   File client;
   int myID;
-  SpiffySynchronizedService(const char* host="tcp://localhost:4567")
+  SpiffySynchronizedService(const char* host)
   {
     if(!client.Open(host,FILECLIENT)) return;
     //note: possible conflict if multiple services start up simultaneously

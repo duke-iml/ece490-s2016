@@ -94,7 +94,7 @@ class _SyncService(service.Service):
         self.sendMessage({'type':'name','data':'Spiffy pull thread'})
         self.sendMessage({'type':'get','path':'_spiffy.clientCounter'})
         #print "Waiting for numclients get..."
-        result = self.waitForMessage()
+        result = self.waitForMessage(sameThread=False)
         #print "  done"
         if result==None:
             self.id = 0
@@ -204,7 +204,7 @@ class Spiffy:
         global _syncService
         _syncService.sendMessage({'type':'get','path':self.path})
         #print "Waiting for get",self.path,"..."
-        self.value = _syncService.waitForMessage()
+        self.value = _syncService.waitForMessage(sameThread=False)
         #print "Got",self.path
         return self.value
     def _update(self,value):

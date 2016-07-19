@@ -149,6 +149,7 @@ class ClientHandler(asyncore.dispatcher):
     def sendMessage(self,msg):
         smsg = json.dumps(msg)
         #print "JSON message:",smsg
+        #print "message prefix:",packStrlen(smsg)
         self.buffer = self.buffer + packStrlen(smsg) + smsg
         #print "buffer now:",self.buffer
 
@@ -220,7 +221,7 @@ class Service(asyncore.dispatcher):
 
     def handle_error(self):
         print "Service: an error occurred:",sys.exc_info()[1]
-        #traceback.print_exc()
+        traceback.print_exc()
         self.close()
         self.opened = False
         raise
@@ -254,11 +255,13 @@ class Service(asyncore.dispatcher):
         sent = self.send(self.buffer)
         self.buffer = self.buffer[sent:]
 
-    def waitForMessage(self,timeout=None):
+    def waitForMessage(self,timeout=None,sameThread=True):
         """Call this to wait for the next message, or for the timeout to elapse.
         Returns the waited for message, or None if the timeout was reached.
 
-        Assumes the asyncore loop has already started (e.g., using run())
+        If sameThread=False, assumes the asyncore loop has already started in a different
+        thread (e.g., using run()).  If sameThread=False and this function is called in the
+        same thread as run(), it will block!
         """
         self._waitMessage = None
         self._waitMessageReceived = False
@@ -280,7 +283,10 @@ class Service(asyncore.dispatcher):
                 print "waitForMessage(): read error occurred, returning None"
                 self.onMessage = oldOnMessage
                 return None
-            time.sleep(0.01)
+            if sameThread:
+                asyncore.loop(timeout = 0.01, count=1, map=self.map)
+            else:
+                time.sleep(0.01)
         self.onMessage = oldOnMessage
         print "waitForMessage(): hit timeout, returning None"
         return None
@@ -307,12 +313,15 @@ class Service(asyncore.dispatcher):
         if hasattr(self,'clients'):
             #this is in server mode, send the message to clients
             smsg = json.dumps(msg)
-            smsg = packStrlen(smsg)+smsg
+            #print "server->client JSON message:",smsg
+            #print "  msg header",packStrlen(smsg)
             for c in self.clients:
                 c.buffer = c.buffer + packStrlen(smsg) + smsg
+                #print "client buffer now:",c.buffer
+            return
 
         smsg = json.dumps(msg)
-        #print "JSON message:",smsg
+        #print "Client->server JSON message:",smsg
         self.buffer = self.buffer + packStrlen(smsg) + smsg
         #print "buffer now:",self.buffer
 

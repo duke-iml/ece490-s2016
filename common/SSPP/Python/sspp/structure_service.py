@@ -297,7 +297,7 @@ class StructureService (Service):
                                 if self.verbosity >= DEBUG: print "Sending update of",cpath,"raw to",str(clientData.client)
                                 clientData.client.sendMessage(value)
                             else:
-                                if self.verbosity >= DEBUG: print "Sending update of",cpath,"with path info to",str(clientData.client)
+                                if self.verbosity >= DEBUG: print "Sending update of",cpath,"(with path info) to",str(clientData.client)
                                 clientData.client.sendMessage({'path':'.'+cpath,'data':value})
                             self.numOutMessages += 1
                             self.timeOutMessageProcess += time.time()-t0
@@ -334,11 +334,15 @@ class StructureService (Service):
         keys of obj."""
         items = toKeys(path)
         #print "Structure updating",items
-        if len(items)==0:
-            self._update(self.object,items,obj)
-        else:
-            parent = self.lookup(items[:-1],add=True)
-            self._update(parent,items,obj)
+        try:
+            if len(items)==0:
+                self._update(self.object,items,obj)
+            else:
+                parent = self.lookup(items[:-1],add=True)
+                self._update(parent,items,obj)
+        except Exception:
+            print "Error running updatePath on",'"'+path+'",',"object",obj
+            raise
         #the _update call notified all changed descendants, now
         #update all ancestors
         #print "Notifying watchers of",'.'.join(items),"and ancestors"

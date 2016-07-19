@@ -29,7 +29,7 @@ while keeping many of its strengths.
 
 Characteristics shared by SSPP and ROS:
 + Structured data
-+ Passes human-readable JSON messages
++ Passes messages that can be converted to human-readable format (e.g., JSON)
 + C++ and Python bindings
 + Distributed (ROS Nodes = SSPP Services)
 
@@ -46,10 +46,18 @@ Advantages of SSPP vs ROS:
 Disadvantages of SSPP vs ROS:
 - ROS makes messages conform to a schema, which may catch errors faster.
 - ROS communication between nodes is coordinated by a "ROS Master", while
-  SSPP requires the user to manage his/her own network topology.
+  SSPP requires the user to manage his/her own network topology (e.g.,
+  specify IP addresses and ports).
+- SSPP doesn't keep connections alive automatically.
 - ROS has more debugging tools.
 - SSPP does not make any attempt to be a repository for shared modules.
 - SSPP has no builtin user base.
+
+Weakesses of both SSPP and ROS, which may be an opportunity for further
+development:
+- No quality of service guarantees
+- No dynamic throttling
+- No automatic transport conversions (e.g., encoding, compression, encryption)
 
 Comparison with other related libraries (+ indicates an advantage of SSPP,
 - indicates a disadvantage):

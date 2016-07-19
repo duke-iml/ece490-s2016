@@ -70,9 +70,10 @@ public:
 	virtual const char* Name() const { return "Service"; }
 	///Subclasses: optionally override this
 	virtual const char* Description() const { return "Provides some SSPP service"; }
-	///Subclasses: override this
+	///Subclasses: override this.  Return false on error.
 	virtual bool OnMessage(AnyCollection& message) { return true; }
-	///Subclasses: call this to send a message
+	///Subclasses: call this to send a message.  Returns false on error, e.g., the socket is not set up, or
+	///the client got disconnected.
 	bool SendMessage(AnyCollection& message);
 	///Subclasses: call this to wait for the next message.  (OnMessage is called before this returns.)
 	bool WaitForMessage(AnyCollection& message,double timeout=Math::Inf);

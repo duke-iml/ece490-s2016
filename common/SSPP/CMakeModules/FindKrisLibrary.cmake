@@ -13,20 +13,15 @@ SET(KRISLIBRARY_INCLUDE_DIRS "")
 SET(KRISLIBRARY_DEFINITIONS "")
 
 #this will get everything but KrisLibrary
+SET(CMAKE_MODULE_PATH ${KRISLIBRARY_ROOT}/KrisLibrary/CMakeModules)
 INCLUDE(KrisLibraryDependencies)
 
 # Find KrisLibrary
 FIND_LIBRARY( KRISLIBRARY_LIBRARY KrisLibrary PATHS /usr/local/lib "${KRISLIBRARY_ROOT}/KrisLibrary/lib" ${KRISLIBRARY_ROOT})
 FIND_PATH(KRISLIBRARY_INCLUDE_DIR
- 	myfile.h
-        PATHS /usr/include/KrisLibrary /usr/local/include/KrisLibrary ${KRISLIBRARY_ROOT}/KrisLibrary
+ 	KrisLibrary/myfile.h
+        PATHS /usr/include /usr/local/include ${KRISLIBRARY_ROOT}
          DOC "Directory where KrisLibrary header files are stored" )
-
-IF(WIN32)
-	FIND_LIBRARY( KRISLIBRARY_LIBRARY_DEBUG KrisLibraryd PATHS  ${KRISLIBRARY_ROOT})
-	SET(KRISLIBRARY_LIBRARY debug ${KRISLIBRARY_LIBRARY_DEBUG} optimized ${KRISLIBRARY_LIBRARY})
-ENDIF(WIN32)
-
 
 #do the find_package call...
 include(FindPackageHandleStandardArgs)

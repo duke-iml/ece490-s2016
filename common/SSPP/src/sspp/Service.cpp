@@ -1,4 +1,5 @@
 #include <sspp/Service.h>
+#include <sspp/Config.h>
 #include <signal.h>
 using namespace std;
 
@@ -51,7 +52,7 @@ int _kbhit() {
 namespace SSPP {
 
 Service::Service()
-	:tolerateReadErrors(false),onlyProcessNewest(false),useDeltaProtocol(false),sleepTime(0),waitTime(0.1)
+	:tolerateReadErrors(false),onlyProcessNewest(false),useDeltaProtocol(false),sleepTime(0),waitTime(SSPP_CONNECTION_WAIT_TIME)
 {}
 
 Service::~Service()
@@ -65,8 +66,8 @@ bool Service::OpenServer(const char* host,double timeout,int maxClients)
 	printf("%s: Connecting as server to %s...\n",Name(),host);
 	worker = new SocketPipeWorker(host,true,timeout);
 	//TODO: do we need to modify these values for slow readers?  Usually hitting the end of the queue means something has gone wrong
-	worker->reader.queueMax = 10;
-	worker->writer.queueMax = 10;
+	worker->reader.queueMax = SSPP_READ_QUEUE_SIZE;
+	worker->writer.queueMax = SSPP_WRITE_QUEUE_SIZE;
 	if(!worker->Start()) return false;
 	printf("...Connection successful\n");
 	return true;
@@ -78,7 +79,8 @@ bool Service::OpenClient(const char* host,double timeout)
 	printf("%s: Connecting as client to %s...\n",Name(),host);
 	worker = new SocketPipeWorker(host,false,timeout);
 	//TODO: do we need to modify these values for slow readers?  Usually hitting the end of the queue means something has gone wrong
-	worker->reader.queueMax = 10;
+	worker->reader.queueMax = SSPP_READ_QUEUE_SIZE;
+	worker->writer.queueMax = SSPP_WRITE_QUEUE_SIZE;
 	if(!worker->Start()) return false;
 	printf("...Connection successful\n");
 	return true;
@@ -116,9 +118,9 @@ bool Service::WaitForMessage(AnyCollection& message,double timeout)
       return false;
     }
     //read new messages
-    if(worker->NewMessageCount() > 0) {
+    if(worker->UnreadCount() > 0) {
       if(onlyProcessNewest) {
-	string str = worker->NewestMessage();
+	string str = worker->Newest();
 	stringstream ss(str);
 	AnyCollection msg;
 	if(!msg.read(ss)) {
@@ -134,7 +136,7 @@ bool Service::WaitForMessage(AnyCollection& message,double timeout)
 	return true;
       }
       else {
-	vector<string> msgs = worker->NewMessages();
+	vector<string> msgs = worker->New();
 	for(size_t i=0;i<msgs.size();i++) {
 	  stringstream ss(msgs[i]);
 	  AnyCollection msg;
@@ -150,6 +152,7 @@ bool Service::WaitForMessage(AnyCollection& message,double timeout)
 	message = msgs[0];
 	return true;
       }
+      ThreadSleep(SSPP_MESSAGE_WAIT_TIME);
     }
   }
   return false;
@@ -166,9 +169,9 @@ int Service::Process()
 	  return -1;
 	}
 	//read new messages
-	if(worker->NewMessageCount() > 0) {
+	if(worker->UnreadCount() > 0) {
 		if(onlyProcessNewest) {
-		  string str = worker->NewestMessage();
+		  string str = worker->Newest();
 			stringstream ss(str);
 			AnyCollection msg;
 			if(!msg.read(ss)) {
@@ -183,7 +186,7 @@ int Service::Process()
 			return 1;
 		}
 		else {
-			vector<string> msgs = worker->NewMessages();
+			vector<string> msgs = worker->New();
 			for(size_t i=0;i<msgs.size();i++) {
 				stringstream ss(msgs[i]);
 				AnyCollection msg;
@@ -209,7 +212,7 @@ bool Service::SendMessage(AnyCollection& message)
 	if(!worker->WriteReady()) return false;
 	stringstream ss;
 	ss<<message;
-	worker->SendMessage(ss.str());
+	worker->Send(ss.str());
 	return true;
 }
 
