@@ -9,8 +9,7 @@ import time
 
 from Trajectories.camera_to_bin import *
 from Trajectories.view_to_grasp import *
-from Trajectories.grasp_to_stow import *
-
+from Trajectories.Human_Testing import *
 
 if(len(sys.argv) == 2):
 	print sys.argv[1]

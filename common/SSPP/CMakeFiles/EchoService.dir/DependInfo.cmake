@@ -4,7 +4,7 @@ SET(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 SET(CMAKE_DEPENDS_CHECK_CXX
-  "/home/ece_user/iml-internal/SSPP/src/services/echo_service.cpp" "/home/ece_user/iml-internal/SSPP/CMakeFiles/EchoService.dir/src/services/echo_service.cpp.o"
+  "/home/hayden/ece490-s2016/common/SSPP/src/services/echo_service.cpp" "/home/hayden/ece490-s2016/common/SSPP/CMakeFiles/EchoService.dir/src/services/echo_service.cpp.o"
   )
 SET(CMAKE_CXX_COMPILER_ID "GNU")
 
@@ -24,15 +24,15 @@ SET(CMAKE_TARGET_DEFINITIONS
 
 # Targets to which this target links.
 SET(CMAKE_TARGET_LINKED_INFO_FILES
-  "/home/ece_user/iml-internal/SSPP/CMakeFiles/sspp.dir/DependInfo.cmake"
+  "/home/hayden/ece490-s2016/common/SSPP/CMakeFiles/sspp.dir/DependInfo.cmake"
   )
 
 # The include file search paths:
 SET(CMAKE_C_TARGET_INCLUDE_PATH
   "include"
-  "/home/ece_user/Klampt/Library/glui-2.36/src/include"
-  "/home/ece_user/Klampt/Library/KrisLibrary"
-  "/home/ece_user/Klampt/Library"
+  "/home/hayden/Klampt/Library/glui-2.36/src/include"
+  "/home/hayden/Klampt/Library/KrisLibrary"
+  "/home/hayden/Klampt/Library"
   )
 SET(CMAKE_CXX_TARGET_INCLUDE_PATH ${CMAKE_C_TARGET_INCLUDE_PATH})
 SET(CMAKE_Fortran_TARGET_INCLUDE_PATH ${CMAKE_C_TARGET_INCLUDE_PATH})

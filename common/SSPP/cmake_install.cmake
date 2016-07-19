@@ -1,4 +1,4 @@
-# Install script for directory: /home/ece_user/iml-internal/SSPP
+# Install script for directory: /home/hayden/ece490-s2016/common/SSPP
 
 # Set the install prefix
 IF(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -39,12 +39,12 @@ IF(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "apps")
          FILE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/EchoService"
          RPATH "/usr/local/lib")
   ENDIF()
-  FILE(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/home/ece_user/iml-internal/SSPP/services/EchoService")
+  FILE(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/home/hayden/ece490-s2016/common/SSPP/services/EchoService")
   IF(EXISTS "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/EchoService" AND
      NOT IS_SYMLINK "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/EchoService")
     FILE(RPATH_CHANGE
          FILE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/EchoService"
-         OLD_RPATH "/home/ece_user/iml-internal/SSPP/lib:"
+         OLD_RPATH "/home/hayden/ece490-s2016/common/SSPP/lib:"
          NEW_RPATH "/usr/local/lib")
     IF(CMAKE_INSTALL_DO_STRIP)
       EXECUTE_PROCESS(COMMAND "/usr/bin/strip" "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/EchoService")
@@ -59,12 +59,12 @@ IF(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "apps")
          FILE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/LogService"
          RPATH "/usr/local/lib")
   ENDIF()
-  FILE(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/home/ece_user/iml-internal/SSPP/services/LogService")
+  FILE(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/home/hayden/ece490-s2016/common/SSPP/services/LogService")
   IF(EXISTS "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/LogService" AND
      NOT IS_SYMLINK "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/LogService")
     FILE(RPATH_CHANGE
          FILE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/LogService"
-         OLD_RPATH "/home/ece_user/iml-internal/SSPP/lib:"
+         OLD_RPATH "/home/hayden/ece490-s2016/common/SSPP/lib:"
          NEW_RPATH "/usr/local/lib")
     IF(CMAKE_INSTALL_DO_STRIP)
       EXECUTE_PROCESS(COMMAND "/usr/bin/strip" "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/LogService")
@@ -79,12 +79,12 @@ IF(NOT CMAKE_INSTALL_COMPONENT OR "${CMAKE_INSTALL_COMPONENT}" STREQUAL "apps")
          FILE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/SendService"
          RPATH "/usr/local/lib")
   ENDIF()
-  FILE(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/home/ece_user/iml-internal/SSPP/services/SendService")
+  FILE(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" TYPE EXECUTABLE FILES "/home/hayden/ece490-s2016/common/SSPP/services/SendService")
   IF(EXISTS "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/SendService" AND
      NOT IS_SYMLINK "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/SendService")
     FILE(RPATH_CHANGE
          FILE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/SendService"
-         OLD_RPATH "/home/ece_user/iml-internal/SSPP/lib:"
+         OLD_RPATH "/home/hayden/ece490-s2016/common/SSPP/lib:"
          NEW_RPATH "/usr/local/lib")
     IF(CMAKE_INSTALL_DO_STRIP)
       EXECUTE_PROCESS(COMMAND "/usr/bin/strip" "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/SendService")
@@ -98,7 +98,7 @@ ELSE(CMAKE_INSTALL_COMPONENT)
   SET(CMAKE_INSTALL_MANIFEST "install_manifest.txt")
 ENDIF(CMAKE_INSTALL_COMPONENT)
 
-FILE(WRITE "/home/ece_user/iml-internal/SSPP/${CMAKE_INSTALL_MANIFEST}" "")
+FILE(WRITE "/home/hayden/ece490-s2016/common/SSPP/${CMAKE_INSTALL_MANIFEST}" "")
 FOREACH(file ${CMAKE_INSTALL_MANIFEST_FILES})
-  FILE(APPEND "/home/ece_user/iml-internal/SSPP/${CMAKE_INSTALL_MANIFEST}" "${file}\n")
+  FILE(APPEND "/home/hayden/ece490-s2016/common/SSPP/${CMAKE_INSTALL_MANIFEST}" "${file}\n")
 ENDFOREACH(file)

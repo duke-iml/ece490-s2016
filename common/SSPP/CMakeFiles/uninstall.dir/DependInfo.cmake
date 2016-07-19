@@ -24,9 +24,9 @@ SET(CMAKE_TARGET_LINKED_INFO_FILES
 # The include file search paths:
 SET(CMAKE_C_TARGET_INCLUDE_PATH
   "include"
-  "/home/ece_user/Klampt/Library/glui-2.36/src/include"
-  "/home/ece_user/Klampt/Library/KrisLibrary"
-  "/home/ece_user/Klampt/Library"
+  "/home/hayden/Klampt/Library/glui-2.36/src/include"
+  "/home/hayden/Klampt/Library/KrisLibrary"
+  "/home/hayden/Klampt/Library"
   )
 SET(CMAKE_CXX_TARGET_INCLUDE_PATH ${CMAKE_C_TARGET_INCLUDE_PATH})
 SET(CMAKE_Fortran_TARGET_INCLUDE_PATH ${CMAKE_C_TARGET_INCLUDE_PATH})

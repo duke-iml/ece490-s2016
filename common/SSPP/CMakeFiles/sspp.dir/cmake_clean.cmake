@@ -1,7 +1,7 @@
 FILE(REMOVE_RECURSE
   "CMakeFiles/sspp.dir/src/sspp/Topic.cpp.o"
-  "CMakeFiles/sspp.dir/src/sspp/Send.cpp.o"
   "CMakeFiles/sspp.dir/src/sspp/Spiffy.cpp.o"
+  "CMakeFiles/sspp.dir/src/sspp/Send.cpp.o"
   "CMakeFiles/sspp.dir/src/sspp/Service.cpp.o"
   "lib/libsspp.pdb"
   "lib/libsspp.a"
