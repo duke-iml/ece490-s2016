@@ -1,0 +1,31 @@
+links "leftvacuum"
+
+parents -1
+
+axis 0 0 1
+
+jointtype p
+
+TParent 1 0 0   0 1 0   0 0 1    0 0 0
+
+#control the amount of movement here
+qmin       0
+qmax       0
+velmax     0
+accmax     0
+torquemax  0
+
+geometry "Realsense_Mount_Centered_Mirror.STL"
+
+geomtransform  0       0      0.001  0       -0.135   \
+                      -0.001  0      0        0.075   \
+                       0      0      0.001   -0.255
+
+mass 0.01
+automass
+
+
+joint weld 0
+
+
+# need more than 1 joint  (weld 0, normal 1) to view this in RobotTest
