@@ -41,16 +41,27 @@ def supplyBoxes(choice):
     '''
 
     limb = None
+    num = None
 
     if choice == 1 or choice == 2:
         limb = 'right'
+        num = choice
     elif choice == 3 or choice == 4:
         limb = 'left'
+        if choice == 3:
+        	num = 2
+        else:
+        	num = 1
+        # choosing 4 means go to box 3
+        # choosing 3 means go to box 2
     else:
         raise Exception('Invalid entry')
 
-    path1_name = limb.upper()+'_SUPPLY'
-    path2_name = limb.upper()+'_DROP_'+str(choice)
+    # path1_name = limb.upper()+'_SUPPLY'
+    # path2_name = limb.upper()+'_DROP_'+str(choice)
+
+    path1_name = 'supply_'+str(num)+'-'+limb
+    path2_name = 'drop_'+str(num)+'-'+limb
 
     moveArm(limb = limb, path_name = path1_name)
     waitForMove()

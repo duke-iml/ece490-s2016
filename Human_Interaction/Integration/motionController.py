@@ -3260,8 +3260,7 @@ class PickingController:
 
             print limb.upper(), ' camera transform is ', eval('self.cameraTransform_'+limb.upper())
 
-            current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb, tolist=False)
-            self.points = current_cloud.tolist()
+
 
     def calibrateVacuum(self, limb='left'):
          while(True):

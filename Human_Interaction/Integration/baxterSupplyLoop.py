@@ -30,32 +30,46 @@ from motionController import LowLevelController
 from motionController import FakeLowLevelController
 from motionController import PhysicalLowLevelController
 
+
+
 SPEED = 13
+visualizer = CustomGLViewer.CustomGLViewer()
+REAL_CAMERA = True
+
+if REAL_CAMERA:
+    # Perception
+    from perception import perception
+    perceiver = perception.Perceiver()
 
 def loop():
-	
-	while (1):
+    counter = 0
+    while (1):
 
+        if counter == 50:
+            counter = 0
+            if REAL_CAMERA:
+                takePicture()
 
-
-		if os.path.exists("./1.com"):
-			supplyBoxes(1)
-			print 'Finished movement 1 at ', time.localtime()
-			os.remove("./1.com")
-		if os.path.exists("./2.com"):
-			supplyBoxes(2)
-			print 'Finished movement 2 at ', time.localtime()
-			os.remove("./2.com")
-		if os.path.exists("./3.com"):
-			supplyBoxes(3)
-			print 'Finished movement 3 at ', time.localtime()
-			os.remove("./3.com")
-		if os.path.exists("./4.com"):
-			supplyBoxes(4)
-			print 'Finished movement 4 at ', time.localtime()
-			os.remove("./4.com")
+        else:
+    		if os.path.exists("./1.com"):
+    			supplyBoxes(1)
+    			print 'Finished movement 1 at ', time.localtime()
+    			os.remove("./1.com")
+    		if os.path.exists("./2.com"):
+    			supplyBoxes(2)
+    			print 'Finished movement 2 at ', time.localtime()
+    			os.remove("./2.com")
+    		if os.path.exists("./3.com"):
+    			supplyBoxes(3)
+    			print 'Finished movement 3 at ', time.localtime()
+    			os.remove("./3.com")
+    		if os.path.exists("./4.com"):
+    			supplyBoxes(4)
+    			print 'Finished movement 4 at ', time.localtime()
+    			os.remove("./4.com")
 
 		time.sleep(.1)
+        counter = counter+1
 
 def supplyBoxes(choice):
 
@@ -67,16 +81,27 @@ def supplyBoxes(choice):
     '''
 
     limb = None
+    num = None
 
     if choice == 1 or choice == 2:
         limb = 'right'
+        num = choice
     elif choice == 3 or choice == 4:
         limb = 'left'
+        if choice == 3:
+        	num = 2
+        else:
+        	num = 1
+        # choosing 4 means go to box 3
+        # choosing 3 means go to box 2
     else:
         raise Exception('Invalid entry')
 
-    path1_name = limb.upper()+'_SUPPLY'
-    path2_name = limb.upper()+'_DROP_'+str(choice)
+    # path1_name = limb.upper()+'_SUPPLY'
+    # path2_name = limb.upper()+'_DROP_'+str(choice)
+
+    path1_name = 'supply_'+str(num)+'-'+limb
+    path2_name = 'drop_'+str(num)+'-'+limb
 
     moveArm(limb = limb, path_name = path1_name, reverse = False)
     waitForMove()
@@ -402,6 +427,37 @@ def load_exp_world():
 
     return world
 
+def takePicture():
+    global visualizer
+    current_cloud = perceiver.get_current_point_cloud(*getCameraToWorldXform(), tolist=True)
+    visualizer.updatePoints(current_cloud)
+
+def getCameraToWorldXform(self, linkName=None, index=0):
+    '''
+    get current transformation (R, t) of camera in world frame. 
+    '''
+
+    global CAMERA_TRANSFORM, SIMWORLD
+
+    if len(CAMERA_TRANSFORM) < index:
+        print 'Error, camera index does not exist'
+        return ([0,0,0,0,0,0,0,0,0],[0,0,0])
+
+    if linkName != None:
+        return se3.mul(SIMWORLD.robot(0).link(linkName).getTransform(), CAMERA_TRANSFORM[index])
+    else: 
+        return CAMERA_TRANSFORM[index]
+
+
+class Helper():
+    def __init__(self):
+        pass
+    def run(self):
+        control_thread = Thread(target=loop)
+        print 'starting thread'
+        control_thread.start()
+        #control_thread.run()
+
 
 
 model_dir = "../klampt_models/"
@@ -441,13 +497,13 @@ SEND_PATH = True
 
 #CHOICE = int(sys.argv[1])
 #print 'Choice is', CHOICE
+myHelp = Helper()
+visualizer = CustomGLViewer.CustomGLViewer(SIMWORLD, WORLD, LOW_LEVEL_CONTROLLER, helper=myHelp)
 
-#visualizer = CustomGLViewer.CustomGLViewer(SIMWORLD, WORLD, LOW_LEVEL_CONTROLLER)
-#self.viewing_thread = Thread(target=run,args=())
-#self.viewing_thread.start()
-#visualizer.run()
+#viewing_thread = Thread(target=CustomGLViewer.run(), args=visualizer)
+#viewing_thread.start()
+#viewing_thread.run()
+print 'about to run visualizer'
+visualizer.run()
 
-
-
-loop()
 

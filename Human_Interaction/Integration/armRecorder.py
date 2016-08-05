@@ -1,15 +1,18 @@
 #HigherTech record
 
 from motionController import LowLevelController
+from motionController import PhysicalLowLevelController
 from motionController import PickingController
 import CustomGLViewer
 
-import sys, struct, time, os
+from klampt import vectorops
+import sys, struct, time, os, math
 from klampt import robotsim
 import json
 from Motion import motion
 from Motion import config
 import string
+from threading import Thread, Lock
 
 RIGHT = 'right'
 LEFT = 'left'
@@ -30,16 +33,28 @@ KLAMPT_MODEL = "baxter_col.rob"
 
 SPEED = 13
 
-class Recorder:
-    def __init__(self, controller = None, command_Queue = None):
+REAL_CAMERA = True
+CAMERA_TRANSFORM = {}
+CAMERA_TRANSFORM[0] = ([1,0,0,0,1,0,0,0,1],[0,0,0])
 
+myHelper = None
+
+if REAL_CAMERA:
+    # Perception
+    from perception import perception
+    perceiver = perception.Perceiver()
+
+class Recorder:
+    def __init__(self, controller = None, command_Queue = None, physical=False):
+
+        global myHelper
 
         try:
             self.file = open('data.json', 'rw') 
             self.pathDictionary = json.load(self.file)
             self.file.close()
         except:
-            self.pathDictionary = {}
+            self.pathDictionary = dict()
 
         self.leftPath = []
         self.rightPath = []
@@ -62,23 +77,48 @@ class Recorder:
             #assuming I'm being given a picking controller 
             self.controller = controller
             simworld = self.controller.simworld
+            self.simworld = simworld
             world = self.controller.world
             sim = robotsim.Simulator(simworld)
         else:
-            simworld = self.makeWorld()
-            planworld = self.makeWorld()
-            sim = robotsim.Simulator(simworld)
-            low_level_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
-            self.controller = PickingController(simworld, planworld, low_level_controller)
+            if not physical:
+                simworld = self.makeWorld()
+                planworld = self.makeWorld()
+                sim = robotsim.Simulator(simworld)
+                low_level_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
+                self.controller = PickingController(simworld, planworld, low_level_controller)
 
-            visualizer = CustomGLViewer.CustomGLViewer(simworld,world, low_level_controller, sim)
-            visualizer.run()
-            self.command_Queue = visualizer.command_Queue
+                myHelper = Helper(self)
+                visualizer = CustomGLViewer.CustomGLViewer(simworld,world, low_level_controller, sim, helper = myHelper)
+                self.command_Queue = visualizer.command_queue
+            else:
+                motion.setup(mode=config.mode,klampt_model=config.klampt_model,libpath="./")
+                res = motion.robot.startup()
+                if not res:
+                    print "Error starting up Motion Module"
+                    exit(1)
+                time.sleep(0.1)
+                q = motion.robot.getKlamptSensedPosition()
 
+                simworld = self.makeWorld()
+                planworld = self.makeWorld()
+                simworld.robot(0).setConfig(q)
+                planworld.robot(0).setConfig(q)
+
+                low_level_controller = PhysicalLowLevelController(simworld.robot(0))
+                self.controller = PickingController(simworld, planworld, low_level_controller)
+
+                myHelper = Helper(self)
+                visualizer = CustomGLViewer.CustomGLViewer(simworld,planworld, low_level_controller, helper=myHelper)
+                self.command_Queue = visualizer.command_queue
+                sim = robotsim.Simulator(simworld)
         
+            self.simworld = simworld
+            self.fake_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
+            visualizer.run()
+
         self.fake_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
         
-
 
      
     def run(self):
@@ -94,7 +134,8 @@ class Recorder:
 
             if method is not None:            
                 if method == 'h':
-                    self.printHelp()
+                    #self.printHelp()
+                    pass
                 elif method == 's':
                     self.savePath()
                 elif method == 't' or method == 'run':
@@ -119,12 +160,17 @@ class Recorder:
                     self.printPaths()
                 elif method == 'm':
                     self.reset()
+                elif method == 'w':
+                    self.calibrateCamera()
                 elif method == 'q':
                     print 'Ending recorder functionalities' 
 
                     break
                 else:
                     print 'Error did not understand command: ', method
+
+                print '\n===================================='
+                self.printHelp()
         return 
 
     def makeWorld(self):
@@ -190,11 +236,15 @@ class Recorder:
 
         self.pathDictionary[name] =  entry
         with open('data.json', 'w') as outfile:
-            json.dumps(self.pathDictionary, outfile)
+            json.dump(self.pathDictionary, outfile, sort_keys = True)
 
+        # with open('data.json', 'w') as file:
+        #     json.dump([key for key in self.pathDictionary : self.pathDictionary[key] for key in self.pathDictionary], file, indent=4)
 
         self.leftSaved = True
         self.rightSaved = True
+
+        print 'Saved'
 
     def testPath(self, reverse = False):
 
@@ -272,6 +322,8 @@ class Recorder:
 
     def changeLimb(self):
 
+        #TODO check saved
+
         print ("What type of limb would you like to record?")
         print ("Options: Left (l), Right (r), Both (b), Cancel (x) ")
         limbResponse = self.getName().lower()
@@ -286,6 +338,7 @@ class Recorder:
             return
         elif limbResponse in leftResponses:
             print 'Changing to left limb'
+            self.currentLimb = LEFT
         elif limbResponse in rightResponses:
             print 'Changing to right limb'
             if not self.rightSaved:
@@ -299,8 +352,10 @@ class Recorder:
 
             self.leftPath = []
             self.currentLimb = RIGHT
-
-    
+        elif limbResponse in bothResponses:
+            print 'Chagning to both limbs'
+            self.currentLimb = BOTH
+  
     def commandRobot(self):
 
         #make it so various numbers allow you to change how the robot behaves
@@ -314,24 +369,75 @@ class Recorder:
         while(1):
             movement = self.command_Queue.get().lower()
 
-            if method is not None: 
+            if movement is not None: 
                 if movement in jointCommands:
                     self.moveRobot(movement)
-                elif method == 'h':
+                elif movement == 'h':
                     self.printRobotHelp()  
-                elif method == 'c':
+                elif movement == 'c':
                     self.changeDegrees()
-                elif method == 'q':
+                elif movement == 'q':
                     print 'Ending command of robot'
                     break
                 else:
                     print 'Error did not understand command: ', method
 
-
     def moveRobot(self, movement=None):
 
         #TODO - move the simulation robot and keep it at that location
 
+        print 'Moving robot'
+        global LEFT_ARM_INDICES
+        global RIGHT_ARM_INDICES
+
+        joint_ones = ['1', '!']
+        joint_twos = ['2', '@']
+        joint_threes = ['3', '#']
+        joint_fours = ['4', '$']
+        joint_fives = ['5', '%']
+        joint_sixes = ['6', '^']
+        joint_sevens = ['7', '&']
+
+        plus = ['1','2','3','4','5','6','7']
+        minus = ['!','@','#','$','%','^','&']
+
+        index = 0
+        factor = 0
+        adjustment = [0,0,0,0,0,0,0]
+
+        if movement in joint_ones:
+            index = 0
+        elif movement in joint_twos:
+            index = 1
+        elif movement in joint_threes:
+            index = 2
+        elif movement in joint_fours:
+            index = 3
+        elif movement in joint_fives:
+            index = 4
+        elif movement in joint_sixes:
+            index = 5
+        elif movement in joint_sevens:
+            index = 6
+
+        if movement in plus:
+            factor = 1
+        elif movement in minus:
+            factor = -1
+
+        adjustment[index] = factor*self.degreeChange*math.pi/180.0
+        currentSetup = self.controller.controller.getSensedConfig()
+        
+        if self.currentLimb == LEFT:
+            adjustedMilestone = [currentSetup[v] for v in LEFT_ARM_INDICES]
+            #print 'before adjustment', adjustedMilestone
+            adjustedMilestone = vectorops.add(adjustedMilestone, adjustment)
+            #print 'after adjustment', adjustedMilestone
+            self.controller.controller.appendMilestoneLeft(adjustedMilestone, .1)
+        elif self.currentLimb == RIGHT:
+            adjustedMilestone = [currentSetup[v] for v in LEFT_ARM_INDICES]
+            adjustedMilestone = vectorops.add(adjustedMilestone, adjustment)
+            self.controller.controller.appendMilestoneRight(adjustedMilestone, .1)
         return
 
     def changeDegrees(self):
@@ -346,7 +452,6 @@ class Recorder:
 
         return
     
-
     def recordPath(self):
 
         #TODO - test and make sure it works fine
@@ -524,8 +629,7 @@ class Recorder:
         self.controller.controller.appendMilestoneRight(milestone_rdefault[0], 1)
         time.sleep(.1)
         print 'Done resetting'
-
-    
+  
     def getNumber(self):
 
         number = ''
@@ -578,7 +682,6 @@ class Recorder:
                 else:
                     print 'Error, value not recognized'
                     print 'Press Enter to submit your entry or quit'
-
 
     def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstants=False, internalSpeed=SPEED):
 
@@ -677,6 +780,75 @@ class Recorder:
                 leftPathRev[leftLength-i] = self.leftPath[i]
             self.leftPath = [a for a in leftPathRev]
 
+    def calibrateCamera(self, index=0):
+        global CAMERA_TRANSFORM
+        global REAL_CAMERA
+        if REAL_CAMERA:
+
+
+            if len(CAMERA_TRANSFORM) < index:
+                return False
+
+            while(True):
+                try:
+                    input_var = raw_input("Camera: Enter joint and angle to change to separated by a comma: ").split(',');
+                    #translational transformation
+                    calibrateR = CAMERA_TRANSFORM[index][0]
+                    calibrateT = CAMERA_TRANSFORM[index][1]
+
+                    if(input_var[0] == "x" ):
+                        calibrateT[0] = calibrateT[0] + float(input_var[1])
+                    elif(input_var[0] == "y" ):
+                        calibrateT[1] = calibrateT[1] + float(input_var[1])
+                    elif(input_var[0] == "z" ):
+                        calibrateT[2] = calibrateT[2] + float(input_var[1])
+                    #rotational transformations
+                    elif(input_var[0] == "xr" ):
+                        calibrateR = so3.mul(calibrateR, so3.rotation([1, 0, 0], float(input_var[1])))
+                    elif(input_var[0] == "yr" ):
+                        calibrateR = so3.mul(calibrateR, so3.rotation([0, 1, 0], float(input_var[1])))
+                    elif(input_var[0] == "zr" ):
+                        calibrateR = so3.mul(calibrateR, so3.rotation([0, 0, 1], float(input_var[1])))
+
+                    elif(input_var[0] == "q"):
+                        break
+
+                except: 
+                    print "input error\n"
+                    #print error.strerror
+
+                time.sleep(0.1);
+
+                self.takePicture()
+                CAMERA_TRANSFORM[index] = (calibrateR, calibrateT)
+                #print self.simworld.robot(0).link(limb + '_wrist').getTransform()
+                totalCameraXform = self.getCameraToWorldXform()
+
+                print 'local camera ', index, ' transform is ', CAMERA_TRANSFORM[index]
+
+    def takePicture(self):
+        global perceiver
+        current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(), tolist=True)
+        self.visualizer.updatePoints(current_cloud)
+
+
+    def getCameraToWorldXform(self, linkName=None, index=0):
+        '''
+        get current transformation (R, t) of camera in world frame. 
+        '''
+
+        global CAMERA_TRANSFORM
+
+        if len(CAMERA_TRANSFORM) < index:
+            print 'Error, camera index does not exist'
+            return ([0,0,0,0,0,0,0,0,0],[0,0,0])
+
+        if linkName != None:
+            return se3.mul(self.simworld.robot(0).link(linkName).getTransform(), CAMERA_TRANSFORM[index])
+        else: 
+            return CAMERA_TRANSFORM[index]
+
+
     def printHelp(self):
 
         print 'H: Help (show this text)'
@@ -692,6 +864,8 @@ class Recorder:
         print 'X: Clear/Reset paths'
         print 'P: Print current paths'
         print 'M: Reset to default config'
+        print 'C: Command robot to move'
+        print 'W: Calibrate Camera'
         return 
 
     def printRobotHelp(self):
@@ -705,8 +879,24 @@ class Recorder:
         print '7/&: Move joint 7'
         print 'C: Change the amount by which a joint rotates (degress)'
         print 'Q: Quit (return to main loop)'
+
+def go(dummy, recorder):
+    recorder.run()
+
+class Helper():
+    def __init__(self, recorder):
+        self.myRecorder = recorder
+    def run(self):
+        recorder = self.myRecorder
+        control_thread = Thread(target=go, args=(1, recorder))
+        print 'starting thread'
+        control_thread.start()
+        #control_thread.run()
+
         
 if __name__ == "__main__":
 
-    myRecorder = Recorder()
-    myRecorder.run()
+    myRecorder = Recorder(physical=True)
+
+
+

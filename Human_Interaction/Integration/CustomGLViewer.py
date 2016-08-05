@@ -10,7 +10,13 @@ from Queue import Queue
 
 
 class CustomGLViewer(GLRealtimeProgram):
-    def __init__(self,simworld,planworld, controller, sim=None):
+    def __init__(self,simworld=None,planworld=None, controller=None, sim=None, helper=None):
+
+        if simworld == None and planworld == None:
+            #Dummy GLViewer
+            print 'simworld and planworld are None'
+            return
+
         GLRealtimeProgram.__init__(self,"My GL program")
 
         self.simworld = simworld
@@ -25,6 +31,11 @@ class CustomGLViewer(GLRealtimeProgram):
         self.controller = controller
         self.command_queue = Queue()
 
+        if helper != None:
+            print 'helper is not none'
+            helper.run()
+
+        self.points = None
 
     def idle(self):
         if self.simulate:
@@ -36,6 +47,36 @@ class CustomGLViewer(GLRealtimeProgram):
         print "shelf xform:", knowledge.shelf_xform
         print self.simworld.terrain(0).geometry()
         #print "terrain xform:", self.simworld.terrain(0).geometry().getTransform(), "\n\n"
+
+
+    def updatePoints(self, points):
+        self.points = points
+
+    def glShowPointCloud(self, pc, downsample_rate=5, pt_size=None):
+        # print glGetFloatv(GL_CURRENT_COLOR)
+        pc = np.array(pc)
+        # print 'Rendering %d points'%pc.shape[0]
+        d = pc.shape[1]
+        assert d==3 or d==4, 'Unrecognized point cloud shape: '+str(pc.shape)
+        pc = pc[::downsample_rate, :]
+        pc = pc.tolist()
+        glDisable(GL_LIGHTING)
+        glColor3f(0, 1, 0)
+        if pt_size is not None:
+            glPointSize(pt_size)
+        glBegin(GL_POINTS)
+        for p in pc:
+            if d==4:
+                r, g, b = pcl_float_to_rgb(p[3])
+                r /= 255.0
+                g /= 255.0
+                b /= 255.0
+                glColor3f(r, g, b)
+            glVertex3f(p[0], p[1], p[2])
+        glEnd()
+        glEnable(GL_LIGHTING)
+        glColor3f(1,0,0)
+
 
 
     def display(self):
@@ -57,6 +98,11 @@ class CustomGLViewer(GLRealtimeProgram):
         for i in xrange(self.simworld.numTerrains()):
             self.simworld.terrain(i).drawGL()
 
+        if self.points != None:
+            glShowPointCloud(self.points)    
+
+
+
     def keyboardfunc(self,c,x,y):
         #c = c.lower()
         if c=='z':
@@ -64,12 +110,12 @@ class CustomGLViewer(GLRealtimeProgram):
             print "Simulating:",self.simulate
         else:
             self.command_queue.put(c)
-
-            print int(c)
-
+            #print int(c)
             if c  == chr(27):
                 #c == esc
                 #self.picking_thread.join()
                 exit(0)
 
         glutPostRedisplay()
+
+

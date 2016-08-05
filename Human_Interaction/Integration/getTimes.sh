@@ -1,6 +1,7 @@
 #!/bin/bash
 
 python baxterSupply.py 1 > logs/time1-2.txt
+python baxterSupply.py 4 > logs/time4-5.txt
 python baxterSupply.py 1 > logs/time1-3.txt
 python baxterSupply.py 1 > logs/time1-4.txt
 python baxterSupply.py 1 > logs/time1-5.txt
@@ -18,4 +19,4 @@ python baxterSupply.py 4 > logs/time4-1.txt
 python baxterSupply.py 4 > logs/time4-2.txt
 python baxterSupply.py 4 > logs/time4-3.txt
 python baxterSupply.py 4 > logs/time4-4.txt
-python baxterSupply.py 4 > logs/time4-5.txt
+

@@ -14,11 +14,15 @@ from klampt import se3
 from segmentation import distance_label
 from scipy.sparse.csgraph import connected_components
 
+import traceback
+
 sys.setrecursionlimit(10000)
 downsample_rate = 50
 
 RIGHT_CAMERA_IP = '10.236.66.147'
 LEFT_CAMERA_IP = '10.236.67.183'
+
+CAMERA_IP = '10.190.234.178'
 
 class CameraData:
 	def __init__(self, color, cloud, depth_uv, color_uv):
@@ -381,7 +385,7 @@ class Perceiver(object):
 			print 'Cannot find uv hist for %s at %s'%(item, filename)
 			return None
 
-	def get_current_point_cloud(self, cur_camera_R, cur_camera_t, limb, colorful=False, tolist=True):
+	def get_current_point_cloud(self, cur_camera_R, cur_camera_t, limb=None, colorful=False, tolist=True):
 		'''
 		physical pre-condition: place the camera to the desired viewing angle. 
 
@@ -632,12 +636,16 @@ class Perceiver(object):
 					camera = RemoteCamera(RIGHT_CAMERA_IP, 30000)
 				elif limb=='left':
 					camera = RemoteCamera(LEFT_CAMERA_IP, 30000)
+				elif limb == None:
+					print 'attempting neutral camera'
+					camera = RemoteCamera(CAMERA_IP, 30000)
 				else:
 					raise Exception('Unrecognized limb '+str(limb))
 				color, cloud, depth_uv, color_uv = camera.read()
 				camera.close()
 				break
-			except:
+			except Exception, err:
+				print err
 				print 'Camera Connection Error. Retry in 1 second...'
 				time.sleep(1)
 		print 'image taken'
