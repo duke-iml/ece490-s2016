@@ -11,6 +11,7 @@ from klampt import robotsim
 import json
 from Motion import motion
 from Motion import config
+from klampt import so3
 import string
 from threading import Thread, Lock
 
@@ -35,7 +36,9 @@ SPEED = 13
 
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] = ([1,0,0,0,1,0,0,0,1],[0,0,0])
+CAMERA_TRANSFORM[0] =  ([0.028716034793163016, 0.9930831240650396, -0.11384769669598797, 0.9252701802826766, 0.01668694462904325, 0.37894147220726904, 0.3782201512683095, -0.11622157534714044, -0.9183910183567833], [0.9300000000000002, 0.14, 2.0199999999999996])
+
+OLD =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, 0.31336488792282463, -0.07546393005471538, -0.9466296225440092, 0.9493701506495044, 0.0014519363095627505, 0.31415634473410153], [0.24000000000000007, -0.01, 1.19])
 
 myHelper = None
 
@@ -71,7 +74,12 @@ class Recorder:
 
         self.controller = None
         self.command_Queue = command_Queue     
-
+        self.visualizer = None
+        self.controller = None
+    
+        self.simType = 'virtual'
+        if physical:
+            self.simType = 'physical'
 
         if controller != None:
             #assuming I'm being given a picking controller 
@@ -80,45 +88,51 @@ class Recorder:
             self.simworld = simworld
             world = self.controller.world
             sim = robotsim.Simulator(simworld)
+            #assuming visualizer was already created
         else:
-            if not physical:
-                simworld = self.makeWorld()
-                planworld = self.makeWorld()
-                sim = robotsim.Simulator(simworld)
-                low_level_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
-                self.controller = PickingController(simworld, planworld, low_level_controller)
-
-                myHelper = Helper(self)
-                visualizer = CustomGLViewer.CustomGLViewer(simworld,world, low_level_controller, sim, helper = myHelper)
-                self.command_Queue = visualizer.command_queue
-            else:
-                motion.setup(mode=config.mode,klampt_model=config.klampt_model,libpath="./")
-                res = motion.robot.startup()
-                if not res:
-                    print "Error starting up Motion Module"
-                    exit(1)
-                time.sleep(0.1)
-                q = motion.robot.getKlamptSensedPosition()
-
-                simworld = self.makeWorld()
-                planworld = self.makeWorld()
-                simworld.robot(0).setConfig(q)
-                planworld.robot(0).setConfig(q)
-
-                low_level_controller = PhysicalLowLevelController(simworld.robot(0))
-                self.controller = PickingController(simworld, planworld, low_level_controller)
-
-                myHelper = Helper(self)
-                visualizer = CustomGLViewer.CustomGLViewer(simworld,planworld, low_level_controller, helper=myHelper)
-                self.command_Queue = visualizer.command_queue
-                sim = robotsim.Simulator(simworld)
-        
-            self.simworld = simworld
-            self.fake_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
-            visualizer.run()
+            handleNoSuppliedController(physical)
 
         self.fake_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
         
+    def setupController(self, physical=False):
+        
+        simworld = self.makeWorld()
+        planworld = self.makeWorld()
+        visualizer = None    
+        sim = None
+
+        if not physical:
+            #virtual simulation
+            sim = robotsim.Simulator(simworld)
+            low_level_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
+            self.controller = PickingController(simworld, planworld, low_level_controller)
+            myHelper = Helper(self)
+            visualizer = CustomGLViewer.CustomGLViewer(simworld,world, low_level_controller, sim, helper = myHelper)
+            self.command_Queue = visualizer.command_queue
+        else:
+            #actually connected to the robot
+            motion.setup(mode=config.mode,klampt_model=config.klampt_model,libpath="./")
+            res = motion.robot.startup()
+            if not res:
+                print "Error starting up Motion Module"
+                exit(1)
+            time.sleep(0.1)
+            q = motion.robot.getKlamptSensedPosition()
+            simworld.robot(0).setConfig(q)
+            planworld.robot(0).setConfig(q)
+
+            low_level_controller = PhysicalLowLevelController(simworld.robot(0))
+            self.controller = PickingController(simworld, planworld, low_level_controller)
+
+            myHelper = Helper(self)
+            visualizer = CustomGLViewer.CustomGLViewer(simworld,planworld, low_level_controller, helper=myHelper)
+            self.command_Queue = visualizer.command_queue
+            sim = robotsim.Simulator(simworld)
+    
+        self.simworld = simworld
+        self.fake_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
+        self.visualizer = visualizer
+        visualizer.run()
 
      
     def run(self):
@@ -236,7 +250,7 @@ class Recorder:
 
         self.pathDictionary[name] =  entry
         with open('data.json', 'w') as outfile:
-            json.dump(self.pathDictionary, outfile, sort_keys = True)
+            json.dump(self.pathDictionary, outfile, sort_keys = True, indent=4)
 
         # with open('data.json', 'w') as file:
         #     json.dump([key for key in self.pathDictionary : self.pathDictionary[key] for key in self.pathDictionary], file, indent=4)
@@ -275,9 +289,11 @@ class Recorder:
         elif self.currentLimb == 'both':
             for milestone in self.rightPath:
                 self.fake_controller.appendMilestoneRight(milestone)
-
             for milestone in self.leftPath:
                 self.fake_controller.appendMilestoneLeft(milestone)
+
+        print 'Test Concluded'
+
         return 
 
     def loadPath(self):
@@ -308,9 +324,9 @@ class Recorder:
             method = self.command_Queue.get().lower()
 
             if method == 'p':
-                self.replacePath()
+                self.replaceMilestone()
             elif method == 'i':
-                self.insertPath()
+                self.insertMilestone()
             elif method == 'x':
                 self.removeMilestone()
             elif method == 'a':
@@ -449,7 +465,6 @@ class Recorder:
 
         rate = raw_input("Enter a rate ")
         self.rate = float(rate)
-
         return
     
     def recordPath(self):
@@ -457,6 +472,21 @@ class Recorder:
         #TODO - test and make sure it works fine
 
         fn = PATH_DIR + FILE_NAME
+
+        if self.simType != 'physical':
+            print 'Error, physical simulation is not set up'
+            return
+
+        if self.currentLimb != 'both':
+            print 'Warning, record path was initially meant to record both arms at the same time - is your system set up for only recording'...
+            print self.currentLimb + ' arm? (y/n)'
+            response = raw_input()
+
+            if response == 'y':
+                continue
+            else:
+                print 'Not y, returning'
+                return
 
         f = open(fn, 'w')
         try:
@@ -466,9 +496,19 @@ class Recorder:
                 t = time.time() - t0
                 if t < 1e-3: t = 0
                 if switch == 'sensed':
-                    q = motion.robot.left_limb.sensedPosition()+motion.robot.right_limb.sensedPosition()
+                    if curentLimb == 'both':
+                        q = motion.robot.left_limb.sensedPosition()+motion.robot.right_limb.sensedPosition()
+                    elif self.currentLimb == 'right':
+                        q = motion.robot.right_limb.sensedPosition()
+                    elif self.currentLimb == 'left':
+                        q = motion.robot.left_limb.sensedPosition()
                 else:
-                    q = motion.robot.left_limb.commandedPosition()+motion.robot.right_limb.commandedPosition()
+                    if curentLimb == 'both':
+                        q = motion.robot.left_limb.commandedPosition()+motion.robot.right_limb.commandedPosition()
+                    elif self.currentLimb == 'right':
+                        q = motion.robot.right_limb.commandedPosition()
+                    elif self.currentLimb == 'left':
+                        q = motion.robot.left_limb.commandedPosition()
                 if q != lastq:
                     if lastq is not None:
                         f.write(str(lastt) + '\t' + str(len(lastq)) + '\t'+ ' '.join(str(v) for v in lastq)+'\n')
@@ -484,12 +524,13 @@ class Recorder:
             print "Saved %g seconds of motion. Exiting."%(time.time()-t0,)
             pass
 
-    def insertPath(self):
+    def insertMilestone(self):
 
         global LEFT_ARM_INDICES
         global RIGHT_ARM_INDICES
 
         print 'Inserting'
+        print 'Enter an index'
 
         config = self.controller.controller.getSensedConfig()
         leftArm = [config[v] for v in LEFT_ARM_INDICES]
@@ -529,6 +570,7 @@ class Recorder:
         global RIGHT_ARM_INDICES
 
         print 'Appending'
+        print 'Enter an index'
 
         config = self.controller.controller.getSensedConfig()
         leftArm = [config[v] for v in LEFT_ARM_INDICES]
@@ -547,6 +589,7 @@ class Recorder:
         #TODO remove mileston
 
         print 'Removing'
+        print 'Enter an index'
 
         index = self.getNumber()
         if index == 'q':
@@ -574,12 +617,13 @@ class Recorder:
                 print 'Error, index outside of right list bounds'
         return
 
-    def replacePath(self):
+    def replaceMilestone(self):
 
         global LEFT_ARM_INDICES
         global RIGHT_ARM_INDICES
 
         print 'Replacing'
+        print 'Enter an index'
         #could take out the leftarm/rightarm step
         config = self.controller.controller.getSensedConfig()
         leftArm = [config[v] for v in LEFT_ARM_INDICES]
@@ -628,8 +672,19 @@ class Recorder:
         self.controller.controller.appendMilestoneLeft(milestone_ldefault[0], 1)
         self.controller.controller.appendMilestoneRight(milestone_rdefault[0], 1)
         time.sleep(.1)
+
         print 'Done resetting'
   
+
+    def resetMotionQueue(self):
+
+        if self.simType == 'physical':
+            motion.shutdown()
+            setupController(physical=True)
+        else:
+            print 'Error, sim type is not physical'
+            return
+
     def getNumber(self):
 
         number = ''
@@ -659,7 +714,7 @@ class Recorder:
                     print 'Error, value not recognized'
                     print 'Press Enter to submit your entry or quit'
 
-    def getName(self):
+    def getName(self, options):
 
         name = ''
         
@@ -672,16 +727,19 @@ class Recorder:
             
                 if letter in string.printable:
                     name += letter
-                    os.system('clear')
-                    print name
                 elif letter == '\x08' or letter == '\x7f':
                     # backspace or delete
                     name = name[:-1]
-                    os.system('clear')
-                    print name
                 else:
                     print 'Error, value not recognized'
                     print 'Press Enter to submit your entry or quit'
+
+                os.system('clear')
+                print 'Options are:'
+                for one_option in options:
+                    if name in one_option:
+                        print one_option
+                print '\n' + name
 
     def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstants=False, internalSpeed=SPEED):
 
@@ -819,8 +877,8 @@ class Recorder:
 
                 time.sleep(0.1);
 
-                self.takePicture()
                 CAMERA_TRANSFORM[index] = (calibrateR, calibrateT)
+                self.takePicture()
                 #print self.simworld.robot(0).link(limb + '_wrist').getTransform()
                 totalCameraXform = self.getCameraToWorldXform()
 
@@ -829,7 +887,11 @@ class Recorder:
     def takePicture(self):
         global perceiver
         current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(), tolist=True)
-        self.visualizer.updatePoints(current_cloud)
+        if self.visualizer != None:
+            self.visualizer.updatePoints(current_cloud)
+        else:
+            raise NotImplemented
+            #self.controller.
 
 
     def getCameraToWorldXform(self, linkName=None, index=0):
@@ -896,7 +958,7 @@ class Helper():
         
 if __name__ == "__main__":
 
-    myRecorder = Recorder(physical=True)
+    myRecorder = Recorder(physical=False)
 
 
 

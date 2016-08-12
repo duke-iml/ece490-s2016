@@ -22,7 +22,8 @@ downsample_rate = 50
 RIGHT_CAMERA_IP = '10.236.66.147'
 LEFT_CAMERA_IP = '10.236.67.183'
 
-CAMERA_IP = '10.190.234.178'
+#CAMERA_IP = '10.190.234.178'
+CAMERA_IP = '152.3.173.231'
 
 class CameraData:
 	def __init__(self, color, cloud, depth_uv, color_uv):
@@ -56,7 +57,7 @@ class Perceiver(object):
 
 	def __init__(self):
 		# self.prefix = ''
-		self.prefix = '/home/group3/ece490-s2016/apc2016/Integration/perception/'
+		self.prefix = '/home/dukehal/ece490-s2016/Human_Interaction/Integration/perception/'
 		self.shelf_perturb_R = np.eye(3)
 		self.shelf_perturb_t = np.array([0,0,0])
 		# if camera_connect:
@@ -563,6 +564,47 @@ class Perceiver(object):
 		print "Clean cloud has %i points"%content_cloud.shape[0]
 		return content_cloud
 		
+	def get_current_content_cloud(self, cur_camera_R, cur_camera_t, filename, colorful=True, threshold=0.02, fit=False, tolist=False):
+		'''
+		should do some form of subtraction between a presaved image and the current configuration: 8/8/16
+		uses code from get_current_bin_content_cloud and get_current_tote_content_cloud
+		'''
+		color, scene_cloud, depth_uv, _ = self.read_once(limb=None, unit='meter', Nx3_cloud=False)
+		if colorful:
+			scene_cloud = colorize_point_cloud(scene_cloud, color, depth_uv).reshape(-1, 4)
+		else:
+			scene_cloud = scene_cloud.reshape(-1, 3)
+		keep_idxs = np.where(scene_cloud[:,2].flatten()!=0)[0]
+		scene_cloud = scene_cloud[keep_idxs, :]
+		scene_cloud = scene_cloud[::downsample_rate, :]
+		scene_cloud_xyz = scene_cloud[:, 0:3]
+		cur_camera_R = np.array(cur_camera_R).reshape(3,3).T
+		cur_camera_t = np.array(cur_camera_t)
+		scene_cloud_xyz = scene_cloud_xyz.dot(cur_camera_R.T)+cur_camera_t # colorless cloud
+		scene_cloud[:, 0:3] = scene_cloud_xyz # transform scene_cloud
+		
+		if len(scene_cloud_xyz) <= 1:
+			#it's empty
+			return scene_cloud_xyz
+		scene_tree = KDTree(scene_cloud_xyz)
+		model_cloud = self.load_model_cloud( self.get_standard_cloud_path(filename), downsample=True)
+		model_xform_R, model_xform_t = self.load_R_t(self.get_standard_viewing_camera_xform_path(filename), nparray=True)
+		model_cloud = model_cloud.dot(model_xform_R.T) + model_xform_t # apply saved transformation
+		assert (self.shelf_perturb_R is not None) and (self.shelf_perturb_t is not None), 'Shelf perturbation has not been calibrated'
+		model_cloud = model_cloud.dot(self.shelf_perturb_R.T) + self.shelf_perturb_t # apply perturbation transformation found by ICP
+		if fit:
+			R, t = icp.match(model_cloud, scene_tree)
+			model_cloud = model_cloud.dot(R.T) + t
+		keep_idxs = self.subtract_model(model_cloud, scene_tree=scene_tree, threshold=threshold)
+		bin_content_cloud = scene_cloud[keep_idxs, :]
+
+		if tolist:
+			bin_content_cloud = bin_content_cloud.tolist()
+
+		return bin_content_cloud
+
+	def get_name_from_state(self, filename):
+		return filename
 
 	def get_shelf_transformation(self, bin_letter, cur_camera_R, cur_camera_t, limb):
 		'''
@@ -628,6 +670,20 @@ class Perceiver(object):
 			model_cloud = model_cloud[::downsample_rate, :]
 		return model_cloud
 
+	def load_model_cloud(self, filename, downsample):
+		'''
+		More generic version of loading model clouds - updated 8/8/16 - largely copied from load_model_tote_cloud - HPB
+		'''
+		try:
+			model_cloud = np.load(filename)
+		except:
+			print 'Cannont find model at %s'%filename
+			return None
+		assert len(model_cloud.shape)==2, 'Size mismatch, expecting Nx3, current size is ' + str(model_cloud.shape)
+		if downsample:
+			model_cloud = model_cloud[::downsample_rate, :]
+		return model_cloud
+
 
 	def read_once(self, limb, unit='meter', Nx3_cloud=False, clean=None):
 		while True:
@@ -637,18 +693,20 @@ class Perceiver(object):
 				elif limb=='left':
 					camera = RemoteCamera(LEFT_CAMERA_IP, 30000)
 				elif limb == None:
-					print 'attempting neutral camera'
+					#print 'attempting neutral camera'
 					camera = RemoteCamera(CAMERA_IP, 30000)
+					#print 'camera set up'
 				else:
 					raise Exception('Unrecognized limb '+str(limb))
 				color, cloud, depth_uv, color_uv = camera.read()
 				camera.close()
+				#print 'camera closed'
 				break
 			except Exception, err:
 				print err
 				print 'Camera Connection Error. Retry in 1 second...'
 				time.sleep(1)
-		print 'image taken'
+		#print 'image taken'
 		if unit in ['meter', 'm']:
 			cloud /= 1000
 		elif unit in ['centimeter', 'centi-meter', 'cm']:
@@ -678,6 +736,12 @@ class Perceiver(object):
 	def get_tote_viewing_camera_xform_path(self, limb):
 		return self.prefix+'canonical_model_cloud/tote_xform_%s.txt'%limb
 
+	def get_standard_cloud_path(self, filename):
+		return self.prefix+'canonical_model_cloud/'+filename+'.npy'
+
+	def get_standard_viewing_camera_xform_path(self, filename):
+		return self.prefix+'canonical_model_cloud/'+filename+'_xform.txt'
+
 	def save_canonical_bin_point_cloud(self, bin_letter, R, t, limb):
 		'''
 		physical pre-condition: place the camera to the position viewing specified bin
@@ -703,6 +767,21 @@ class Perceiver(object):
 		np.save(self.get_tote_cloud_path(limb), cloud)
 		self.save_R_t(self.get_tote_viewing_camera_xform_path(limb), R, t)
 		print 'Successfully saved model for tote'
+
+	def save_canonical_cloud(self, R, t, filename):
+	
+		'''
+		More generic version of save_canonical_tote_cloud - added 8/8/16 
+		'''
+		assert isinstance(R, list), 'R must be a list but now it is '+str(R.__class__)
+		assert isinstance(t, list), 't must be a list but now it is '+str(t.__class__)
+		_, cloud, _, _ = self.read_once(limb=None, unit='meter', Nx3_cloud=True, clean=True)
+		
+		path = self.prefix+'canonical_model_cloud/'+filename
+		xform_path = path + '_xform.txt'
+		np.save(self.get_standard_cloud_path(filename), cloud)
+		self.save_R_t(self.get_standard_viewing_camera_xform_path(filename), R, t)
+		print 'Successfully saved model'
 
 	def save_R_t(self, filename, R, t):
 		'''
@@ -732,45 +811,6 @@ class Perceiver(object):
 			R = np.array(R).reshape(3,3).T
 			t = np.array(t)
 		return R, t
-
-	def get_position_of_item_in_bin(self, item_name, possible_items=None, return_normal=False):
-		'''
-		physical pre-condition: place the camera to the calibrated bin-viewing position.
-		calibrated position is the IK-solved position that is constant ***relative to the shelf***
-
-		***setting item_name to None*** suggests that there is only one item in the bin. Thus, no vision
-		algorithm is used. 
-
-		possible_items is a list of item names that can possibly be in the bin.
-		if None is provided, it will try to choose among all items. 
-
-		return (x,y,z) coordinate of the center of detected item. If return_normal is True, return local 
-		normal vector possibly for choosing suction direction (this operation may be slow). 
-		'''
-		raise NotImplemented
-
-	def perceive_single_object(self, possible_items=None):
-		'''
-		physical pre-condition: place the camera in a position to view an object being picked up 
-		by another object
-
-		this method is called if the scale is not enough to discriminate object (e.g. when two or more 
-		objects have similar weights). 
-
-		possible_items is a list of item names that can possibly be the item being picked (similar weights).
-		if None is provided, it will try to choose among all items. 
-	
-		return the official name of predicted item. 
-		'''
-		raise NotImplemented
-
-	def get_bin_empty_location(self):
-		'''
-		physical pre-condition: place the camera to the calibrated bin-viewing position. 
-
-		return (x,y,z) coordinate of with deepest z value. useful for determining stowing location. 
-		'''
-		raise NotImplemented
 
 	def find_max_density_3d(self, cloud, return_cloud=False):
 		xs = cloud[:,0]
@@ -935,6 +975,12 @@ def save_tote():
 	perceiver.save_canonical_bin_point_cloud('_tote')
 	raw_input('Press to save tote with object scene')
 	perceiver.save_canonical_bin_point_cloud('_tote_with_objects')
+
+def save_model(filename):
+	perceiver = Perceiver()
+	name = ('Enter a name to call this model')
+	perceiver.save_canonical_cloud(filename = filename)
+
 
 def save_bin():
 	perceiver = Perceiver()

@@ -35,6 +35,20 @@ from motionController import PhysicalLowLevelController
 SPEED = 13
 visualizer = CustomGLViewer.CustomGLViewer()
 REAL_CAMERA = True
+CAMERA_TRANSFORM = {}
+CAMERA_TRANSFORM[0] = ([0.028716034793163016, 0.9930831240650396, -0.11384769669598797, 0.9252701802826766, 0.01668694462904325, 0.37894147220726904, 0.3782201512683095, -0.11622157534714044, -0.9183910183567833], [0.9300000000000002, 0.14, 2.0199999999999996])
+
+REGION_DIR = {}
+REGION_DIR[4] = ([.5, .2, .8],[1.7, .6, 2])
+REGION_DIR[2] = ([.5, -.2,.8],[1.7, .2, 2])
+REGION_DIR[3] = ([.5, -.2,.8],[1.7, .2, 2])
+REGION_DIR[1] = ([.5, -.6, .8],[1.7, -.2, 2])
+
+FILE_DIR = {}
+FILE_DIR[1] = 'RIGHT_BOX_RIGHT_ARM'
+FILE_DIR[2] = 'MID_BOX_RIGHT_ARM'
+FILE_DIR[3] = 'MID_BOX_LEFT_ARM'
+FILE_DIR[4] = 'LEFT_BOX_LEFT_ARM'
 
 if REAL_CAMERA:
     # Perception
@@ -88,11 +102,11 @@ def supplyBoxes(choice):
         num = choice
     elif choice == 3 or choice == 4:
         limb = 'left'
-        if choice == 3:
-        	num = 2
-        else:
-        	num = 1
-        # choosing 4 means go to box 3
+        # if choice == 3:
+        # 	num = 2
+        # else:
+        # 	num = 1
+        # # choosing 4 means go to box 3
         # choosing 3 means go to box 2
     else:
         raise Exception('Invalid entry')
@@ -100,11 +114,14 @@ def supplyBoxes(choice):
     # path1_name = limb.upper()+'_SUPPLY'
     # path2_name = limb.upper()+'_DROP_'+str(choice)
 
-    path1_name = 'supply_'+str(num)+'-'+limb
-    path2_name = 'drop_'+str(num)+'-'+limb
+    path1_name = limb.upper()+'_SUPPLY_'+str(choice)
+    path2_name = limb.upper()+'_DEPOSIT_'+str(choice)
 
     moveArm(limb = limb, path_name = path1_name, reverse = False)
     waitForMove()
+
+    checkForPerson(choice)
+
     moveArm(limb = limb, path_name = path2_name)
     waitForMove()
 
@@ -115,6 +132,64 @@ def supplyBoxes(choice):
     waitForMove()
 
 
+def checkForPerson(choice):
+
+
+    filename = FILE_DIR[choice]
+    region = REGION_DIR[choice]
+
+    R,t = getCameraToWorldXform()
+    #region - a pair of x,y,z points signifying a box box
+    #currently just a straightforward box
+
+    while (1):
+
+        # should be the subtracted data 
+        if REAL_CAMERA:
+            picture_data = perceiver.get_current_content_cloud(R,t, filename, tolist=True)
+            #print picture_data
+
+            number = countPointsInRegion(picture_data, region)
+
+            if number >= 20:
+                print 'A person is there - waiting'
+            else:
+                print 'Continuing'
+                break
+        else:
+            return
+
+        time.sleep(.1)
+
+    # we are at the location we want
+    # take a picture
+    # subtract out the arm
+    # are there people there?
+    # if yes, continue this loop
+    # if no, 
+
+def countPointsInRegion(picture_data, region):
+    # region, an x,y,z box 
+    counter = 0
+
+    for point in picture_data:
+
+        if counter%100 == 0:
+            print point
+
+        in_x = region[0][0] <= point[0] <= region[1][0]
+        in_y = region[0][1] <= point[1] <= region[1][1]
+        in_z = region[0][2] <= point[2] <= region[1][2]
+        if in_x and in_y and in_z:
+            counter = counter + 1
+
+    return counter
+
+
+def saveCanonicalModelCloud():
+    name = raw_input('Enter a name to save this point cloud as')
+    R,t = getCameraToWorldXform()
+    perceiver.save_canonical_cloud(filename, R,t , limb=limb)
 
 def waitForMove(timeout = None, pollRate = 0.01):
     """Waits for the move to complete, or timeout seconds is elapsed,
@@ -354,8 +429,6 @@ def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstan
             path.insert(i+1, qInterp)
             endIndex +=1
             continue
-        
-
 
         else:
             i += 1
@@ -430,9 +503,14 @@ def load_exp_world():
 def takePicture():
     global visualizer
     current_cloud = perceiver.get_current_point_cloud(*getCameraToWorldXform(), tolist=True)
+    print 'number of points is: ', len(current_cloud)
+    picture_data = current_cloud
+    #print 'picture data is: ', picture_data
     visualizer.updatePoints(current_cloud)
 
-def getCameraToWorldXform(self, linkName=None, index=0):
+    return picture_data
+
+def getCameraToWorldXform(linkName=None, index=0):
     '''
     get current transformation (R, t) of camera in world frame. 
     '''
@@ -447,6 +525,32 @@ def getCameraToWorldXform(self, linkName=None, index=0):
         return se3.mul(SIMWORLD.robot(0).link(linkName).getTransform(), CAMERA_TRANSFORM[index])
     else: 
         return CAMERA_TRANSFORM[index]
+
+
+def calibrateExperiment():
+    global FILE_DIR
+    
+    path_names = ['RIGHT_SUPPLY_1','RIGHT_SUPPLY_2','LEFT_SUPPLY_3','LEFT_SUPPLY_4']
+
+    for i in range(len(path_names)):
+        limb = path_names[i].split('_')[0].lower()
+        name = path_names[i]
+        filename = FILE_DIR[i+1]
+
+        print 'moving through path 1'
+        moveArm(limb = limb, path_name = name, reverse = False)
+        waitForMove()
+    
+        print 'sleeping'
+        time.sleep(2)
+
+        R,t = getCameraToWorldXform()
+        perceiver.save_canonical_cloud(R,t, filename )
+        #save picture
+
+        print 'moving back'
+        moveArm(limb = limb, path_name = name, reverse = True)
+        waitForMove()
 
 
 class Helper():
@@ -497,6 +601,10 @@ SEND_PATH = True
 
 #CHOICE = int(sys.argv[1])
 #print 'Choice is', CHOICE
+
+calibrateExperiment()
+
+
 myHelp = Helper()
 visualizer = CustomGLViewer.CustomGLViewer(SIMWORLD, WORLD, LOW_LEVEL_CONTROLLER, helper=myHelp)
 

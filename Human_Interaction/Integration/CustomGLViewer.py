@@ -6,7 +6,7 @@ from klampt import robotsim
 from klampt.glprogram import *
 import json
 from Queue import Queue
-
+import numpy as np
 
 
 class CustomGLViewer(GLRealtimeProgram):
@@ -56,26 +56,30 @@ class CustomGLViewer(GLRealtimeProgram):
         # print glGetFloatv(GL_CURRENT_COLOR)
         pc = np.array(pc)
         # print 'Rendering %d points'%pc.shape[0]
-        d = pc.shape[1]
-        assert d==3 or d==4, 'Unrecognized point cloud shape: '+str(pc.shape)
-        pc = pc[::downsample_rate, :]
-        pc = pc.tolist()
-        glDisable(GL_LIGHTING)
-        glColor3f(0, 1, 0)
-        if pt_size is not None:
-            glPointSize(pt_size)
-        glBegin(GL_POINTS)
-        for p in pc:
-            if d==4:
-                r, g, b = pcl_float_to_rgb(p[3])
-                r /= 255.0
-                g /= 255.0
-                b /= 255.0
-                glColor3f(r, g, b)
-            glVertex3f(p[0], p[1], p[2])
-        glEnd()
-        glEnable(GL_LIGHTING)
-        glColor3f(1,0,0)
+        try:
+            d = pc.shape[1]
+            assert d==3 or d==4, 'Unrecognized point cloud shape: '+str(pc.shape)
+            pc = pc[::downsample_rate, :]
+            pc = pc.tolist()
+            glDisable(GL_LIGHTING)
+            glColor3f(0, 1, 0)
+            if pt_size is not None:
+                glPointSize(pt_size)
+            glBegin(GL_POINTS)
+            for p in pc:
+                if d==4:
+                    r, g, b = pcl_float_to_rgb(p[3])
+                    r /= 255.0
+                    g /= 255.0
+                    b /= 255.0
+                    glColor3f(r, g, b)
+                glVertex3f(p[0], p[1], p[2])
+            glEnd()
+            glEnable(GL_LIGHTING)
+            glColor3f(1,0,0)
+        except:
+            #print 'Insufficient data'
+            pass
 
 
 
@@ -99,9 +103,37 @@ class CustomGLViewer(GLRealtimeProgram):
             self.simworld.terrain(i).drawGL()
 
         if self.points != None:
-            glShowPointCloud(self.points)    
+            self.glShowPointCloud(self.points)    
+
+        self.draw_wire_box([.5, .2, .8],[1.7, .6, 2])
+        self.draw_wire_box([.5, -.2,.8],[1.7, .2, 2])
+        self.draw_wire_box([.5, -.6, .8],[1.7, -.2, 2])
 
 
+    def draw_wire_box(self, bmin,bmax):
+        """Helper: draws a wireframe box"""
+        glBegin(GL_LINE_LOOP)
+        glVertex3f(bmin[0],bmin[1],bmin[2])
+        glVertex3f(bmin[0],bmin[1],bmax[2])
+        glVertex3f(bmin[0],bmax[1],bmax[2])
+        glVertex3f(bmin[0],bmax[1],bmin[2])
+        glEnd()
+        glBegin(GL_LINE_LOOP)
+        glVertex3f(bmax[0],bmin[1],bmin[2])
+        glVertex3f(bmax[0],bmin[1],bmax[2])
+        glVertex3f(bmax[0],bmax[1],bmax[2])
+        glVertex3f(bmax[0],bmax[1],bmin[2])
+        glEnd()
+        glBegin(GL_LINES)
+        glVertex3f(bmin[0],bmin[1],bmin[2])
+        glVertex3f(bmax[0],bmin[1],bmin[2])
+        glVertex3f(bmin[0],bmin[1],bmax[2])
+        glVertex3f(bmax[0],bmin[1],bmax[2])
+        glVertex3f(bmin[0],bmax[1],bmax[2])
+        glVertex3f(bmax[0],bmax[1],bmax[2])
+        glVertex3f(bmin[0],bmax[1],bmin[2])
+        glVertex3f(bmax[0],bmax[1],bmin[2])
+        glEnd()
 
     def keyboardfunc(self,c,x,y):
         #c = c.lower()
