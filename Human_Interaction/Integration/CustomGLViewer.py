@@ -85,6 +85,8 @@ class CustomGLViewer(GLRealtimeProgram):
 
     def display(self):
 
+        ZMIN = .95
+        ZMAX = 1.2
         
         glEnable(GL_BLEND)
 
@@ -105,9 +107,9 @@ class CustomGLViewer(GLRealtimeProgram):
         if self.points != None:
             self.glShowPointCloud(self.points)    
 
-        self.draw_wire_box([.5, .2, .8],[1.7, .6, 2])
-        self.draw_wire_box([.5, -.2,.8],[1.7, .2, 2])
-        self.draw_wire_box([.5, -.6, .8],[1.7, -.2, 2])
+        self.draw_wire_box([.5, .2, ZMIN],[1.7, .6, ZMAX])
+        self.draw_wire_box([.5, -.2,ZMIN],[1.7, .2, ZMAX])
+        self.draw_wire_box([.5, -.6, ZMIN],[1.7, -.2, ZMAX])
 
 
     def draw_wire_box(self, bmin,bmax):

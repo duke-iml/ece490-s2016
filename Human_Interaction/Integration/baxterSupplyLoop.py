@@ -32,17 +32,24 @@ from motionController import PhysicalLowLevelController
 
 
 
-SPEED = 13
+SPEED = 16
 visualizer = CustomGLViewer.CustomGLViewer()
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] = ([0.028716034793163016, 0.9930831240650396, -0.11384769669598797, 0.9252701802826766, 0.01668694462904325, 0.37894147220726904, 0.3782201512683095, -0.11622157534714044, -0.9183910183567833], [0.9300000000000002, 0.14, 2.0199999999999996])
+CAMERA_TRANSFORM[0] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.44, 0.95])
+CAMERA_TRANSFORM[1] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.03500000000000004, 0.9699999999999999])
+CAMERA_TRANSFORM[2] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, 0.36, 0.9599999999999999])
+
+WORKING_CAMERAS = [0,1,2]
+
+ZMIN = .97
+ZMAX = 1.2
 
 REGION_DIR = {}
-REGION_DIR[4] = ([.5, .2, .8],[1.7, .6, 2])
-REGION_DIR[2] = ([.5, -.2,.8],[1.7, .2, 2])
-REGION_DIR[3] = ([.5, -.2,.8],[1.7, .2, 2])
-REGION_DIR[1] = ([.5, -.6, .8],[1.7, -.2, 2])
+REGION_DIR[4] = ([.5, .2, ZMIN],[1.7, .5, ZMAX])
+REGION_DIR[2] = ([.5, -.2, ZMIN],[1.7, .2, ZMAX])
+REGION_DIR[3] = ([.5, -.2, ZMIN],[1.7, .2, ZMAX])
+REGION_DIR[1] = ([.5, -.5, ZMIN],[1.7, -.2, ZMAX])
 
 FILE_DIR = {}
 FILE_DIR[1] = 'RIGHT_BOX_RIGHT_ARM'
@@ -59,8 +66,7 @@ def loop():
     counter = 0
     while (1):
 
-        if counter == 50:
-            counter = 0
+        if counter %100== 0:
             if REAL_CAMERA:
                 takePicture()
 
@@ -138,7 +144,18 @@ def checkForPerson(choice):
     filename = FILE_DIR[choice]
     region = REGION_DIR[choice]
 
-    R,t = getCameraToWorldXform()
+    index = None
+    if choice == 1:
+        index = 0
+    elif choice == 2 or choice == 3:
+        index = 1
+    elif choice == 4:
+        index = 2
+    else:
+        raise Exception('Invalid choice in checkForPerson')
+
+
+    R,t = getCameraToWorldXform(index=index)
     #region - a pair of x,y,z points signifying a box box
     #currently just a straightforward box
 
@@ -146,7 +163,12 @@ def checkForPerson(choice):
 
         # should be the subtracted data 
         if REAL_CAMERA:
-            picture_data = perceiver.get_current_content_cloud(R,t, filename, tolist=True)
+            #picture_data = perceiver.get_current_content_cloud(R,t, filename, tolist=True, index=index)
+            # ^does point cloud subtraction
+
+            picture_data = perceiver.get_current_point_cloud(R,t, limb=None, tolist=True, index=index)
+            # grabs the entire point cloud
+
             #print picture_data
 
             number = countPointsInRegion(picture_data, region)
@@ -174,8 +196,8 @@ def countPointsInRegion(picture_data, region):
 
     for point in picture_data:
 
-        if counter%100 == 0:
-            print point
+        # if counter%100 == 0:
+        #     print point
 
         in_x = region[0][0] <= point[0] <= region[1][0]
         in_y = region[0][1] <= point[1] <= region[1][1]
@@ -502,10 +524,21 @@ def load_exp_world():
 
 def takePicture():
     global visualizer
-    current_cloud = perceiver.get_current_point_cloud(*getCameraToWorldXform(), tolist=True)
+    global WORKING_CAMERAS
+
+    print 'taking picture'
+
+    current_cloud = []
+
+    for index in WORKING_CAMERAS:
+        cloud = perceiver.get_current_point_cloud(*getCameraToWorldXform(index=index), tolist=True, index=index)
+        for i in cloud:
+            current_cloud.append(i)
     print 'number of points is: ', len(current_cloud)
     picture_data = current_cloud
     #print 'picture data is: ', picture_data
+
+
     visualizer.updatePoints(current_cloud)
 
     return picture_data
@@ -602,7 +635,7 @@ SEND_PATH = True
 #CHOICE = int(sys.argv[1])
 #print 'Choice is', CHOICE
 
-calibrateExperiment()
+#calibrateExperiment()
 
 
 myHelp = Helper()

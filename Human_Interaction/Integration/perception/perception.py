@@ -23,7 +23,13 @@ RIGHT_CAMERA_IP = '10.236.66.147'
 LEFT_CAMERA_IP = '10.236.67.183'
 
 #CAMERA_IP = '10.190.234.178'
-CAMERA_IP = '152.3.173.231'
+CAMERA_IP = {}
+CAMERA_IP[0] = '192.168.0.22'
+CAMERA_IP[1] = '192.168.0.21'
+CAMERA_IP[2] = '192.168.0.20'
+
+#Camera IP's left to right
+
 
 class CameraData:
 	def __init__(self, color, cloud, depth_uv, color_uv):
@@ -386,7 +392,7 @@ class Perceiver(object):
 			print 'Cannot find uv hist for %s at %s'%(item, filename)
 			return None
 
-	def get_current_point_cloud(self, cur_camera_R, cur_camera_t, limb=None, colorful=False, tolist=True):
+	def get_current_point_cloud(self, cur_camera_R, cur_camera_t, limb=None, colorful=False, tolist=True, index=None):
 		'''
 		physical pre-condition: place the camera to the desired viewing angle. 
 
@@ -404,7 +410,7 @@ class Perceiver(object):
 		
 		if there is an error in retrieving data, None is returned
 		'''
-		color, cloud, depth_uv, _ = self.read_once(limb, unit='meter', Nx3_cloud=False)
+		color, cloud, depth_uv, _ = self.read_once(limb, unit='meter', Nx3_cloud=False, index=index)
 		if cloud is None:
 			return None
 		if colorful:
@@ -564,12 +570,12 @@ class Perceiver(object):
 		print "Clean cloud has %i points"%content_cloud.shape[0]
 		return content_cloud
 		
-	def get_current_content_cloud(self, cur_camera_R, cur_camera_t, filename, colorful=True, threshold=0.02, fit=False, tolist=False):
+	def get_current_content_cloud(self, cur_camera_R, cur_camera_t, filename, colorful=True, threshold=0.02, fit=False, tolist=False, index=0):
 		'''
 		should do some form of subtraction between a presaved image and the current configuration: 8/8/16
 		uses code from get_current_bin_content_cloud and get_current_tote_content_cloud
 		'''
-		color, scene_cloud, depth_uv, _ = self.read_once(limb=None, unit='meter', Nx3_cloud=False)
+		color, scene_cloud, depth_uv, _ = self.read_once(limb=None, unit='meter', Nx3_cloud=False, index=index)
 		if colorful:
 			scene_cloud = colorize_point_cloud(scene_cloud, color, depth_uv).reshape(-1, 4)
 		else:
@@ -685,7 +691,7 @@ class Perceiver(object):
 		return model_cloud
 
 
-	def read_once(self, limb, unit='meter', Nx3_cloud=False, clean=None):
+	def read_once(self, limb, unit='meter', Nx3_cloud=False, clean=None, index=None):
 		while True:
 			try:
 				if limb=='right':
@@ -693,9 +699,13 @@ class Perceiver(object):
 				elif limb=='left':
 					camera = RemoteCamera(LEFT_CAMERA_IP, 30000)
 				elif limb == None:
-					#print 'attempting neutral camera'
-					camera = RemoteCamera(CAMERA_IP, 30000)
-					#print 'camera set up'
+
+					if index == None:
+						raise Exception('Limb cannot be none when camera index is also none')
+					else:
+						#print 'Camera IP is ', CAMERA_IP[index]
+						camera = RemoteCamera(CAMERA_IP[index], 30000)
+					
 				else:
 					raise Exception('Unrecognized limb '+str(limb))
 				color, cloud, depth_uv, color_uv = camera.read()

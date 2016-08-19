@@ -30,15 +30,22 @@ PATH_DIR = "../Trajectories/"
 FILE_NAME = "Human_Test"
 
 model_dir = "../klampt_models/"
-KLAMPT_MODEL = "baxter_col.rob"
+
+#KLAMPT_MODEL = "baxter_col.rob"
+KLAMPT_MODEL = "baxter.rob"
+
 
 SPEED = 13
 
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] =  ([0.028716034793163016, 0.9930831240650396, -0.11384769669598797, 0.9252701802826766, 0.01668694462904325, 0.37894147220726904, 0.3782201512683095, -0.11622157534714044, -0.9183910183567833], [0.9300000000000002, 0.14, 2.0199999999999996])
+CAMERA_TRANSFORM[0] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.44, 0.95])
+CAMERA_TRANSFORM[1] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.03500000000000004, 0.9699999999999999])
+CAMERA_TRANSFORM[2] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, 0.36, 0.9599999999999999])
 
-OLD =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, 0.31336488792282463, -0.07546393005471538, -0.9466296225440092, 0.9493701506495044, 0.0014519363095627505, 0.31415634473410153], [0.24000000000000007, -0.01, 1.19])
+
+OVERHEAD = ([0.02200958349401458, 0.9957794720964701, -0.08910006277046488, 0.9720448364185201, -0.0004760777365310359, 0.23479482392524428, 0.23376144726305412, -0.09177699222174122, -0.9679527723356234], [0.9600000000000002, 0.06000000000000002, 1.9599999999999997])
+
 
 myHelper = None
 
@@ -90,7 +97,7 @@ class Recorder:
             sim = robotsim.Simulator(simworld)
             #assuming visualizer was already created
         else:
-            handleNoSuppliedController(physical)
+            self.setupController(physical)
 
         self.fake_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
         
@@ -155,7 +162,7 @@ class Recorder:
                 elif method == 't' or method == 'run':
                     self.testPath()
                 elif method == 'a':
-                    self.appendPath()
+                    self.appendMilestone()
                 elif method == 'u':
                     self.changePath()
                 elif method == 'v':
@@ -175,8 +182,11 @@ class Recorder:
                 elif method == 'm':
                     self.reset()
                 elif method == 'w':
-                    self.calibrateCamera()
+                    print 'Choose camera index'
+                    index = self.getNumber()
+                    self.calibrateCamera(index=index)
                 elif method == 'q':
+                    self.checkSave()
                     print 'Ending recorder functionalities' 
 
                     break
@@ -186,6 +196,28 @@ class Recorder:
                 print '\n===================================='
                 self.printHelp()
         return 
+
+    def checkSave(self):
+
+        #TODO - finish
+
+        if self.currentLimb == 'both':
+            if self.leftSaved == False:
+                answer = self.getName()
+            self.rightSaved = False
+        elif self.currentLimb == 'right':
+            self.rightSaved = False
+        elif self.currentLimb == 'left':
+            self.leftSaved = False
+
+    def updateSaved(self):
+        if self.currentLimb == 'both':
+            self.leftSaved = False
+            self.rightSaved = False
+        elif self.currentLimb == 'right':
+            self.rightSaved = False
+        elif self.currentLimb == 'left':
+            self.leftSaved = False
 
     def makeWorld(self):
 
@@ -297,7 +329,8 @@ class Recorder:
         return 
 
     def loadPath(self):
-        #TODO
+
+        self.checkSave()
 
         print 'Options are:'
         for key in self.pathDictionary:
@@ -309,6 +342,11 @@ class Recorder:
             self.leftPath = self.pathDictionary[load_name][1][1]
             self.rightPath = self.pathDictionary[load_name][2][1]
             print 'Loaded'
+        
+            self.currentLimb = self.pathDictionary[load_name][0]
+            self.saveLeft = True
+            self.saveRight = True
+
         else:
             print 'Sorry, name not recognized.'
         return 
@@ -330,7 +368,7 @@ class Recorder:
             elif method == 'x':
                 self.removeMilestone()
             elif method == 'a':
-                self.appendPath()
+                self.appendMilestone()
             else:
                 print 'Unknown command. Returning to main loop'
         return
@@ -478,12 +516,12 @@ class Recorder:
             return
 
         if self.currentLimb != 'both':
-            print 'Warning, record path was initially meant to record both arms at the same time - is your system set up for only recording'...
+            print 'Warning, record path was initially meant to record both arms at the same time - is your system set up for only recording',
             print self.currentLimb + ' arm? (y/n)'
             response = raw_input()
 
             if response == 'y':
-                continue
+                pass
             else:
                 print 'Not y, returning'
                 return
@@ -496,19 +534,21 @@ class Recorder:
                 t = time.time() - t0
                 if t < 1e-3: t = 0
                 if switch == 'sensed':
-                    if curentLimb == 'both':
+                    if self.curentLimb == 'both':
                         q = motion.robot.left_limb.sensedPosition()+motion.robot.right_limb.sensedPosition()
                     elif self.currentLimb == 'right':
                         q = motion.robot.right_limb.sensedPosition()
                     elif self.currentLimb == 'left':
                         q = motion.robot.left_limb.sensedPosition()
+                    self.updateSaved()
                 else:
-                    if curentLimb == 'both':
+                    if self.curentLimb == 'both':
                         q = motion.robot.left_limb.commandedPosition()+motion.robot.right_limb.commandedPosition()
                     elif self.currentLimb == 'right':
                         q = motion.robot.right_limb.commandedPosition()
                     elif self.currentLimb == 'left':
                         q = motion.robot.left_limb.commandedPosition()
+                    self.updateSaved()
                 if q != lastq:
                     if lastq is not None:
                         f.write(str(lastt) + '\t' + str(len(lastq)) + '\t'+ ' '.join(str(v) for v in lastq)+'\n')
@@ -540,31 +580,35 @@ class Recorder:
         if index == 'q':
             return 
 
-
         if self.currentLimb == 'left':
             if len(self.leftPath) > index:
                 self.leftPath.insert(index, [a for a in leftArm])
+                self.updateSaved()
             else:
                 print 'Error, index outside of list bounds'
         elif self.currentLimb == 'right':
             if len(self.rightPath) > index:
                 self.rightPath.insert(index, [a for a in rightArm])
+                self.updateSaved()
             else:
                 print 'Error, index outside of list bounds'
         elif self.currentLimb == 'both':
-
             if len(self.leftPath) > index:
                 self.leftPath.insert(index, [a for a in leftArm])
+                self.updateSaved()
             else:
                 print 'Error, index outside of left list bounds'
 
             if len(self.rightPath) > index:
                 self.rightPath.insert(index, [a for a in rightArm])
+                self.updateSaved()
             else:
                 print 'Error, index outside of right list bounds'
         return
 
-    def appendPath(self):
+    def appendMilestone(self):
+
+        #updates saving
 
         global LEFT_ARM_INDICES
         global RIGHT_ARM_INDICES
@@ -579,14 +623,15 @@ class Recorder:
         if self.currentLimb == 'left':
             self.leftPath.append([a for a in leftArm])
         elif self.currentLimb == 'right':
-            self.rightPath.append([a for a in rightArm])            
+            self.rightPath.append([a for a in rightArm])
         elif self.currentLimb == 'both':
             self.leftPath.append([a for a in leftArm])
             self.rightPath.append([a for a in rightArm]) 
+        self.updateSaved()
         return
 
     def removeMilestone(self):
-        #TODO remove mileston
+        #updates saving
 
         print 'Removing'
         print 'Enter an index'
@@ -599,25 +644,30 @@ class Recorder:
         if self.currentLimb == 'left':
             if len(self.leftPath) > index:
                 self.leftPath.pop(index)
+                self.updateSaved()
             else:
                 print 'Error, index outside of list bounds'
         elif self.currentLimb == 'right':
             if len(self.rightPath) > index:
                 self.rightPath.pop(index)
+                self.updateSaved()
             else:
                 print 'Error, index outside of list bounds'
         elif self.currentLimb == 'both':
             if len(self.leftPath) > index:
                 self.leftPath.pop(index)
+                self.updateSaved()
             else:
                 print 'Error, index outside of left list bounds'
             if len(self.rightPath) > index:
                 self.rightPath.pop(index)
+                self.updateSaved()
             else:
                 print 'Error, index outside of right list bounds'
         return
 
     def replaceMilestone(self):
+        #updates saving
 
         global LEFT_ARM_INDICES
         global RIGHT_ARM_INDICES
@@ -637,42 +687,46 @@ class Recorder:
         if self.currentLimb == 'left':
             if len(self.leftPath) > index:
                 self.leftPath[index] = [a for a in leftArm]
+                self.updateSaved()
             else:
                 print 'Error, index outside of list bounds'
         elif self.currentLimb == 'right':
             if len(self.rightPath) > index:
                 self.rightPath[index] = [a for a in rightArm]
+                self.updateSaved()
             else:
                 print 'Error, index outside of list bounds'
         elif self.curentLimb == 'both':
             if len(self.leftPath) > index:
                 self.leftPath[index] = [a for a in leftArm]
+                self.updateSaved()
             else:
                 print 'Error, index outside of left list bounds'
             if len(self.rightPath) > index:
                 self.rightPath[index] = [a for a in rightArm]
+                self.updateSaved()
             else:
                 print 'Error, index outside of right list bounds'
 
     def reset(self):
 
         self.currentLimb = 'both'
+        self.clearPaths()
 
         load_name = 'Q_DEFAULT_LOAD'
 
         milestone_ldefault = self.pathDictionary[load_name][1][1]
         milestone_rdefault = self.pathDictionary[load_name][2][1]
 
-        self.leftPath = []
-        self.rightPath = []
-
-        print milestone_ldefault
-        print milestone_rdefault
+        print 'left default milestone ' + milestone_ldefault
+        print 'right default milestone ' + milestone_rdefault
 
         self.controller.controller.appendMilestoneLeft(milestone_ldefault[0], 1)
         self.controller.controller.appendMilestoneRight(milestone_rdefault[0], 1)
         time.sleep(.1)
 
+        self.leftSaved = True
+        self.rightSaved = True
         print 'Done resetting'
   
 
@@ -805,6 +859,8 @@ class Recorder:
 
     def clearPaths(self):
 
+        self.checkSave()
+
         self.leftPath = []
         self.rightPath = []
 
@@ -878,21 +934,18 @@ class Recorder:
                 time.sleep(0.1);
 
                 CAMERA_TRANSFORM[index] = (calibrateR, calibrateT)
-                self.takePicture()
-                #print self.simworld.robot(0).link(limb + '_wrist').getTransform()
-                totalCameraXform = self.getCameraToWorldXform()
-
+                self.takePicture(index)
+                
                 print 'local camera ', index, ' transform is ', CAMERA_TRANSFORM[index]
 
-    def takePicture(self):
+    def takePicture(self, index=0):
         global perceiver
-        current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(), tolist=True)
+        current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(index=index), tolist=True, index=index)
         if self.visualizer != None:
             self.visualizer.updatePoints(current_cloud)
         else:
             raise NotImplemented
             #self.controller.
-
 
     def getCameraToWorldXform(self, linkName=None, index=0):
         '''
@@ -958,7 +1011,7 @@ class Helper():
         
 if __name__ == "__main__":
 
-    myRecorder = Recorder(physical=False)
+    myRecorder = Recorder(physical=True)
 
 
 
