@@ -40,7 +40,7 @@ CAMERA_TRANSFORM[0] =  ([-0.022333026504579953, -0.9971474751217351, 0.072098188
 CAMERA_TRANSFORM[1] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.03500000000000004, 0.9699999999999999])
 CAMERA_TRANSFORM[2] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, 0.36, 0.9599999999999999])
 
-WORKING_CAMERAS = [0,1,2]
+WORKING_CAMERAS = [1,2]
 
 ZMIN = .97
 ZMAX = 1.2
@@ -88,6 +88,23 @@ def loop():
     			print 'Finished movement 4 at ', time.localtime()
     			os.remove("./4.com")
 
+            if os.path.exists("./5.com"):
+                supplyBoxes(5)
+                print 'Finished movement 5 at ', time.localtime()
+                os.remove("./5.com")
+            if os.path.exists("./6.com"):
+                supplyBoxes(6)
+                print 'Finished movement 6 at ', time.localtime()
+                os.remove("./6.com")
+            if os.path.exists("./7.com"):
+                supplyBoxes(7)
+                print 'Finished movement 7 at ', time.localtime()
+                os.remove("./7.com")
+            if os.path.exists("./8.com"):
+                supplyBoxes(8)
+                print 'Finished movement 8 at ', time.localtime()
+                os.remove("./8.com")
+
 		time.sleep(.1)
         counter = counter+1
 
@@ -98,10 +115,21 @@ def supplyBoxes(choice):
     2 - Supply the middle box with the right arm
     3 - Supply the middle box with the left arm
     4 - Supply the left box with the left arm   
+
+    5-8 = 1-4 without camera
+
     '''
+
+
 
     limb = None
     num = None
+
+    checkPeople = True
+
+    if 5 <= choice <= 8:
+        checkPeople = False
+        choice = choice - 4
 
     if choice == 1 or choice == 2:
         limb = 'right'
@@ -116,7 +144,7 @@ def supplyBoxes(choice):
         # choosing 3 means go to box 2
     else:
         raise Exception('Invalid entry')
-
++
     # path1_name = limb.upper()+'_SUPPLY'
     # path2_name = limb.upper()+'_DROP_'+str(choice)
 
@@ -126,7 +154,8 @@ def supplyBoxes(choice):
     moveArm(limb = limb, path_name = path1_name, reverse = False)
     waitForMove()
 
-    checkForPerson(choice)
+    if checkPeople:
+        checkForPerson(choice)
 
     moveArm(limb = limb, path_name = path2_name)
     waitForMove()
