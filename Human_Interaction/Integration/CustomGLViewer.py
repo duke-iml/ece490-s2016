@@ -8,6 +8,11 @@ import json
 from Queue import Queue
 import numpy as np
 
+BOX_COORDS = {}
+BOX_COORDS[2] = ([.5, .2, .90],[1.44, .6, 1.2])
+BOX_COORDS[1] = ([.5, -.2,.90],[1.44, .2, 1.2])
+BOX_COORDS[0] = ([.5, -.6, .90],[1.44, -.2, 1.2])
+
 
 class CustomGLViewer(GLRealtimeProgram):
     def __init__(self,simworld=None,planworld=None, controller=None, sim=None, helper=None):
@@ -82,12 +87,14 @@ class CustomGLViewer(GLRealtimeProgram):
             pass
 
 
+    def updateBox(self, index, vertices):
+        BOX_COORDS[index] = vertices
+
 
     def display(self):
-
-        ZMIN = .95
-        ZMAX = 1.2
         
+        global BOX_COORDS
+
         glEnable(GL_BLEND)
 
         glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
@@ -107,9 +114,9 @@ class CustomGLViewer(GLRealtimeProgram):
         if self.points != None:
             self.glShowPointCloud(self.points)    
 
-        self.draw_wire_box([.5, .2, ZMIN],[1.7, .6, ZMAX])
-        self.draw_wire_box([.5, -.2,ZMIN],[1.7, .2, ZMAX])
-        self.draw_wire_box([.5, -.6, ZMIN],[1.7, -.2, ZMAX])
+        #for i in BOX_COORDS:
+        #    self.draw_wire_box(*BOX_COORDS[i])
+
 
 
     def draw_wire_box(self, bmin,bmax):

@@ -14,6 +14,7 @@ from klampt import vectorops, se3, so3, loader, gldraw, ik
 from klampt.robotsim import Geometry3D
 from klampt import visualization,trajectory
 import os, math, random, copy
+import string
 
 from threading import Thread,Lock
 from Queue import Queue
@@ -30,32 +31,34 @@ from motionController import LowLevelController
 from motionController import FakeLowLevelController
 from motionController import PhysicalLowLevelController
 
-
+from datetime import datetime
 
 SPEED = 16
 visualizer = CustomGLViewer.CustomGLViewer()
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.44, 0.95])
-CAMERA_TRANSFORM[1] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.03500000000000004, 0.9699999999999999])
-CAMERA_TRANSFORM[2] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, 0.36, 0.9599999999999999])
+CAMERA_TRANSFORM[0] =  ([-0.03513538175810132, -0.9991291152501236, -0.022505910517439685, -0.027963767034245017, 0.023493872890698906, -0.9993328102638538, 0.9989912575603299, -0.03448258975341347, -0.028764880008976604], [0.79, -0.43, 0.97])
+CAMERA_TRANSFORM[1] =  ([0.008844227366159113, -0.9999500092784281, 0.004664609991053366, 0.17683063964415874, -0.003027301011598503, -0.9842366383810476, 0.9842015568598413, 0.009529658580354563, 0.17679502561443453], [0.8200000000000001, -0.03500000000000004, 0.9519999999999998])
+CAMERA_TRANSFORM[2] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, 0.0687451983676385, -0.07347715401268821, -0.9949247235542953, 0.9973842457290678, -0.017263275950574915, 0.0701900682070801], [0.81, 0.39, 0.9609999999999999])
 
-WORKING_CAMERAS = [1,2]
+WORKING_CAMERAS = [0,1,2]
 
-ZMIN = .97
+ZMIN = .90
 ZMAX = 1.2
 
 REGION_DIR = {}
-REGION_DIR[4] = ([.5, .2, ZMIN],[1.7, .5, ZMAX])
-REGION_DIR[2] = ([.5, -.2, ZMIN],[1.7, .2, ZMAX])
-REGION_DIR[3] = ([.5, -.2, ZMIN],[1.7, .2, ZMAX])
-REGION_DIR[1] = ([.5, -.5, ZMIN],[1.7, -.2, ZMAX])
+REGION_DIR[4] = ([.5, .2, ZMIN],[1.44, .5, ZMAX])
+REGION_DIR[2] = ([.5, -.2, ZMIN],[1.44, .2, ZMAX])
+REGION_DIR[3] = ([.5, -.2, ZMIN],[1.44, .2, ZMAX])
+REGION_DIR[1] = ([.5, -.5, ZMIN],[1.44, -.2, ZMAX])
 
 FILE_DIR = {}
 FILE_DIR[1] = 'RIGHT_BOX_RIGHT_ARM'
 FILE_DIR[2] = 'MID_BOX_RIGHT_ARM'
 FILE_DIR[3] = 'MID_BOX_LEFT_ARM'
 FILE_DIR[4] = 'LEFT_BOX_LEFT_ARM'
+
+OUTPUT_FILE_NAME = 'results.txt'
 
 if REAL_CAMERA:
     # Perception
@@ -71,38 +74,78 @@ def loop():
                 takePicture()
 
         else:
-    		if os.path.exists("./1.com"):
-    			supplyBoxes(1)
-    			print 'Finished movement 1 at ', time.localtime()
-    			os.remove("./1.com")
-    		if os.path.exists("./2.com"):
-    			supplyBoxes(2)
-    			print 'Finished movement 2 at ', time.localtime()
-    			os.remove("./2.com")
-    		if os.path.exists("./3.com"):
-    			supplyBoxes(3)
-    			print 'Finished movement 3 at ', time.localtime()
-    			os.remove("./3.com")
-    		if os.path.exists("./4.com"):
-    			supplyBoxes(4)
-    			print 'Finished movement 4 at ', time.localtime()
-    			os.remove("./4.com")
+            if os.path.exists("./1.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 1 at '+ datetime.isoformat(datetime.now()) + '\n'
+                    f.write(s)
 
+                supplyBoxes(1)
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 1 at ' + datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
+            	os.remove("./1.com")
+            if os.path.exists("./2.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 2 at ' + datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
+            	supplyBoxes(2)
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 2 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
+            	os.remove("./2.com")
+            if os.path.exists("./3.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 3 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
+                supplyBoxes(3)
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 3 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
+            	os.remove("./3.com")
+            if os.path.exists("./4.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 4 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
+            	supplyBoxes(4)
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 4 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
+            	os.remove("./4.com")
             if os.path.exists("./5.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 5 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 supplyBoxes(5)
-                print 'Finished movement 5 at ', time.localtime()
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 5 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 os.remove("./5.com")
             if os.path.exists("./6.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 6 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 supplyBoxes(6)
-                print 'Finished movement 6 at ', time.localtime()
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 6 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 os.remove("./6.com")
             if os.path.exists("./7.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 7 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 supplyBoxes(7)
-                print 'Finished movement 7 at ', time.localtime()
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 7 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 os.remove("./7.com")
             if os.path.exists("./8.com"):
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Started movement 8 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 supplyBoxes(8)
-                print 'Finished movement 8 at ', time.localtime()
+                with open(OUTPUT_FILE_NAME, 'a') as f:
+                    s = 'Finished movement 8 at '+ datetime.isoformat(datetime.now())+ '\n'
+                    f.write(s)
                 os.remove("./8.com")
 
 		time.sleep(.1)
@@ -144,7 +187,6 @@ def supplyBoxes(choice):
         # choosing 3 means go to box 2
     else:
         raise Exception('Invalid entry')
-+
     # path1_name = limb.upper()+'_SUPPLY'
     # path2_name = limb.upper()+'_DROP_'+str(choice)
 
@@ -192,13 +234,13 @@ def checkForPerson(choice):
 
         # should be the subtracted data 
         if REAL_CAMERA:
-            #picture_data = perceiver.get_current_content_cloud(R,t, filename, tolist=True, index=index)
+            picture_data = perceiver.get_current_content_cloud(R,t, filename,  tolist=True, index=index)
             # ^does point cloud subtraction
 
-            picture_data = perceiver.get_current_point_cloud(R,t, limb=None, tolist=True, index=index)
+            #picture_data = perceiver.get_current_point_cloud(R,t, limb=None, tolist=True, index=index)
             # grabs the entire point cloud
+            visualizer.updatePoints(picture_data)
 
-            #print picture_data
 
             number = countPointsInRegion(picture_data, region)
 
@@ -593,22 +635,35 @@ def calibrateExperiment():
     global FILE_DIR
     
     path_names = ['RIGHT_SUPPLY_1','RIGHT_SUPPLY_2','LEFT_SUPPLY_3','LEFT_SUPPLY_4']
+    path_names2 = ['RIGHT_DEPOSIT_1', 'RIGHT_DEPOSIT_2','LEFT_DEPOSIT_3','LEFT_DEPOSIT_4']
+    indices = [0,1,1,2]
 
     for i in range(len(path_names)):
         limb = path_names[i].split('_')[0].lower()
         name = path_names[i]
+        name2 = path_names2[i]
         filename = FILE_DIR[i+1]
+        index = indices[i]
 
         print 'moving through path 1'
         moveArm(limb = limb, path_name = name, reverse = False)
         waitForMove()
     
+
+
+        #moveArm(limb = limb, path_name = name2, reverse=False)
+        #waitForMove()
+
         print 'sleeping'
         time.sleep(2)
 
-        R,t = getCameraToWorldXform()
-        perceiver.save_canonical_cloud(R,t, filename )
+        R,t = getCameraToWorldXform(index=index)
+        perceiver.save_canonical_cloud(R,t, filename, index=index)
         #save picture
+        #moveArm(limb = limb, path_name = name2, reverse=True)
+        #waitForMove()
+
+
 
         print 'moving back'
         moveArm(limb = limb, path_name = name, reverse = True)
@@ -666,6 +721,14 @@ SEND_PATH = True
 
 #calibrateExperiment()
 
+with open(OUTPUT_FILE_NAME, 'w') as f:
+    f.write('')
+    #clears file
+
+for i in range(8):
+    file_name = "./"+str(i)+".com"
+    if os.path.exists(file_name):
+        os.remove(file_name)
 
 myHelp = Helper()
 visualizer = CustomGLViewer.CustomGLViewer(SIMWORLD, WORLD, LOW_LEVEL_CONTROLLER, helper=myHelp)

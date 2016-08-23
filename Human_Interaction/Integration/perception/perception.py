@@ -778,14 +778,14 @@ class Perceiver(object):
 		self.save_R_t(self.get_tote_viewing_camera_xform_path(limb), R, t)
 		print 'Successfully saved model for tote'
 
-	def save_canonical_cloud(self, R, t, filename):
+	def save_canonical_cloud(self, R, t, filename, index=None):
 	
 		'''
 		More generic version of save_canonical_tote_cloud - added 8/8/16 
 		'''
 		assert isinstance(R, list), 'R must be a list but now it is '+str(R.__class__)
 		assert isinstance(t, list), 't must be a list but now it is '+str(t.__class__)
-		_, cloud, _, _ = self.read_once(limb=None, unit='meter', Nx3_cloud=True, clean=True)
+		_, cloud, _, _ = self.read_once(limb=None, unit='meter', Nx3_cloud=True, clean=True, index=index)
 		
 		path = self.prefix+'canonical_model_cloud/'+filename
 		xform_path = path + '_xform.txt'

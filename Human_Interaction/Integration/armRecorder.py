@@ -39,9 +39,14 @@ SPEED = 13
 
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.44, 0.95])
-CAMERA_TRANSFORM[1] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, -0.03500000000000004, 0.9699999999999999])
-CAMERA_TRANSFORM[2] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, -0.03117051824218802, -0.07138662247473686, -0.9969615583983987, 0.9992645469142097, -0.024512506807737873, -0.02948732423163284], [0.79, 0.36, 0.9599999999999999])
+CAMERA_TRANSFORM[0] =  ([-0.03513538175810132, -0.9991291152501236, -0.022505910517439685, -0.027963767034245017, 0.023493872890698906, -0.9993328102638538, 0.9989912575603299, -0.03448258975341347, -0.028764880008976604], [0.79, -0.43, 0.97])
+CAMERA_TRANSFORM[1] =  ([0.008844227366159113, -0.9999500092784283, 0.0046646099910533645, 0.03776197731422964, -0.004327480126834385, -0.9992773919113119, 0.9992476233204751, 0.009013981352587987, 0.03772181634757153], [0.804, -0.021000000000000036, 0.9699999999999999])
+CAMERA_TRANSFORM[2] =   ([-0.02236270887835915, -0.9997242784962567, 0.007160742752108415, 0.000270070414744631, -0.0071685745350301925, -0.9999742689695111, 0.9997498868785105, -0.02236019955805023, 0.00043030469592360635], [0.81, 0.399, 0.9699999999999999])
+
+BOX_COORDS = {}
+BOX_COORDS[2] = ([.5, .2, .90],[1.44, .6, 1.2])
+BOX_COORDS[1] = ([.5, -.2,.90],[1.44, .2, 1.2])
+BOX_COORDS[0] = ([.5, -.6, .90],[1.44, -.2, 1.2])
 
 
 OVERHEAD = ([0.02200958349401458, 0.9957794720964701, -0.08910006277046488, 0.9720448364185201, -0.0004760777365310359, 0.23479482392524428, 0.23376144726305412, -0.09177699222174122, -0.9679527723356234], [0.9600000000000002, 0.06000000000000002, 1.9599999999999997])
@@ -185,6 +190,14 @@ class Recorder:
                     print 'Choose camera index'
                     index = self.getNumber()
                     self.calibrateCamera(index=index)
+
+                elif method == 'b':
+                    print 'Choose box index'
+                    index = self.getNumber()
+                    self.calibrateBox(index=index)
+
+                elif method == 'g':
+                    self.runPhysicalPath()
                 elif method == 'q':
                     self.checkSave()
                     print 'Ending recorder functionalities' 
@@ -200,6 +213,7 @@ class Recorder:
     def checkSave(self):
 
         #TODO - finish
+        return
 
         if self.currentLimb == 'both':
             if self.leftSaved == False:
@@ -327,6 +341,17 @@ class Recorder:
         print 'Test Concluded'
 
         return 
+
+    def runPhysicalPath(self):
+
+        if self.simType == 'physical':
+
+            for milestone in self.leftPath:
+                self.controller.controller.appendMilestoneLeft(milestone)
+            for milestone in self.rightPath:
+                self.controller.controller.appendMilestoneRight(milestone)
+
+
 
     def loadPath(self):
 
@@ -614,7 +639,6 @@ class Recorder:
         global RIGHT_ARM_INDICES
 
         print 'Appending'
-        print 'Enter an index'
 
         config = self.controller.controller.getSensedConfig()
         leftArm = [config[v] for v in LEFT_ARM_INDICES]
@@ -768,7 +792,7 @@ class Recorder:
                     print 'Error, value not recognized'
                     print 'Press Enter to submit your entry or quit'
 
-    def getName(self, options):
+    def getName(self, options=None):
 
         name = ''
         
@@ -789,10 +813,12 @@ class Recorder:
                     print 'Press Enter to submit your entry or quit'
 
                 os.system('clear')
-                print 'Options are:'
-                for one_option in options:
-                    if name in one_option:
-                        print one_option
+                
+                if options is not None:
+                    print 'Options are:'
+                    for one_option in options:
+                        if name in one_option:
+                            print one_option
                 print '\n' + name
 
     def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstants=False, internalSpeed=SPEED):
@@ -894,6 +920,46 @@ class Recorder:
                 leftPathRev[leftLength-i] = self.leftPath[i]
             self.leftPath = [a for a in leftPathRev]
 
+    def calibrateBox(self, index=0):
+        global BOX_COORDS
+        while(True):
+            try:
+                print 'Options: x1, x2, y1, y2, z1, z2'
+                input_var = raw_input("Wire Box: Enter coordinate and distance to change separated by a comma: ").split(',');
+                #translational transformation
+                local_coords = BOX_COORDS[index]
+
+                if(input_var[0] == "x1" ):
+                    local_coords[0][0] = local_coords[0][0] + float(input_var[1])
+                elif(input_var[0] == "y1" ):
+                    local_coords[0][1] = local_coords[0][1] + float(input_var[1])
+                elif(input_var[0] == "z1" ):
+                    local_coords[0][2] = local_coords[0][2] + float(input_var[1])
+                    #rotational transformations
+                elif(input_var[0] == "x2" ):
+                    local_coords[1][0] = local_coords[1][0] + float(input_var[1])
+                elif(input_var[0] == "y2" ):
+                    local_coords[1][1] = local_coords[1][1] + float(input_var[1])
+                elif(input_var[0] == "z2" ):
+                     local_coords[1][2] = local_coords[1][2] + float(input_var[1])
+
+                elif(input_var[0] == "q"):
+                    break
+
+                BOX_COORDS[index] = local_coords
+
+            except: 
+                print "input error\n"
+                #print error.strerror
+
+            time.sleep(0.1);
+
+            if self.visualizer != None:
+                self.takePicture(index)
+                self.visualizer.updateBox(index, BOX_COORDS[index])
+
+            print 'local box ', index, ' coords are ', BOX_COORDS[index]
+
     def calibrateCamera(self, index=0):
         global CAMERA_TRANSFORM
         global REAL_CAMERA
@@ -933,6 +999,8 @@ class Recorder:
 
                 time.sleep(0.1);
 
+
+
                 CAMERA_TRANSFORM[index] = (calibrateR, calibrateT)
                 self.takePicture(index)
                 
@@ -946,6 +1014,8 @@ class Recorder:
         else:
             raise NotImplemented
             #self.controller.
+
+
 
     def getCameraToWorldXform(self, linkName=None, index=0):
         '''
@@ -981,6 +1051,7 @@ class Recorder:
         print 'M: Reset to default config'
         print 'C: Command robot to move'
         print 'W: Calibrate Camera'
+        print 'B: Adjust wire boxes'
         return 
 
     def printRobotHelp(self):
