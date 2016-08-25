@@ -1,3 +1,4 @@
+
 #moveArmsOnly
 import sys, struct, time, json
 
@@ -48,8 +49,11 @@ from motionController import LowLevelController
 from motionController import FakeLowLevelController
 from motionController import PhysicalLowLevelController
 
+from datetime import datetime
 
 def supplyBoxes(choice):
+
+    global START_TIME
 
     '''
     1 - Supply the right box with the right arm
@@ -85,6 +89,9 @@ def supplyBoxes(choice):
     print 'moving to halfway'
     waitForMove()
 
+    motion1_time = time.time()
+    print 'Total time to complete motion 1 is ', motion1_time - START_TIME
+
     #checkForPerson(choice)
 
     moveArm(limb = limb, path_name = path2_name)
@@ -95,6 +102,11 @@ def supplyBoxes(choice):
     moveArm(limb = limb, path_name = path2_name, reverse = True)
     print 'backing up'
     waitForMove()
+    deposit_time = time.time()
+    print 'Total time to deposit block is ', deposit_time - motion1_time
+    print 'Total time running up to this point is', deposit_time-START_TIME
+
+
     moveArm(limb = limb, path_name = path1_name, reverse = True)
     print 'back to rest'
     waitForMove()

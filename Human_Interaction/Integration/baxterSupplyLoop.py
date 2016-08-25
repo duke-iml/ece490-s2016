@@ -37,20 +37,20 @@ SPEED = 16
 visualizer = CustomGLViewer.CustomGLViewer()
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] =  ([-0.03513538175810132, -0.9991291152501236, -0.022505910517439685, -0.027963767034245017, 0.023493872890698906, -0.9993328102638538, 0.9989912575603299, -0.03448258975341347, -0.028764880008976604], [0.79, -0.43, 0.97])
-CAMERA_TRANSFORM[1] =  ([0.008844227366159113, -0.9999500092784281, 0.004664609991053366, 0.17683063964415874, -0.003027301011598503, -0.9842366383810476, 0.9842015568598413, 0.009529658580354563, 0.17679502561443453], [0.8200000000000001, -0.03500000000000004, 0.9519999999999998])
-CAMERA_TRANSFORM[2] =  ([-0.022333026504579953, -0.9971474751217351, 0.07209818850356621, 0.0687451983676385, -0.07347715401268821, -0.9949247235542953, 0.9973842457290678, -0.017263275950574915, 0.0701900682070801], [0.81, 0.39, 0.9609999999999999])
+CAMERA_TRANSFORM[0] =  ([0.024831361199489865, -0.9993989365430579, -0.024190269481480405, -0.057925701761463284, 0.022718678795320125, -0.9980623601304871, 0.9980120322803855, 0.026184485299529065, -0.057326749019774734], [0.8300000000000001, -0.45, 0.968])
+CAMERA_TRANSFORM[1] =  ([0.04879640007176253, -0.9987896928139908, 0.006169349120642262, -0.012169157136685142, -0.0067707566315603086, -0.9999030295329748, 0.998734610872489, 0.048716592483178146, -0.01248481726773698], [0.8360000000000001, -0.041000000000000036, 0.9709999999999999])
+CAMERA_TRANSFORM[2] =   ([0.002635422842187541, -0.9999708276915267, 0.007169261633392464, -0.029725446050055275, -0.007244455788210191, -0.9995318482757117, 0.9995546270232407, 0.002421079564537573, -0.029743671094436895], [0.8450000000000001, 0.389, 0.9649999999999999])
 
 WORKING_CAMERAS = [0,1,2]
 
-ZMIN = .90
+ZMIN = .95
 ZMAX = 1.2
 
 REGION_DIR = {}
-REGION_DIR[4] = ([.5, .2, ZMIN],[1.44, .5, ZMAX])
-REGION_DIR[2] = ([.5, -.2, ZMIN],[1.44, .2, ZMAX])
-REGION_DIR[3] = ([.5, -.2, ZMIN],[1.44, .2, ZMAX])
-REGION_DIR[1] = ([.5, -.5, ZMIN],[1.44, -.2, ZMAX])
+REGION_DIR[4] = ([.5, .2, ZMIN],[1.48, .5, ZMAX])
+REGION_DIR[2] = ([.5, -.2, ZMIN],[1.48, .2, ZMAX])
+REGION_DIR[3] = ([.5, -.2, ZMIN],[1.48, .2, ZMAX])
+REGION_DIR[1] = ([.5, -.5, ZMIN],[1.48, -.2, ZMAX])
 
 FILE_DIR = {}
 FILE_DIR[1] = 'RIGHT_BOX_RIGHT_ARM'
@@ -67,89 +67,68 @@ if REAL_CAMERA:
 
 def loop():
     counter = 0
+    trialNumber = 1
     while (1):
 
+
         if counter %100== 0:
-            if REAL_CAMERA:
-                takePicture()
-
+            pass
+            #if REAL_CAMERA:
+            #    takePicture()
         else:
-            if os.path.exists("./1.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 1 at '+ datetime.isoformat(datetime.now()) + '\n'
-                    f.write(s)
 
-                supplyBoxes(1)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 1 at ' + datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-            	os.remove("./1.com")
-            if os.path.exists("./2.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 2 at ' + datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-            	supplyBoxes(2)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 2 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-            	os.remove("./2.com")
-            if os.path.exists("./3.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 3 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                supplyBoxes(3)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 3 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-            	os.remove("./3.com")
-            if os.path.exists("./4.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 4 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-            	supplyBoxes(4)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 4 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-            	os.remove("./4.com")
-            if os.path.exists("./5.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 5 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                supplyBoxes(5)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 5 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                os.remove("./5.com")
-            if os.path.exists("./6.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 6 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                supplyBoxes(6)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 6 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                os.remove("./6.com")
-            if os.path.exists("./7.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 7 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                supplyBoxes(7)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 7 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                os.remove("./7.com")
-            if os.path.exists("./8.com"):
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Started movement 8 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                supplyBoxes(8)
-                with open(OUTPUT_FILE_NAME, 'a') as f:
-                    s = 'Finished movement 8 at '+ datetime.isoformat(datetime.now())+ '\n'
-                    f.write(s)
-                os.remove("./8.com")
+            if loopHelper(1, trialNumber):
+                trialNumber = trialNumber + 1
+            elif loopHelper(2, trialNumber):
+                trialNumber = trialNumber + 1
+            elif loopHelper(3, trialNumber):
+                trialNumber = trialNumber + 1
+            elif loopHelper(4, trialNumber):
+                trialNumber = trialNumber + 1
+            elif loopHelper(5, trialNumber):
+                trialNumber = trialNumber + 1
+            elif loopHelper(6, trialNumber):
+                trialNumber = trialNumber + 1
+            elif loopHelper(7, trialNumber):
+                trialNumber = trialNumber + 1
+            elif loopHelper(8, trialNumber):
+                trialNumber = trialNumber + 1
 
 		time.sleep(.1)
         counter = counter+1
+
+def loopHelper(number, trialNumber):
+
+    global OUTPUT_FILE_NAME
+
+    file_prefix = "./" + str(trialNumber) + "-"
+    if os.path.exists(file_prefix+str(number)+".com"):
+        with open(OUTPUT_FILE_NAME, 'a') as f:
+            s = 'Started movement type '+str(number)+' at '+ datetime.isoformat(datetime.now()) + '\n'
+            f.write(s)
+        with open('start.txt', 'w') as f:
+            s = 'Started movement type '+str(number)+' at '+ datetime.isoformat(datetime.now()) + '\n'
+            f.write(s)
+        if os.path.exists('./end.txt'):
+            os.remove('./end.txt')
+
+
+        supplyBoxes(number)
+        with open(OUTPUT_FILE_NAME, 'a') as f:
+            s = 'Finished movement type '+str(number)+' at ' + datetime.isoformat(datetime.now())+ '\n'
+            f.write(s)
+        with open('end.txt', 'w') as f:
+            s = 'Finished movement type '+str(number)+' at '+ datetime.isoformat(datetime.now()) + '\n'
+            f.write(s)
+
+        if os.path.exists('./start.txt'):
+            os.remove('./start.txt')
+
+        os.remove(file_prefix + str(number)+".com")
+        return True
+    else:
+        return False
+
 
 def supplyBoxes(choice):
 
@@ -230,14 +209,16 @@ def checkForPerson(choice):
     #region - a pair of x,y,z points signifying a box box
     #currently just a straightforward box
 
+    #seenCount = 0
+
     while (1):
 
         # should be the subtracted data 
         if REAL_CAMERA:
-            picture_data = perceiver.get_current_content_cloud(R,t, filename,  tolist=True, index=index)
+            #picture_data = perceiver.get_current_content_cloud(R,t, filename,  tolist=True, index=index)
             # ^does point cloud subtraction
 
-            #picture_data = perceiver.get_current_point_cloud(R,t, limb=None, tolist=True, index=index)
+            picture_data = perceiver.get_current_point_cloud(R,t, limb=None, tolist=True, index=index)
             # grabs the entire point cloud
             visualizer.updatePoints(picture_data)
 
@@ -245,9 +226,21 @@ def checkForPerson(choice):
             number = countPointsInRegion(picture_data, region)
 
             if number >= 20:
+
+                #seenCount = seenCount + 1
                 print 'A person is there - waiting'
+                #open('seen'+str(seenCount)+'.txt', 'w')
+                if not os.path.exists('seen'+str(index)+'.txt'):
+                    open('seen'+str(index + 1)+'.txt', 'w')          
+
             else:
                 print 'Continuing'
+                if os.path.exists('seen'+str(index + 1)+'.txt'):
+                    os.remove('./seen'+str(index + 1)+'.txt')
+                #while seenCount > 0:
+                    #os.remove('./seen'+str(seenCount)+'.txt')
+                    #os.remove('./seen'+str(index)+'.txt')
+                    #seenCount = seenCount - 1
                 break
         else:
             return

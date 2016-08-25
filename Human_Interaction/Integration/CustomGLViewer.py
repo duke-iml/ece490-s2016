@@ -9,9 +9,9 @@ from Queue import Queue
 import numpy as np
 
 BOX_COORDS = {}
-BOX_COORDS[2] = ([.5, .2, .90],[1.44, .6, 1.2])
-BOX_COORDS[1] = ([.5, -.2,.90],[1.44, .2, 1.2])
-BOX_COORDS[0] = ([.5, -.6, .90],[1.44, -.2, 1.2])
+BOX_COORDS[2] = ([.5, .2, .95],[1.44, .6, 1.2])
+BOX_COORDS[1] = ([.5, -.2,.95],[1.44, .2, 1.2])
+BOX_COORDS[0] = ([.5, -.6, .95],[1.44, -.2, 1.2])
 
 
 class CustomGLViewer(GLRealtimeProgram):
@@ -114,8 +114,8 @@ class CustomGLViewer(GLRealtimeProgram):
         if self.points != None:
             self.glShowPointCloud(self.points)    
 
-        #for i in BOX_COORDS:
-        #    self.draw_wire_box(*BOX_COORDS[i])
+        for i in BOX_COORDS:
+            self.draw_wire_box(*BOX_COORDS[i])
 
 
 
