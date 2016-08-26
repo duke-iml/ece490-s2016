@@ -2,8 +2,10 @@ from motionController import LowLevelController
 from motionController import PickingController
 
 import sys, struct, time
+from klampt import *
 from klampt import robotsim
 from klampt.glprogram import *
+from klampt import WidgetSet, PointPoser, RobotPoser
 import json
 from Queue import Queue
 import numpy as np
@@ -28,6 +30,15 @@ class CustomGLViewer(GLRealtimeProgram):
         self.planworld = planworld
         self.sim = sim
 
+        self.widgetMaster = WidgetSet()
+        self.widgetButton = 2  #right-clicks
+        self.draggingWidget = False
+
+        self.poseWidget = PointPoser()
+        self.widgetMaster.add(self.poseWidget)
+        self.robotWidget = RobotPoser(self.simworld.robot(0))
+        self.widgetMaster.add(self.robotWidget)
+
         self.simulate = True
 
         
@@ -47,6 +58,10 @@ class CustomGLViewer(GLRealtimeProgram):
             self.dt = 0.01
             self.sim.simulate(self.dt)
             glutPostRedisplay()
+        self.widgetMaster.idle()
+        if self.widgetMaster.wantsRedraw():
+            print 'widgetMaster wants redraw'
+            self.refresh()
 
     def printStuff(self):
         print "shelf xform:", knowledge.shelf_xform
@@ -103,6 +118,17 @@ class CustomGLViewer(GLRealtimeProgram):
         for i in xrange(self.simworld.numRobots()):
             r = self.controller.robotModel
             q = self.controller.getCommandedConfig()
+            if self.widgetMaster.wantsRedraw():
+                #restart sim - start it with the new robot config
+                # if simulating
+                if self.sim != None:
+                    q = self.robotWidget.get()
+                    print 'self.sim is not None'
+                    self.controller.robotModel.setConfig(q)
+                    self.simworld.robot(0).setConfig(q)
+                    self.controller.setLinear(q, .01)
+
+            #q = self.controller.getSensedConfig()
             r.setConfig(q)
             r.drawGL(False)
         
@@ -117,7 +143,7 @@ class CustomGLViewer(GLRealtimeProgram):
         for i in BOX_COORDS:
             self.draw_wire_box(*BOX_COORDS[i])
 
-
+        self.widgetMaster.drawGL(self.viewport())
 
     def draw_wire_box(self, bmin,bmax):
         """Helper: draws a wireframe box"""
@@ -146,17 +172,65 @@ class CustomGLViewer(GLRealtimeProgram):
 
     def keyboardfunc(self,c,x,y):
         #c = c.lower()
-        if c=='z':
-            self.simulate = not self.simulate
-            print "Simulating:",self.simulate
+        
+        print c,"pressed"
+        
+        if c == ' ':
+            config = self.robotWidget.get()
+            print "Config:",config
+            self.controller.robotModel.setConfig(config)
+            self.simworld.robot(0).setConfig(config)
         else:
-            self.command_queue.put(c)
-            #print int(c)
-            if c  == chr(27):
-                #c == esc
-                #self.picking_thread.join()
-                exit(0)
+            self.widgetMaster.keypress(c)
+            self.refresh()
+            if c=='z':
+                self.simulate = not self.simulate
+                print "Simulating:",self.simulate
+            else:
+                self.command_queue.put(c)
+                #print int(c)
+                if c  == chr(27):
+                    #c == esc
+                    #self.picking_thread.join()
+                    exit(0)
 
-        glutPostRedisplay()
+            glutPostRedisplay()
 
+
+    def mousefunc(self,button,state,x,y):
+        print "mouse",button,state,x,y
+        if button==self.widgetButton:
+            if state==0:
+                print 'state was zero'
+                if self.widgetMaster.beginDrag(x,self.height-y,self.viewport()):
+                    print 'beginning drag'
+                    self.draggingWidget = True
+            else:
+                print 'state of button not zero'
+                if self.draggingWidget:
+                    print 'dragging widget true - ending drag'
+                    self.widgetMaster.endDrag()
+                    self.draggingWidget = False
+            if self.widgetMaster.wantsRedraw():
+                self.refresh()
+            self.lastx,self.lasty = x,y
+            return
+        GLRealtimeProgram.mousefunc(self,button,state,x,y)
+
+    def motionfunc(self,x,y,dx,dy):
+        if self.draggingWidget:
+            self.widgetMaster.drag(dx,-dy,self.viewport())
+            if self.widgetMaster.wantsRedraw():
+                self.refresh()
+        else:
+            res = self.widgetMaster.hover(x,self.height-y,self.viewport())
+            if self.widgetMaster.wantsRedraw():
+                self.refresh()
+            GLRealtimeProgram.motionfunc(self,x,y,dx,dy)
+
+    def specialfunc(self,c,x,y):
+        #Put your keyboard special character handler here
+        print c,"pressed"
+        self.widgetMaster.keypress(c)
+        self.refresh()
 

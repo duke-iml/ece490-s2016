@@ -119,7 +119,7 @@ class Recorder:
             low_level_controller = LowLevelController(simworld.robot(0),sim.controller(0),sim)
             self.controller = PickingController(simworld, planworld, low_level_controller)
             myHelper = Helper(self)
-            visualizer = CustomGLViewer.CustomGLViewer(simworld,world, low_level_controller, sim, helper = myHelper)
+            visualizer = CustomGLViewer.CustomGLViewer(simworld,planworld, low_level_controller, sim, helper = myHelper)
             self.command_Queue = visualizer.command_queue
         else:
             #actually connected to the robot
@@ -270,8 +270,8 @@ class Recorder:
         TERRAIN_CALIBRATION[2] = wall2Transform
         TERRAIN_CALIBRATION[3] = tableTransform
 
-        world.terrain(1).geometry().transform(*wall1Transform)
-        world.terrain(2).geometry().transform(*wall2Transform)
+        #world.terrain(1).geometry().transform(*wall1Transform)
+        #world.terrain(2).geometry().transform(*wall2Transform)
         world.terrain(3).geometry().transform(*tableTransform)
 
         #initialize the shelf xform for the visualizer and object
@@ -361,7 +361,7 @@ class Recorder:
         for key in self.pathDictionary:
             print key
 
-        load_name = self.getName()
+        load_name = self.getName(options = [key for key in self.pathDictionary])
 
         if load_name in self.pathDictionary:
             self.leftPath = self.pathDictionary[load_name][1][1]
@@ -1082,7 +1082,17 @@ class Helper():
         
 if __name__ == "__main__":
 
-    myRecorder = Recorder(physical=True)
+    physicalList = ['physical', 'phys', 'p']
+
+    if len(sys.argv) > 1:
+        if sys.argv[1].toLower() in physicalList:
+
+            myRecorder = Recorder(physical=True)
+        else:
+            myRecorder = Recorder(physical = False)
+    else:
+
+        myRecorder = Recorder(physical=False)
 
 
 
