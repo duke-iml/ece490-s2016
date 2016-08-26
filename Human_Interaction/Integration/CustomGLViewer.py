@@ -122,6 +122,9 @@ class CustomGLViewer(GLRealtimeProgram):
                 #restart sim - start it with the new robot config
                 # if simulating
                 if self.sim != None:
+
+                    #put more checks on mouse function here
+                    #might accidentally reset if you mouse over 
                     q = self.robotWidget.get()
                     print 'self.sim is not None'
                     self.controller.robotModel.setConfig(q)
