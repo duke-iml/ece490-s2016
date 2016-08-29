@@ -53,7 +53,24 @@ class CustomGLViewer(GLRealtimeProgram):
 
         self.points = None
 
+        self.extraControllers = {}
+
     def idle(self):
+
+        if self.extraControllers != {}:
+            remove_indices = []
+            for controller in self.extraControllers:
+                self.dt = 0.01
+                controller.sim.simulate(self.dt)
+                glutPostRedisplay()
+
+                if controller.remainingTime() <= 0:
+                    remove_indices.append(controller)
+        
+            for controller in remove_indices:
+                del self.extraControllers[controller]
+                print 'controller removed'
+
         if self.simulate:
             self.dt = 0.01
             self.sim.simulate(self.dt)
@@ -71,6 +88,9 @@ class CustomGLViewer(GLRealtimeProgram):
 
     def updatePoints(self, points):
         self.points = points
+
+    def addController(self, new_controller, rgb):
+        self.extraControllers[new_controller] = rgb
 
     def glShowPointCloud(self, pc, downsample_rate=5, pt_size=None):
         # print glGetFloatv(GL_CURRENT_COLOR)
@@ -126,16 +146,29 @@ class CustomGLViewer(GLRealtimeProgram):
                     #put more checks on mouse function here
                     #might accidentally reset if you mouse over 
                     q = self.robotWidget.get()
-                    print 'self.sim is not None'
+                    #print 'self.sim is not None'
                     self.controller.robotModel.setConfig(q)
                     self.simworld.robot(0).setConfig(q)
                     self.controller.setLinear(q, .01)
+            else:
+                self.robotWidget.set(q)
+
 
             #q = self.controller.getSensedConfig()
             r.setConfig(q)
-            r.drawGL(False)
-        
+            r.drawGL(False)        
         glDisable(GL_BLEND)
+
+
+        for controller in self.extraControllers:
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, self.extraControllers[controller])
+            r = controller.robotModel
+            q = controller.getCommandedConfig()
+            r.setConfig(q)
+            r.drawGL(False)
+            glDisable(GL_BLEND)
 
         for i in xrange(self.simworld.numTerrains()):
             self.simworld.terrain(i).drawGL()
@@ -176,42 +209,40 @@ class CustomGLViewer(GLRealtimeProgram):
     def keyboardfunc(self,c,x,y):
         #c = c.lower()
         
-        print c,"pressed"
-        
-        if c == ' ':
-            config = self.robotWidget.get()
-            print "Config:",config
-            self.controller.robotModel.setConfig(config)
-            self.simworld.robot(0).setConfig(config)
-        else:
-            self.widgetMaster.keypress(c)
-            self.refresh()
-            if c=='z':
-                self.simulate = not self.simulate
-                print "Simulating:",self.simulate
-            else:
-                self.command_queue.put(c)
-                #print int(c)
-                if c  == chr(27):
-                    #c == esc
-                    #self.picking_thread.join()
-                    exit(0)
+        #print c,"pressed"
+        #print 'int value =', ord(c)
 
-            glutPostRedisplay()
+        #tab is 9
+
+        self.widgetMaster.keypress(c)
+        self.refresh()
+        if c=='`':
+            self.simulate = not self.simulate
+            print "Simulating:",self.simulate
+        else:
+            self.command_queue.put(c)
+            #print int(c)
+            if c  == chr(27):
+                #c == esc
+                #self.picking_thread.join()
+                exit(0)
+
+        glutPostRedisplay()
 
 
     def mousefunc(self,button,state,x,y):
-        print "mouse",button,state,x,y
+        #print "mouse",button,state,x,y
+
         if button==self.widgetButton:
             if state==0:
-                print 'state was zero'
+                #print 'state was zero'
                 if self.widgetMaster.beginDrag(x,self.height-y,self.viewport()):
-                    print 'beginning drag'
+                    #print 'beginning drag'
                     self.draggingWidget = True
             else:
-                print 'state of button not zero'
+                #print 'state of button not zero'
                 if self.draggingWidget:
-                    print 'dragging widget true - ending drag'
+                    #print 'dragging widget true - ending drag'
                     self.widgetMaster.endDrag()
                     self.draggingWidget = False
             if self.widgetMaster.wantsRedraw():
@@ -233,7 +264,7 @@ class CustomGLViewer(GLRealtimeProgram):
 
     def specialfunc(self,c,x,y):
         #Put your keyboard special character handler here
-        print c,"pressed"
+        #print c,"pressed"
         self.widgetMaster.keypress(c)
         self.refresh()
 

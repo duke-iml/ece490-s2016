@@ -324,7 +324,10 @@ class Recorder:
 
         #self.fake_controller.sim.getWorld().robot(0).setConfig(startConfig)
         #self.fake_controller.setVelocity([1]*61,0.1)
-                   
+    
+        self.fake_controller.setLinear(startConfig, .01)
+
+
         if self.currentLimb == 'left':
             for milestone in self.leftPath:
                 self.fake_controller.appendMilestoneLeft(milestone)
@@ -337,6 +340,9 @@ class Recorder:
                 self.fake_controller.appendMilestoneRight(milestone)
             for milestone in self.leftPath:
                 self.fake_controller.appendMilestoneLeft(milestone)
+
+        self.visualizer.addController(self.fake_controller, [0,0,1,.5])           
+
 
         print 'Test Concluded'
 
@@ -459,7 +465,8 @@ class Recorder:
                     print 'Ending command of robot'
                     break
                 else:
-                    print 'Error did not understand command: ', method
+                    print 'Error did not understand command: ', movement
+                    self.printRobotHelp()
 
     def moveRobot(self, movement=None):
 
@@ -505,18 +512,23 @@ class Recorder:
             factor = -1
 
         adjustment[index] = factor*self.degreeChange*math.pi/180.0
-        currentSetup = self.controller.controller.getSensedConfig()
+        currentSetup = self.controller.controller.getCommandedConfig()
         
+
         if self.currentLimb == LEFT:
-            adjustedMilestone = [currentSetup[v] for v in LEFT_ARM_INDICES]
-            #print 'before adjustment', adjustedMilestone
-            adjustedMilestone = vectorops.add(adjustedMilestone, adjustment)
-            #print 'after adjustment', adjustedMilestone
-            self.controller.controller.appendMilestoneLeft(adjustedMilestone, .1)
+            leftMilestone = [currentSetup[v] for v in LEFT_ARM_INDICES]
+            leftMilestone = vectorops.add(leftMilestone, adjustment)
+            adjustedMilestone = [currentSetup[i] for i in range(len(currentSetup))]
+            for i in range(len(LEFT_ARM_INDICES)):
+                adjustedMilestone[LEFT_ARM_INDICES[i]] = leftMilestone[i]
+            self.controller.controller.setLinear(adjustedMilestone, .1)
         elif self.currentLimb == RIGHT:
-            adjustedMilestone = [currentSetup[v] for v in LEFT_ARM_INDICES]
-            adjustedMilestone = vectorops.add(adjustedMilestone, adjustment)
-            self.controller.controller.appendMilestoneRight(adjustedMilestone, .1)
+            rightMilestone = [currentSetup[v] for v in RIGHT_ARM_INDICES]
+            rightMilestone = vectorops.add(rightMilestone, adjustment)
+            adjustedMilestone = [currentSetup[i] for i in range(len(currentSetup))]
+            for i in range(len(RIGHT_ARM_INDICES)):
+                adjustedMilestone[RIGHT_ARM_INDICES[i]] = rightMilestone[i]
+            self.controller.controller.setLinear(adjustedMilestone, .1)
         return
 
     def changeDegrees(self):
@@ -798,11 +810,31 @@ class Recorder:
         
         while(1):
             letter = self.command_Queue.get()
-
             if letter == chr(13):
                 return name
+            elif letter == chr(9):
+                #tab
+                myOptions = []
+                for one_option in options:
+                    if one_option.startswith(name):
+                        myOptions.append(one_option)
+                if myOptions == []:
+                    pass
+                else:
+                    beg = len(name)
+                    end = len(myOptions[0])
+                    escape = False
+                    for i in xrange(beg, end+1):
+                        if not escape:
+                            testString = myOptions[0][:i]
+                            for option in myOptions:
+                                if option.startswith(testString):
+                                    pass
+                                else:
+                                    name = myOptions[0][:i-1]
+                                    escape = True
+                                    break        
             elif letter is not None: 
-            
                 if letter in string.printable:
                     name += letter
                 elif letter == '\x08' or letter == '\x7f':
@@ -811,15 +843,15 @@ class Recorder:
                 else:
                     print 'Error, value not recognized'
                     print 'Press Enter to submit your entry or quit'
+           
+            os.system('clear')
 
-                os.system('clear')
-                
-                if options is not None:
-                    print 'Options are:'
-                    for one_option in options:
-                        if name in one_option:
-                            print one_option
-                print '\n' + name
+            if options is not None:
+                print 'Options are:'
+                for one_option in options:
+                    if name in one_option:
+                        print one_option
+            print '\n' + name
 
     def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstants=False, internalSpeed=SPEED):
 
@@ -1085,7 +1117,7 @@ if __name__ == "__main__":
     physicalList = ['physical', 'phys', 'p']
 
     if len(sys.argv) > 1:
-        if sys.argv[1].toLower() in physicalList:
+        if sys.argv[1].lower() in physicalList:
 
             myRecorder = Recorder(physical=True)
         else:
