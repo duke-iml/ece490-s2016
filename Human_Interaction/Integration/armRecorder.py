@@ -39,14 +39,15 @@ SPEED = 13
 
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] =  ([0.024831361199489865, -0.9993989365430579, -0.024190269481480405, -0.057925701761463284, 0.022718678795320125, -0.9980623601304871, 0.9980120322803855, 0.026184485299529065, -0.057326749019774734], [0.8300000000000001, -0.45, 0.968])
-CAMERA_TRANSFORM[1] =  ([0.04879640007176253, -0.9987896928139908, 0.006169349120642262, -0.012169157136685142, -0.0067707566315603086, -0.9999030295329748, 0.998734610872489, 0.048716592483178146, -0.01248481726773698], [0.8360000000000001, -0.041000000000000036, 0.9709999999999999])
-CAMERA_TRANSFORM[2] =   ([0.002635422842187541, -0.9999708276915267, 0.007169261633392464, -0.029725446050055275, -0.007244455788210191, -0.9995318482757117, 0.9995546270232407, 0.002421079564537573, -0.029743671094436895], [0.8450000000000001, 0.389, 0.9649999999999999])
+CAMERA_TRANSFORM[0] =  ([-0.005161218572267102, -0.9997067781777349, -0.023658391499492008, -0.017969530697323825, 0.023747606408628236, -0.9995564752210745, 0.9998252136195455, -0.00473379925164146, -0.018086828226030516], [0.8350000000000001, -0.44, 0.968])
+CAMERA_TRANSFORM[1] =  ([0.04869661256859728, -0.9987945892311386, 0.006165099102761133, 0.027778736693568153, -0.004815722998978523, -0.9996024962952568, 0.9984272540911809, 0.048848514149358035, 0.027510742508093464], [0.8540000000000001, -0.03600000000000003, 0.9649999999999999])
+CAMERA_TRANSFORM[2] =  ([-0.01736342375172043, -0.9998242986481636, 0.007062814476406195, 0.005270028659627553, -0.007155298526801169, -0.9999605134708677, 0.9998353556028844, -0.017325516895674346, 0.005393343188858899], [0.8680000000000001, 0.389, 0.9659999999999997])
+
 
 BOX_COORDS = {}
-BOX_COORDS[2] = ([.5, .2, .95],[1.44, .6, 1.2])
-BOX_COORDS[1] = ([.5, -.2,.95],[1.44, .2, 1.2])
-BOX_COORDS[0] = ([.5, -.6, .95],[1.44, -.2, 1.2])
+BOX_COORDS[2] = ([.5, .2, .95],[1.41, .6, 1.2])
+BOX_COORDS[1] = ([.5, -.2,.95],[1.47, .2, 1.2])
+BOX_COORDS[0] = ([.5, -.6, .95],[1.47, -.2, 1.2])
 
 
 OVERHEAD = ([0.02200958349401458, 0.9957794720964701, -0.08910006277046488, 0.9720448364185201, -0.0004760777365310359, 0.23479482392524428, 0.23376144726305412, -0.09177699222174122, -0.9679527723356234], [0.9600000000000002, 0.06000000000000002, 1.9599999999999997])
@@ -150,11 +151,7 @@ class Recorder:
     def run(self):
 
         print 'Beginning recorder functionalities.'
-        
-
         while(1):
-            # wait for input
-            #method  = raw_input("What do you want to do? (h for help)").lower()
             method = self.command_Queue.get().lower()
             print '\nCommand is ', method, '\n=================================='
 
@@ -199,7 +196,7 @@ class Recorder:
                 elif method == 'g':
                     self.runPhysicalPath()
                 elif method == 'q':
-                    self.checkSave()
+                    if not self.checkSave(): continue
                     print 'Ending recorder functionalities' 
 
                     break
@@ -212,17 +209,31 @@ class Recorder:
 
     def checkSave(self):
 
-        #TODO - finish
-        return
-
         if self.currentLimb == 'both':
-            if self.leftSaved == False:
-                answer = self.getName()
-            self.rightSaved = False
+            if self.leftSaved == False and self.rightSaved == False:
+                return self.checkSavedHelper('both') 
+            elif self.leftSaved == False:
+                return self.checkSavedHelper('left')
+            elif self.rightSaved == False:
+                return self.checkSavedHelper('right')
         elif self.currentLimb == 'right':
-            self.rightSaved = False
+            return self.checkSavedHelper('right')
         elif self.currentLimb == 'left':
-            self.leftSaved = False
+            return self.checkSavedHelper('left')
+        else:
+            return False
+
+    def checkSavedHelper(self, str_input=None):
+        options = ['y', 'n']
+        if str_input == None: return False
+        print 'You are about to overwrite ' + str_input + ' paths is that ok?'
+        answer = self.getName(options = options)
+        if answer == 'y':
+            self.updateSaved()
+            return True
+        else:
+            return False
+
 
     def updateSaved(self):
         if self.currentLimb == 'both':
@@ -330,19 +341,50 @@ class Recorder:
 
         if self.currentLimb == 'left':
             for milestone in self.leftPath:
-                self.fake_controller.appendMilestoneLeft(milestone)
+                self.fake_controller.appendMilestoneLeft(milestone, dt=.2)
         elif self.currentLimb == 'right':
             for milestone in self.rightPath:
-                self.fake_controller.appendMilestoneRight(milestone)
+                self.fake_controller.appendMilestoneRight(milestone, dt=.2)
 
         elif self.currentLimb == 'both':
             for milestone in self.rightPath:
-                self.fake_controller.appendMilestoneRight(milestone)
+                self.fake_controller.appendMilestoneRight(milestone, dt =.2)
             for milestone in self.leftPath:
-                self.fake_controller.appendMilestoneLeft(milestone)
+                self.fake_controller.appendMilestoneLeft(milestone, dt=.2)
 
         self.visualizer.addController(self.fake_controller, [0,0,1,.5])           
+        # currentSetup = self.controller.controller.getSensedConfig()
+        # startConfig = [v for v in currentSetup]
+       
+        # if self.leftPath != []:
+        #     for i in range(len(LEFT_ARM_INDICES)):
+        #         startConfig[LEFT_ARM_INDICES[i]] = self.leftPath[0][i]
 
+        # if self.rightPath != []:
+        #     for i in range(len(RIGHT_ARM_INDICES)):
+        #         startConfig[RIGHT_ARM_INDICES[i]] = self.rightPath[0][i]
+    
+        # self.fake_controller.setLinear(startConfig, .01)
+
+        # totalLen = max(len(self.leftPath), len(self.rightPath))
+        # if totalLen == 0: totalLen = 1
+
+        # while len(self.leftPath) < totalLen:
+        #     if self.leftPath == []:
+        #         self.leftPath.append([startConfig[v] for v in LEFT_ARM_INDICES])
+        #     self.leftPath.append(self.leftPath[-1])
+        # while len(self.rightPath) < totalLen:
+        #     if self.rightPath == []:
+        #         self.rightPath.append([startConfig[v] for v in RIGHT_ARM_INDICES])
+        #     self.rightPath.append(self.rightPath[-1])
+
+        # for i in range(totalLen-1):
+        #     config = [v for v in startConfig]
+        #     for j in range(len(LEFT_ARM_INDICES)):
+        #         config[LEFT_ARM_INDICES[j]] = self.leftPath[i][j] 
+        #     for j in range(len(RIGHT_ARM_INDICES)):
+        #         config[RIGHT_ARM_INDICES[j]] = self.rightPath[i][j]
+        #     self.fake_controller.controller.addCubic(config, 1)
 
         print 'Test Concluded'
 
@@ -361,7 +403,7 @@ class Recorder:
 
     def loadPath(self):
 
-        self.checkSave()
+        if not self.checkSave(): return
 
         print 'Options are:'
         for key in self.pathDictionary:
@@ -387,11 +429,9 @@ class Recorder:
         if self.rate > 0:
             self.recordPath()
         else:   
-
             print ''
             print 'Replace (p), Insert (i), Remove (x), or Append (a)?'
             method = self.command_Queue.get().lower()
-
             if method == 'p':
                 self.replaceMilestone()
             elif method == 'i':
@@ -423,28 +463,26 @@ class Recorder:
             return
         elif limbResponse in leftResponses:
             print 'Changing to left limb'
+            if not self.checkSave():
+                print 'Canceled'
+                return
             self.currentLimb = LEFT
         elif limbResponse in rightResponses:
             print 'Changing to right limb'
-            if not self.rightSaved:
-                #confirm = raw_input('Delete current right path? (y/n) ')
-                print ('Delete current right path (y/n)')
-                confirm = self.getName().lower()
-                if confirm == 'y':
-                    self.rightPath = []
-            else:
-                self.currentLimb = RIGHT
-
-            self.leftPath = []
-            self.currentLimb = RIGHT
+            if not self.checkSave(): 
+                print 'Canceled'
+                return
+            self.currentLimb = RIGHT          
         elif limbResponse in bothResponses:
-            print 'Chagning to both limbs'
+            print 'Changing to both limbs'
+            if not self.checkSave():
+                print 'Canceled'
+                return
             self.currentLimb = BOTH
   
     def commandRobot(self):
 
         #make it so various numbers allow you to change how the robot behaves
-
         if self.currentLimb == BOTH:
             print 'Error, won\'t adjust both arms at once'
             return
@@ -453,7 +491,6 @@ class Recorder:
 
         while(1):
             movement = self.command_Queue.get().lower()
-
             if movement is not None: 
                 if movement in jointCommands:
                     self.moveRobot(movement)
@@ -469,8 +506,6 @@ class Recorder:
                     self.printRobotHelp()
 
     def moveRobot(self, movement=None):
-
-        #TODO - move the simulation robot and keep it at that location
 
         print 'Moving robot'
         global LEFT_ARM_INDICES
@@ -833,7 +868,8 @@ class Recorder:
                                 else:
                                     name = myOptions[0][:i-1]
                                     escape = True
-                                    break        
+                                    break   
+
             elif letter is not None: 
                 if letter in string.printable:
                     name += letter
@@ -917,7 +953,7 @@ class Recorder:
 
     def clearPaths(self):
 
-        self.checkSave()
+        if not self.checkSave(): return
 
         self.leftPath = []
         self.rightPath = []
@@ -930,27 +966,13 @@ class Recorder:
 
     def reversePath(self):
 
-        return
-        #TODO Fix - currently crashes the code
-
-        leftLength = len(self.leftPath)
-        rightLength = len(self.rightPath)
-
         if self.currentLimb == 'left':
-            for i in range(leftLength):
-                leftPathRev[leftLength-i] = self.leftPath[i]
-            self.leftPath = [a for a in leftPathRev]
+            self.leftPath = [v for v in self.leftPath[::-1]]
         elif self.currentLimb == 'right':
-            for i in range(rightLength):
-                rightPathRev[rightLength-i] = self.rightPath[i]
-            self.rightPath = [a for a in rightPathRev]
+            self.rightPath = [v for v in self.rightPath[::-1]]
         elif self.curentLimb == 'both':
-            for i in range(rightLength):
-                rightPathRev[rightLength-i] = self.rightPath[i]
-            self.rightPath = [a for a in rightPathRev]
-            for i in range(leftLength):
-                leftPathRev[leftLength-i] = self.leftPath[i]
-            self.leftPath = [a for a in leftPathRev]
+            self.leftPath = [v for v in self.leftPath[::-1]]
+            self.rightPath = [v for v in self.rightPath[::-1]]
 
     def calibrateBox(self, index=0):
         global BOX_COORDS
@@ -1047,24 +1069,18 @@ class Recorder:
             raise NotImplemented
             #self.controller.
 
-
-
     def getCameraToWorldXform(self, linkName=None, index=0):
         '''
         get current transformation (R, t) of camera in world frame. 
         '''
-
         global CAMERA_TRANSFORM
-
         if len(CAMERA_TRANSFORM) < index:
             print 'Error, camera index does not exist'
             return ([0,0,0,0,0,0,0,0,0],[0,0,0])
-
         if linkName != None:
             return se3.mul(self.simworld.robot(0).link(linkName).getTransform(), CAMERA_TRANSFORM[index])
         else: 
             return CAMERA_TRANSFORM[index]
-
 
     def printHelp(self):
 
@@ -1077,7 +1093,7 @@ class Recorder:
         print 'L: Load path from file'
         print 'V: Switch limb to record'
         print 'F: Change recording frequency'
-        print 'R: Begin coninuous recording loop'
+        print 'R: Reverse current stored path'
         print 'X: Clear/Reset paths'
         print 'P: Print current paths'
         print 'M: Reset to default config'

@@ -207,12 +207,8 @@ class CustomGLViewer(GLRealtimeProgram):
         glEnd()
 
     def keyboardfunc(self,c,x,y):
-        #c = c.lower()
-        
         #print c,"pressed"
         #print 'int value =', ord(c)
-
-        #tab is 9
 
         self.widgetMaster.keypress(c)
         self.refresh()
@@ -226,7 +222,6 @@ class CustomGLViewer(GLRealtimeProgram):
                 #c == esc
                 #self.picking_thread.join()
                 exit(0)
-
         glutPostRedisplay()
 
 

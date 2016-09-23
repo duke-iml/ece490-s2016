@@ -197,7 +197,7 @@ def loop(sock, camera, app, show=True):
                 cloud_buffer = frame.computePointCloud()
             except RuntimeError as e:
                 logger.warn('{} -> skipping frame'.format(e))
-                continuen
+                continue
             cloud = numpy.frombuffer(cloud_buffer, dtype=numpy.float32).reshape((frame.depth.height, frame.depth.width, 3))
 
             try:

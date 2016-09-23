@@ -33,13 +33,14 @@ from motionController import PhysicalLowLevelController
 
 from datetime import datetime
 
-SPEED = 16
+SPEED = 18
 visualizer = CustomGLViewer.CustomGLViewer()
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
-CAMERA_TRANSFORM[0] =  ([0.024831361199489865, -0.9993989365430579, -0.024190269481480405, -0.057925701761463284, 0.022718678795320125, -0.9980623601304871, 0.9980120322803855, 0.026184485299529065, -0.057326749019774734], [0.8300000000000001, -0.45, 0.968])
-CAMERA_TRANSFORM[1] =  ([0.04879640007176253, -0.9987896928139908, 0.006169349120642262, -0.012169157136685142, -0.0067707566315603086, -0.9999030295329748, 0.998734610872489, 0.048716592483178146, -0.01248481726773698], [0.8360000000000001, -0.041000000000000036, 0.9709999999999999])
-CAMERA_TRANSFORM[2] =   ([0.002635422842187541, -0.9999708276915267, 0.007169261633392464, -0.029725446050055275, -0.007244455788210191, -0.9995318482757117, 0.9995546270232407, 0.002421079564537573, -0.029743671094436895], [0.8450000000000001, 0.389, 0.9649999999999999])
+CAMERA_TRANSFORM[0] =  ([-0.005161218572267102, -0.9997067781777349, -0.023658391499492008, -0.017969530697323825, 0.023747606408628236, -0.9995564752210745, 0.9998252136195455, -0.00473379925164146, -0.018086828226030516], [0.8350000000000001, -0.44, 0.968])
+CAMERA_TRANSFORM[1] =  ([0.04869661256859728, -0.9987945892311386, 0.006165099102761133, 0.027778736693568153, -0.004815722998978523, -0.9996024962952568, 0.9984272540911809, 0.048848514149358035, 0.027510742508093464], [0.8540000000000001, -0.03600000000000003, 0.9649999999999999])
+CAMERA_TRANSFORM[2] =  ([-0.01736342375172043, -0.9998242986481636, 0.007062814476406195, 0.005270028659627553, -0.007155298526801169, -0.9999605134708677, 0.9998353556028844, -0.017325516895674346, 0.005393343188858899], [0.8680000000000001, 0.389, 0.9659999999999997])
+
 
 WORKING_CAMERAS = [0,1,2]
 
@@ -47,10 +48,10 @@ ZMIN = .95
 ZMAX = 1.2
 
 REGION_DIR = {}
-REGION_DIR[4] = ([.5, .2, ZMIN],[1.48, .5, ZMAX])
-REGION_DIR[2] = ([.5, -.2, ZMIN],[1.48, .2, ZMAX])
-REGION_DIR[3] = ([.5, -.2, ZMIN],[1.48, .2, ZMAX])
-REGION_DIR[1] = ([.5, -.5, ZMIN],[1.48, -.2, ZMAX])
+REGION_DIR[4] = ([.5, .2, ZMIN],[1.41, .5, ZMAX])
+REGION_DIR[2] = ([.5, -.2, ZMIN],[1.47, .2, ZMAX])
+REGION_DIR[3] = ([.5, -.2, ZMIN],[1.47, .2, ZMAX])
+REGION_DIR[1] = ([.5, -.5, ZMIN],[1.47, -.2, ZMAX])
 
 FILE_DIR = {}
 FILE_DIR[1] = 'RIGHT_BOX_RIGHT_ARM'
@@ -59,6 +60,7 @@ FILE_DIR[3] = 'MID_BOX_LEFT_ARM'
 FILE_DIR[4] = 'LEFT_BOX_LEFT_ARM'
 
 OUTPUT_FILE_NAME = 'results.txt'
+OUTPUT_RESULTS = True
 
 if REAL_CAMERA:
     # Perception
@@ -178,11 +180,11 @@ def supplyBoxes(choice):
     if checkPeople:
         checkForPerson(choice)
 
-    moveArm(limb = limb, path_name = path2_name)
+    moveArm(limb = limb, path_name = path2_name, internalSpeed=100)
     waitForMove()
 
     #move back
-    moveArm(limb = limb, path_name = path2_name, reverse = True)
+    moveArm(limb = limb, path_name = path2_name, reverse = True, internalSpeed=100)
     waitForMove()
     moveArm(limb = limb, path_name = path1_name, reverse = True)
     waitForMove()
@@ -190,6 +192,7 @@ def supplyBoxes(choice):
 
 def checkForPerson(choice):
 
+    global OUTPUT_FILE_NAME, OUTPUT_RESULTS
 
     filename = FILE_DIR[choice]
     region = REGION_DIR[choice]
@@ -229,12 +232,20 @@ def checkForPerson(choice):
 
                 #seenCount = seenCount + 1
                 print 'A person is there - waiting'
-                #open('seen'+str(seenCount)+'.txt', 'w')
-                if not os.path.exists('seen'+str(index)+'.txt'):
-                    open('seen'+str(index + 1)+'.txt', 'w')          
+
+                if OUTPUT_RESULTS:
+                    with open(OUTPUT_FILE_NAME, 'a') as f:
+                        s = 'Noticed person in region '+str(index + 1)+' at '+ datetime.isoformat(datetime.now()) + '\n'
+                        f.write(s)
 
             else:
                 print 'Continuing'
+
+                if OUTPUT_RESULTS:
+                    with open(OUTPUT_FILE_NAME, 'a') as f:
+                        s = 'Continued at '+ datetime.isoformat(datetime.now()) + '\n'
+                        f.write(s)
+
                 if os.path.exists('seen'+str(index + 1)+'.txt'):
                     os.remove('./seen'+str(index + 1)+'.txt')
                 #while seenCount > 0:
@@ -299,12 +310,12 @@ def waitForMove(timeout = None, pollRate = 0.01):
     # print "--> done\n"
 
 
-def moveArm( limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+def moveArm( limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False, internalSpeed=SPEED):
     if limb == 'left':
-        if moveLeftArm(statusConditional, path_name, path, finalState, reverse):
+        if moveLeftArm(statusConditional, path_name, path, finalState, reverse, internalSpeed):
             return True
     if limb == 'right':
-        if moveRightArm(statusConditional, path_name, path, finalState, reverse):
+        if moveRightArm(statusConditional, path_name, path, finalState, reverse, internalSpeed):
             return True
     if limb =='both':
         path_nameL = path_name
@@ -321,7 +332,7 @@ def moveArm( limb, statusConditional=None, path_name=None, path=None, finalState
 
 
 
-def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False, internalSpeed=SPEED):
 
 	global STATE_LEFT
 	global PATH_DICTIONARY
@@ -360,7 +371,7 @@ def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=N
 	        path = path[::-1]
 	    if SEND_PATH:
 	    	if len(path)>=1:
-		        sendPath(path, limb='left', readConstants=True)
+		        sendPath(path, limb='left', readConstants=True, internalSpeed=internalSpeed)
 	    else:    
 		    for milestone in path:
 		        CONTROLLER.appendMilestoneLeft(milestone, 1)
@@ -384,7 +395,7 @@ def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=N
 	    return False
 
 
-def moveRightArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+def moveRightArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False, internalSpeed=SPEED):
 
 	global STATE_RIGHT
 	global PATH_DICTIONARY
@@ -421,7 +432,7 @@ def moveRightArm( statusConditional=None, path_name=None, path=None, finalState=
 
 		if SEND_PATH:
 			if len(path)>=1:
-				sendPath(path, limb='right')
+				sendPath(path, limb='right', internalSpeed=internalSpeed)
 		else:
 		    for milestone in path:
 
@@ -500,6 +511,32 @@ def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstan
 
     #print 'myPath = ', path
 
+    speed = 1
+    while i+1 <endIndex:
+        # print i, endIndex
+        q = path[i]
+        qNext = path[i+1]
+        dt = vectorops.distance(q,qNext)
+        dt = dt / speed
+
+        i += 1
+        waitForMove()
+        # if INCREMENTAL:
+        #     time.sleep(.1)
+        if limb == 'left':
+            CONTROLLER.appendMilestoneLeft(q,dt)
+            #pass
+        elif limb == 'right':
+            CONTROLLER.appendMilestoneRight(q,dt)
+            #pass
+        else:
+            #print 'milestone #', i, q
+            #CONTROLLER.appendMilestone(q)
+            CONTROLLER.appendLinear(q,dt)
+            #pass
+
+
+    """
     while i <endIndex-1:
         # print i, endIndex
         q = path[i]
@@ -523,14 +560,15 @@ def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstan
             #     time.sleep(.1)
             if counter%internalSpeed == 0 or INCREMENTAL:
                 if limb == 'left':
-                    CONTROLLER.appendMilestoneLeft(q)
+                    CONTROLLER.appendMilestoneLeft(q,1)
                     #pass
                 elif limb == 'right':
-                    CONTROLLER.appendMilestoneRight(q)
+                    CONTROLLER.appendMilestoneRight(q,1)
                     #pass
                 else:
                     #print 'milestone #', i, q
-                    CONTROLLER.appendMilestone(q)
+                    #CONTROLLER.appendMilestone(q)
+                    CONTROLLER.appendLinear(q,1)
                     #pass
             counter +=1
     if limb == 'left':
@@ -544,7 +582,7 @@ def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstan
         #print 'last milestone', path[-1]
         CONTROLLER.appendMilestone(path[-1])
     # print 'Done with moving'
-
+    """
 def load_exp_world():
     """Produces a world with only the Baxter, shelf, and ground plane in it."""
     world = robotsim.WorldModel()
@@ -719,9 +757,9 @@ with open(OUTPUT_FILE_NAME, 'w') as f:
     #clears file
 
 for i in range(8):
-    file_name = "./"+str(i)+".com"
-    if os.path.exists(file_name):
-        os.remove(file_name)
+    for file_n in os.listdir("."):
+        if file_n.endswith(".com"):
+            os.remove(file_n)
 
 myHelp = Helper()
 visualizer = CustomGLViewer.CustomGLViewer(SIMWORLD, WORLD, LOW_LEVEL_CONTROLLER, helper=myHelp)

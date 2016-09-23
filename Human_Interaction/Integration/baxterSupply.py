@@ -8,8 +8,8 @@ START_TIME = time.time()
 sys.path.insert(0, "../../common")
 sys.path.insert(0, "..")
 
-SPEED = 16
-SEND_PATH = True
+SPEED = .75
+SEND_PATH = False
 
 REAL_CAMERA = True
 CAMERA_TRANSFORM = {}
@@ -51,9 +51,14 @@ from motionController import PhysicalLowLevelController
 
 from datetime import datetime
 
+LEFT_ARM_INDICES = [15, 16, 17, 18, 19, 21, 22]
+RIGHT_ARM_INDICES =  [35,36,37,38,39,41,42]
+
 def supplyBoxes(choice):
 
     global START_TIME
+    global LEFT_ARM_INDICES
+    global RIGHT_ARM_INDICES
 
     '''
     1 - Supply the right box with the right arm
@@ -85,7 +90,7 @@ def supplyBoxes(choice):
     path1_name = limb.upper()+'_SUPPLY_'+str(choice)
     path2_name = limb.upper()+'_DEPOSIT_'+str(choice)
 
-    moveArm(limb = limb, path_name = path1_name, reverse = False)
+    moveArm(limb = limb, path_name = path1_name, reverse = False, force_Wait = True)
     print 'moving to halfway'
     waitForMove()
 
@@ -94,12 +99,12 @@ def supplyBoxes(choice):
 
     #checkForPerson(choice)
 
-    moveArm(limb = limb, path_name = path2_name)
+    moveArm(limb = limb, path_name = path2_name, internalSpeed=2, send_Path = True)
     print 'depositing'
     waitForMove()
 
     #move back
-    moveArm(limb = limb, path_name = path2_name, reverse = True)
+    moveArm(limb = limb, path_name = path2_name, reverse = True, internalSpeed=3, send_Path = True)
     print 'backing up'
     waitForMove()
     deposit_time = time.time()
@@ -107,9 +112,12 @@ def supplyBoxes(choice):
     print 'Total time running up to this point is', deposit_time-START_TIME
 
 
-    moveArm(limb = limb, path_name = path1_name, reverse = True)
+    moveArm(limb = limb, path_name = path1_name, reverse = True, force_Wait = True)
     print 'back to rest'
     waitForMove()
+
+    #.75, 2, 3, .6 - best trial for sendPath
+
 
 
 def checkForPerson(choice):
@@ -198,12 +206,12 @@ def waitForMove(timeout = None, pollRate = 0.01):
     # print "--> done\n"
 
 
-def moveArm( limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+def moveArm( limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False, internalSpeed=SPEED, send_Path=False, force_Wait=False):
     if limb == 'left':
-        if moveLeftArm(statusConditional, path_name, path, finalState, reverse):
+        if moveLeftArm(statusConditional, path_name, path, finalState, reverse, internalSpeed, send_Path, force_Wait):
             return True
     if limb == 'right':
-        if moveRightArm(statusConditional, path_name, path, finalState, reverse):
+        if moveRightArm(statusConditional, path_name, path, finalState, reverse, internalSpeed, send_Path, force_Wait):
             return True
     if limb =='both':
         path_nameL = path_name
@@ -218,7 +226,9 @@ def moveArm( limb, statusConditional=None, path_name=None, path=None, finalState
     print 'Error with move'+limb+'arm'
     return False
 
-def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+
+
+def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False, internalSpeed=SPEED, send_Path=False, force_Wait = False):
 
     global STATE_LEFT
     global PATH_DICTIONARY
@@ -255,18 +265,18 @@ def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=N
             #print path
         if reverse:
             path = path[::-1]
-        if SEND_PATH:
+        if send_Path:
             if len(path)>=1:
-                sendPath(path, limb='left', readConstants=True)
+                sendPath(path, limb='left', readConstants=True, internalSpeed=internalSpeed)
         else:    
             for milestone in path:
-                CONTROLLER.appendMilestoneLeft(milestone, 1)
+                CONTROLLER.appendMilestoneLeft(milestone, .05)
                 #move to the milestone in 1 second
 
                 time.sleep(0.1)
                 waitForMove() #still doesn't do anything, but it's the thought that counts
-                if FORCE_WAIT:
-                    forceWait(milestone, left_arm_indices, 0.01)
+                if force_Wait:
+                    forceWait(milestone, LEFT_ARM_INDICES, 0.1)
                 else:
                     CONTROLLER.appendMilestoneLeft(milestone, WAIT_TIME)
                 #wait at the milestone for 2 seconds
@@ -281,7 +291,7 @@ def moveLeftArm( statusConditional=None, path_name=None, path=None, finalState=N
         return False
 
 
-def moveRightArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
+def moveRightArm( statusConditional=None, path_name=None, path=None, finalState=None, reverse=False, internalSpeed=SPEED, send_Path =False, force_Wait=False):
 
     global STATE_RIGHT
     global PATH_DICTIONARY
@@ -316,19 +326,19 @@ def moveRightArm( statusConditional=None, path_name=None, path=None, finalState=
         if reverse:
             path = path[::-1]
 
-        if SEND_PATH:
+        if send_Path:
             if len(path)>=1:
-                sendPath(path, limb='right')
+                sendPath(path, limb='right', internalSpeed=internalSpeed)
         else:
             for milestone in path:
 
                 #print milestone
-                CONTROLLER.appendMilestoneRight(milestone, 1)
+                CONTROLLER.appendMilestoneRight(milestone, .05)
                 #move to the milestone in 1 second
                 #waitForMove() #still doesn't do anything, but it's the thought that counts
                 #time.sleep(1)
-                if FORCE_WAIT:
-                    forceWait(milestone, right_arm_indices, 0.01)
+                if force_Wait:
+                    forceWait(milestone, RIGHT_ARM_INDICES, 0.1)
                 else:
                     CONTROLLER.appendMilestoneRight(milestone, WAIT_TIME)
                 #wait at the milestone for 2 seconds
@@ -341,9 +351,7 @@ def moveRightArm( statusConditional=None, path_name=None, path=None, finalState=
         print "Error, arm is not in state ", statusConditional
         return False
 
-
 def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstants=False, internalSpeed=SPEED):
-
 
     # interpolate path linearly between two endpoints
     if path == None:
@@ -388,6 +396,39 @@ def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstan
 
     #print 'myPath = ', path
 
+    speed = 1
+    qNext = None
+    while i+1 <endIndex:
+        # print i, endIndex
+        q = path[i]
+        qNext = path[i+1]
+        dt = vectorops.distance(q,qNext)
+        dt = dt / internalSpeed
+
+        i += 1
+        waitForMove()
+        # if INCREMENTAL:
+        #     time.sleep(.1)
+        if limb == 'left':
+            CONTROLLER.appendMilestoneLeft(q,dt)
+            #pass
+        elif limb == 'right':
+            CONTROLLER.appendMilestoneRight(q,dt)
+            #pass
+        else:
+            #print 'milestone #', i, q
+            #CONTROLLER.appendMilestone(q)
+            CONTROLLER.appendLinear(q,dt)
+            #pass
+
+
+    if limb == 'left':
+        CONTROLLER.appendMilestoneLeft(qNext,dt)
+            #pass
+    elif limb == 'right':
+        CONTROLLER.appendMilestoneRight(qNext,dt)
+
+    """
     while i <endIndex-1:
         # print i, endIndex
         q = path[i]
@@ -411,14 +452,15 @@ def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstan
             #     time.sleep(.1)
             if counter%internalSpeed == 0 or INCREMENTAL:
                 if limb == 'left':
-                    CONTROLLER.appendMilestoneLeft(q)
+                    CONTROLLER.appendMilestoneLeft(q,1)
                     #pass
                 elif limb == 'right':
-                    CONTROLLER.appendMilestoneRight(q)
+                    CONTROLLER.appendMilestoneRight(q,1)
                     #pass
                 else:
                     #print 'milestone #', i, q
-                    CONTROLLER.appendMilestone(q)
+                    #CONTROLLER.appendMilestone(q)
+                    CONTROLLER.appendLinear(q,1)
                     #pass
             counter +=1
     if limb == 'left':
@@ -432,6 +474,7 @@ def sendPath(path,maxSmoothIters =0, INCREMENTAL=False, limb = None, readConstan
         #print 'last milestone', path[-1]
         CONTROLLER.appendMilestone(path[-1])
     # print 'Done with moving'
+    """
 
 def forceWait( milestone1, indices, eps):
 
@@ -440,7 +483,30 @@ def forceWait( milestone1, indices, eps):
 	milestone2 = [CONTROLLER.getSensedConfig()[v] for v in indices]
 	while (np.linalg.norm(np.array(milestone2)-milestone1)) >= eps:
 	    milestone2 = [CONTROLLER.getSensedConfig()[v] for v in indices]
-	    print (np.linalg.norm(np.array(milestone2)-milestone1))
+	    #print (np.linalg.norm(np.array(milestone2)-milestone1))
+
+def extractMilestone(limb, path_name, index):
+
+    global PATH_DICTIONARY
+
+    getValue = 0
+    if limb == 'left':
+        getValue = 1
+    elif limb == 'right':
+        getValue = 2
+
+    if path_name in PATH_DICTIONARY:
+        path = PATH_DICTIONARY[path_name][getValue][1]
+    else:
+        try:
+            path = eval(path_name)
+        except:
+            print 'Error no '+path_name+'in recorded constants'
+            return False
+
+    return path[index];
+
+
 
 def load_exp_world():
     """Produces a world with only the Baxter, shelf, and ground plane in it."""
@@ -489,7 +555,7 @@ model_dir = "../klampt_models/"
 KLAMPT_MODEL = "baxter_col.rob"
 PATH_DICTIONARY = {}
 RUN_EXP_IMMEDIATELY = True
-FORCE_WAIT = False
+FORCE_WAIT = True
 STATE_LEFT = 'ready'
 STATE_RIGHT = 'ready'
 
