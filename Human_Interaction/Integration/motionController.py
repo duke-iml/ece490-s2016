@@ -31,7 +31,7 @@ from operator import itemgetter
 import cPickle as pickle
 import subprocess
 import numpy as np
-#import armRecorder
+
 
 from Trajectories.camera_to_bin import *
 from Trajectories.view_to_grasp import *
@@ -67,7 +67,7 @@ PHYSICAL_SIMULATION = 1
 
 
 PATH_DICTIONARY = {}
-RUN_EXP_IMMEDIATELY = True
+RUN_EXP_IMMEDIATELY = False
 
 try:
     file = open('data.json', 'rw') 
@@ -75,7 +75,7 @@ try:
     file.close()
 except:
     print 'Path Dictionary failed to load'
-    raw_input()
+
 
 
 MAX_RATING = 4
@@ -396,6 +396,8 @@ class FakeLowLevelController:
 class PhysicalLowLevelController(LowLevelController):
     """A low-level controller for the real robot."""
     def __init__(self,robotModel,klampt_model=KLAMPT_MODEL):
+        
+        self.robotModel = robotModel
         print "Setting up motion_physical library with model",klampt_model
         #motion.setup(klampt_model = "../klampt_models/"+klampt_model)
         #motion.setup(mode="physical",libpath="", klampt_model = klampt_model)
@@ -631,8 +633,12 @@ class PickingController:
     def updatePathDictionary(self):
 
         global PATH_DICTIONARY
+
+
         try:
+            file = open('data.json', 'rw') 
             PATH_DICTIONARY = json.load(file)
+            file.close()
         except:
             print 'Path Dictionary failed to load'
 
@@ -3254,8 +3260,7 @@ class PickingController:
 
             print limb.upper(), ' camera transform is ', eval('self.cameraTransform_'+limb.upper())
 
-            current_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb, tolist=False)
-            self.points = current_cloud.tolist()
+
 
     def calibrateVacuum(self, limb='left'):
          while(True):
@@ -3727,6 +3732,7 @@ class MyGLViewer(GLRealtimeProgram):
             print "Simulating:",self.simulate
         else:
             self.command_queue.put(c)
+            # print 'Key code is', int(c)
             if c  == chr(27):
                 #c == esc
                 self.picking_thread.join()
@@ -4118,6 +4124,7 @@ def pcl_float_to_rgb(f):
     return r,g,b
 
 if __name__ == "__main__":
+    import armRecorder
     """The main loop that loads the planning / simulation models and
     starts the OpenGL visualizer."""
     # Declare the knowledge base
