@@ -65,10 +65,16 @@ sys.path.insert(0, "../")
 import json
 import json_parser_stow
 from bin_select import binSelector
-from Sensors import scale
+from Sensors import multiScale2 as scale
+
+import cPickle as pickle
+import time
+
+THRESHOLD = 200
 
 class stowHandler:
-    def __init__(self,filename=None):
+    def __init__(self,filename=None,real_scale=1):
+        self.real_scale = real_scale
         self.counter = 0
         self.parser=json_parser_stow.json_parser_stow()
         self.binSelector=binSelector();
@@ -76,8 +82,8 @@ class stowHandler:
         self.bin=[None]*24
 
         self.scale = None
-        self.scale=scale.Scale_Measurement()
-        self.currentWeight=float(self.scale.readData(10).split(' ')[0])
+        # self.scale=scale.Scale_Measurement()
+        self.currentWeight=self.readScale()
         print 'Initial Reading', self.currentWeight
         # self.currentWeight = self.currentWeight.split(' ')[0]
         print 'Numeric Reading', self.currentWeight
@@ -109,22 +115,22 @@ class stowHandler:
         # ["dasani_water_bottle","dasani_water_bottle"],
         # ["fitness_gear_3lb_dumbbell"]]
 
-        self.weightClass=[["expo_dry_erase_board_eraser","oral_b_toothbrush_green", "oral_b_toothbrush_red","scotch_bubble_mailer"],
+        self.weightClass=[["scotch_bubble_mailer", "expo_dry_erase_board_eraser","oral_b_toothbrush_green", "oral_b_toothbrush_red"],
         ["fiskars_scissors_red"],
-        ["cloud_b_plush_bear","womens_knit_gloves"],
+        ["womens_knit_gloves", "cloud_b_plush_bear"],
         ["safety_first_outlet_plugs","platinum_pets_dog_bowl"],
         ["kyjen_squeakin_eggs_plush_puppies"],
         ["cherokee_easy_tee_shirt"],
         ["cool_shot_glue_sticks"],
         ["dr_browns_bottle_brush","soft_white_lightbulb"],
-        ["barkely_hide_bones","command_hooks","jane_eyre_dvd","ticonderoga_12_pencils","laugh_out_loud_joke_book"],
-        ["rolodex_jumbo_pencil_cup","creativity_chenille_stems"],
+        ["jane_eyre_dvd","ticonderoga_12_pencils","laugh_out_loud_joke_book","barkely_hide_bones","command_hooks"],
+        ["creativity_chenille_stems", "rolodex_jumbo_pencil_cup"],
         ["i_am_a_bunny_book"],
         ["dove_beauty_bar"],
         ["staples_index_cards"],
         ["crayola_24_ct"],
         ["easter_turtle_sippy_cup","woods_extension_cord"],
-        ["clorox_utility_brush","rawlings_baseball","elmers_washable_no_run_school_glue","scotch_duct_tape"],
+        ["elmers_washable_no_run_school_glue","clorox_utility_brush","rawlings_baseball","scotch_duct_tape"],
         ["kleenex_tissue_box"],
         ["peva_shower_curtain_liner"],
         ["up_glucose_bottle"],
@@ -133,24 +139,32 @@ class stowHandler:
         ["hanes_tube_socks"],
         ["dasani_water_bottle"],
         ["fitness_gear_3lb_dumbbell"]]
-        self.overlap = [filter(lambda x: x in sublist, self.toteContents) for sublist in self.weightClass]
+        self.overlap = [filter(lambda x: x in self.toteContents, sublist) for sublist in self.weightClass]
         print self.overlap
+
+        self.noPickList = ["kleenex_paper_towels","folgers_classic_roast_coffee","hanes_tube_socks","dasani_water_bottle","fitness_gear_3lb_dumbbell"]
+
 
     def mostEmptyBin(self):
         bins=CONST_BIN_NAMES
         bins.remove('bin_J')
         bins.remove('bin_K')
         bins.remove('bin_H')
+        bins.remove('bin_L')
+        bins.remove('bin_E')
+        bins.remove('bin_A')
+        bins.remove('bin_D')
+        bins.remove('bin_G')
         numObj=[len(self.binContents[bins[i]]) for i in range(len(bins))]
         sortedNumObj=sorted(range(len(numObj)), key=lambda k: numObj[k])
         return bins[sortedNumObj[0]]
 
     def pickWhichObj(self, limb, debug=False):
 
-        newWeight = float(self.scale.readData(10).split(' ')[0])
+        newWeight = self.readScale()
 
         objWeight=abs((self.currentWeight-newWeight))
-        
+
         if (debug):
             print "Object Weight is ",objWeight
             print "Because old weight was ", self.currentWeight, " & new weight is ", newWeight
@@ -160,7 +174,7 @@ class stowHandler:
         classidx=0
 
         if objWeight<10:
-            return [None,None,False]
+            return [-1,None,False]
         elif objWeight<23:
             classidx=0
             item = self.overlap[0]
@@ -182,7 +196,7 @@ class stowHandler:
         elif objWeight<66:
             classidx=6
             item = self.overlap[6]
-        elif objWeight<76:
+        elif objWeight<77:
             classidx=7
             item = self.overlap[7]
         elif objWeight<90:
@@ -242,7 +256,7 @@ class stowHandler:
         print "Possible items are:"+str(copieditem)
 
         if tilt:
-            self.updateTote(item[0])
+            #self.updateTote(item[0])
             self.overlap[classidx].remove(item[0])
             return copieditem[0], 'bin_B', tilt
         if(len(item)>1):
@@ -255,14 +269,31 @@ class stowHandler:
                     binidx=11
                 else:
                     (self.bin[classidx],binidx) = self.binSelector.chooseBin(item[0],limb)
-        
-        self.updateTote(item[0])
+
+        #self.updateTote(item[0])
         self.overlap[classidx].remove(item[0])
-        return copieditem[0], self.bin[classidx], tilt
+
+        if copieditem[0] in self.noPickList:
+            return copieditem[0], None, tilt
+        else:
+            return copieditem[0], self.bin[classidx], tilt
 
     def updateWeight(self):
-        self.currentWeight=float(self.scale.readData(10).split(' ')[0])
+        self.currentWeight=self.readScale()
         return self.currentWeight
+
+    def testIncrease(self):
+        if self.readScale() > self.currentWeight + THRESHOLD:
+            return True
+        else:
+            return False
+
+    def testDecrease(self):
+        if self.readScale() < self.currentWeight - THRESHOLD:
+            return True
+        else:
+            return False
+
 
     def getToteContents(self):
         return self.toteContents
@@ -274,7 +305,7 @@ class stowHandler:
 
     def updateTote(self,objRemoved):
         print "Object removed:"+objRemoved
-        if objRemoved in self.toteContents: 
+        if objRemoved in self.toteContents:
             self.toteContents.remove(objRemoved)
             return True
         else:
@@ -283,7 +314,45 @@ class stowHandler:
     def jsonOutput(self, filename):
         self.parser.writeOutFile(filename, self.binContents, self.toteContents)
 
-# if __name__ == "__main__":
+
+    def getLastReading(self):
+        return self.currentWeight
+
+    def readScaleOld(self):
+        total = 0
+        data = self.scale.readData(10)
+        for entry in data:
+            total = total + float(entry.split(' ')[0])
+
+        return total
+
+    def readScale(self):
+        if not self.real_scale:
+            return 0
+        # total = 0
+        # data = self.scale.readData(10)
+        # for entry in data:
+        #     total = total + float(entry.split(' ')[0])
+        totalWeight = None
+        while totalWeight == None:
+            try:
+                with open("../Sensors/weight.pkl", "rb") as f:
+                    weight = 0
+                    valList = pickle.load(f)
+                    for i in range(len(valList)):
+                        weight = weight + float(valList[i])
+                # print weight
+            except EOFError:
+                # print "error reading"
+                pass
+            time.sleep(0.5)
+            if weight != 0:
+                totalWeight = weight
+            else:
+                print "total weight is 0. Check your system"
+        return totalWeight
+
+if __name__ == "__main__":
 #     JSON_FILES=["StowTestA.json","StowTestB.json","StowTestC.json","StowTestD.json","StowTestE.json"]
 #     # for i in range(len(JSON_FILES)):
 #     a=stowHandler("../JSON_FILES/"+JSON_FILES[0])
@@ -296,3 +365,7 @@ class stowHandler:
     #     if targetitem!=None:
     #         a.updateBin(targetbin,targetitem)
     #     a.jsonOutput("../JSON_FILES/StowTestBOut.json")
+
+    sh = stowHandler("../JSON_FILES/apc_stow_task.json")
+    while True:
+        print sh.readScale()
