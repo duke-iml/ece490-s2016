@@ -47,12 +47,12 @@ class CommPressure:
             pName = port
 
         # print "trying to find port =", pName
-        for p in ports:    
+        for p in ports:
             # print "curr port =", p
             if pName in p[0] or pName in p[1] or pName in p[2]:
                 print "Target port FOUND"
                 portArray.append(p[0])
-                foundPort = True                
+                foundPort = True
 
             # # if "Arduino Micro" in p[1] or "Arduino Micro" in p[2] or "VID:PID=2a03:0042" in p[1] or "VID:PID=2a03:0042" in p[2]:
 
@@ -130,25 +130,25 @@ class CommPressure:
         print 'Error: Could not read pressure - trying again.'
 
 if __name__ == "__main__":
-    ports = list(serial.tools.list_ports.comports())
-    # foundPort = False
-    # for p in ports:
-    #     print p
-    #     if "Arduino Micro" in p[1]:
-    #         print "Port =", p[0]
-    #         # compress = CommPressure(port = p[0])
-    #         compress = CommPressure(port = p[0])
-    #         foundPort = True
-    # if foundPort == False:
-    #     print "No Port Found (Arduino Micro)"
+    # ports = list(serial.tools.list_ports.comports())
+    # # foundPort = False
+    # # for p in ports:
+    # #     print p
+    # #     if "Arduino Micro" in p[1]:
+    # #         print "Port =", p[0]
+    # #         # compress = CommPressure(port = p[0])
+    # #         compress = CommPressure(port = p[0])
+    # #         foundPort = True
+    # # if foundPort == False:
+    # #     print "No Port Found (Arduino Micro)"
 
 
 
-    compress = CommPressure()
+    # compress = CommPressure()
 
 
     while True:
-        attached = compress.read_pressure()
+        # attached = compress.read_pressure()
 
         # if random.uniform(0,1) > 0.9:
         #     print "attached!"
@@ -156,7 +156,7 @@ if __name__ == "__main__":
 
         # attached = random.uniform(0,10)
         #print 'attached: ', attached[0], "pressure:", attached[1]
-        print "pressure:", attached[0]
+        # print "pressure:", attached[0]
         with open("pressureReading_LEFT.pkl", "wb") as f:
-            pickle.dump(attached, f)
+            pickle.dump("1", f)
         time.sleep(1)

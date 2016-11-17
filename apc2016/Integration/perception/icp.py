@@ -21,7 +21,10 @@ def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_t
 		# get correspondences using distance
 		if n == 0:
 			# run the first query with infinite distance range in case the object is distant
+			# print initial_threshold
 			threshold = initial_threshold or float('inf')
+			# print threshold
+			# raw_input()
 		else:
 			# apply the distance threshold for subsequent iterations
 			# reduce threshold as iterations progress
@@ -84,7 +87,7 @@ def match(object_cloud, scene_tree, iterations=20, threshold_max=0.05, initial_t
 
 	if not return_fit_metric:
 		return total_R, total_t
-	
+
 	# compute the goodness of fit
 	object_tree = scipy.spatial.KDTree(obj)
 	fit_metric = compute_fit_metric(object_tree, scene_tree)
