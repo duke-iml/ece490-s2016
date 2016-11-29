@@ -669,15 +669,12 @@ class Perceiver(object):
 		'''
 		shelf_perturb_R, shelf_perturb_t = self.icp_get_bin_transform(bin_letter, cur_camera_R, cur_camera_t, limb)
 		# save perturbation transformation for shelf subtraction during perception
-<<<<<<< HEAD
 		
 		self.shelf_perturb_R = np.array(shelf_perturb_R).reshape(3,3).T
 		self.shelf_perturb_t = np.array(shelf_perturb_t)
-=======
 
 		#self.shelf_perturb_R = shelf_perturb_R
 		#self.shelf_perturb_t = shelf_perturb_t
->>>>>>> 9f97470e7284129c65ea06e2e61b7cf27f0fdfba
 		return shelf_perturb_R, shelf_perturb_t
 
 	def icp_get_bin_transform(self, bin_letter, cur_camera_R, cur_camera_t, limb):

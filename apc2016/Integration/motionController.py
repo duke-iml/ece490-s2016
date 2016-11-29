@@ -12,16 +12,11 @@
 
 
 #
-import sys, struct, time
+import sys, struct, time, copy
 
 sys.path.insert(0, "../../common")
 sys.path.insert(0, "..")
 
-#sys.path.insert(0, "/home/hpb3/Klampt/Python")
-
-import rospy
-import baxter_interface
-rospy.init_node('retriever_node')
 
 from klampt import robotsim
 from klampt.glprogram import *
@@ -36,11 +31,13 @@ from operator import itemgetter
 import cPickle as pickle
 import subprocess
 import numpy as np
+import armRecorder
 
 from Trajectories.camera_to_bin import *
 from Trajectories.view_to_grasp import *
 from Trajectories.grasp_to_stow_90 import *
 from Trajectories.grasp_to_stow_straight import *
+from Trajectories.grasp_to_rest import *
 #-----------------------------------------------------------
 #Imports require internal folders
 
@@ -57,9 +54,6 @@ from Group2Helper.motionPlanner import *
 
 # import baxter_interface
 
-# Perception
-from perception import perception
-
 from Group2Helper import Vacuum_Comms
 #================================================================
 # End of Imports
@@ -73,27 +67,27 @@ PHYSICAL_SIMULATION = 1
 #============================================================
 # configuration variables
 
-
+MAX_RATING = 4
 
 ALL_ARDUINOS = 0
 MOTOR = 0 or ALL_ARDUINOS
-VACUUM = 1 or ALL_ARDUINOS
+VACUUM = 0 or ALL_ARDUINOS
 
 WAIT_TIME = 2
 
 SPEED = 3
 
-REAL_SCALE = True
+REAL_SCALE = False
 REAL_CAMERA = False
 REAL_JSON = False
-REAL_PRESSURE = True
+REAL_PRESSURE = False
 
 TASK = 'pick'
 #TASK = 'stow'
 
 SHELF_STATIONARY = False
 
-PRESSURE_THRESHOLD = 840
+PRESSURE_THRESHOLD = 850
 
 SKIP_GRASP_FROM_TOTE= False
 SKIP_STOWING_INPUT = False
@@ -102,8 +96,12 @@ SKIP_STOWING_INPUT = False
 INIT_DEGREE_OFFSET = 0
 
 TOTE_BOUNDS = [[],[]]
-TOTE_BOUNDS[0] = [0.51508961858971, 0.20121429760198456, 0.398518110006264]
-TOTE_BOUNDS[1] =  [0.7662464010255284, -0.26451044561443077, 0.20620107315207947]
+
+TOTE_BOUNDS[0] = [0.7560075384967612, -0.21018285279301704, 0.34623535198332]
+TOTE_BOUNDS[1] = [0.49803990865039477, 0.28197204467225134, 0.5341581622402093]
+
+
+TERRAIN_CALIBRATION = None
 
 SHELF_CALIBRATION = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-1.970, -2.546, -0.03])
 
@@ -114,7 +112,6 @@ TOTE_BOUNDS_Z_MIN = min(TOTE_BOUNDS[0][2], TOTE_BOUNDS[1][2])
 
 #KLAMPT_MODEL="baxter.rob"
 KLAMPT_MODEL="baxter_with_two_vacuums.rob"
-
 
 PERCEPTION_FAIL_THRESHOLD = 3
 #========================================================================================
@@ -172,8 +169,10 @@ if REAL_JSON:
     (binList, orderList, rightTrueList, easinessList) = pickHandler.workBinOrder()
     print 'binList is ', binList
 
-
-perceiver = perception.Perceiver()
+if REAL_CAMERA:
+    # Perception
+    from perception import perception
+    perceiver = perception.Perceiver()
 
 # # NOTE: Arduino stuff
 # # import Pressure_Comms
@@ -202,8 +201,8 @@ GRASP_PREPPED_STATE = 'graspPrepped'
 REST_STATE = 'ready'
 STOW_STATE = 'stow'
 
-LEFT_BIN_VIEW_SHORTCUTS = {'bin_A': [], 'bin_B': [], 'bin_C': [], 'bin_D': [], 'bin_E': ['bin_F'], 'bin_F': ['bin_E'], 'bin_G': [], 'bin_H': ['bin_I', 'bin_K', 'bin_L'], 'bin_I':['bin_K', 'bin_H', 'bin_L'], 'bin_J':[], 'bin_K':['bin_I', 'bin_H', 'bin_L'], 'bin_L':['bin_I', 'bin_K', 'bin_H']}
-RIGHT_BIN_VIEW_SHORTCUTS = {'bin_A': ['bin_B'], 'bin_B': ['bin_A'], 'bin_C':[], 'bin_D':['bin_E', 'bin_H', 'bin_G'], 'bin_E':['bin_D', 'bin_H', 'bin_G'], 'bin_F':[], 'bin_G': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_H'], 'bin_H': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_G'], 'bin_I': [], 'bin_J':['bin_H', 'bin_K', 'bin_G'], 'bin_K':['bin_H', 'bin_J', 'bin_G'], 'bin_L':[]}
+RIGHT_BIN_VIEW_SHORTCUTS = {'bin_A': [], 'bin_B': [], 'bin_C': [], 'bin_D': [], 'bin_E': ['bin_F'], 'bin_F': ['bin_E'], 'bin_G': [], 'bin_H': ['bin_I', 'bin_K', 'bin_L'], 'bin_I':['bin_K', 'bin_H', 'bin_L'], 'bin_J':[], 'bin_K':['bin_I', 'bin_H', 'bin_L'], 'bin_L':['bin_I', 'bin_K', 'bin_H']}
+LEFT_BIN_VIEW_SHORTCUTS = {'bin_A': ['bin_B'], 'bin_B': ['bin_A'], 'bin_C':[], 'bin_D':['bin_E', 'bin_H', 'bin_G'], 'bin_E':['bin_D', 'bin_H', 'bin_G'], 'bin_F':[], 'bin_G': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_H'], 'bin_H': ['bin_E', 'bin_D', 'bin_J', 'bin_K', 'bin_G'], 'bin_I':[], 'bin_J':['bin_G', 'bin_K', 'bin_H'], 'bin_K':['bin_H', 'bin_J', 'bin_G'], 'bin_L':[]}
 
 
 class KnowledgeBase:
@@ -259,8 +258,8 @@ class KnowledgeBase:
         #center of the front face of the bin
         bmin,bmax = apc.bin_bounds[bin_name]
 
-        globPoint1 = se3.apply(knowledge.shelf_xform, bmin)
-        globPoint2 = se3.apply(knowledge.shelf_xform, bmax)
+        globPoint1 = se3.apply(knowledge.shelf_xform_canonical, bmin)
+        globPoint2 = se3.apply(knowledge.shelf_xform_canonical, bmax)
 
         if globPoint1[0] > globPoint2[0]:
             xmax = globPoint1[0]
@@ -492,6 +491,7 @@ class LowLevelController:
                 myConfig[right_arm_geometry_indices[i]] = destination[i]  
         if endvelocity == None: self.controller.addMilestoneLinear(myConfig)
         else: self.controller.addMilestone(myConfig,endvelocity)
+        self.robotModel.setConfig(myConfig)
         self.lock.release()
     def appendMilestoneLeft(self, destination, dt=2, endvelocity=None):
         self.lock.acquire()
@@ -501,6 +501,7 @@ class LowLevelController:
                 myConfig[left_arm_geometry_indices[i]] = destination[i]  
         if endvelocity == None: self.controller.addMilestoneLinear(myConfig)
         else: self.controller.addMilestone(myConfig,endvelocity)
+        self.robotModel.setConfig(myConfig)
         self.lock.release()
 
 
@@ -686,7 +687,7 @@ class PhysicalLowLevelController(LowLevelController):
             #    destination = destination + [0]
             if not motion.robot.right_mq.appendLinear(dt, destination): raise RuntimeError()
         else:
-            print 'Destination is: ', [destination[v] for v in self.right_arm_indices[:7]]
+            #print 'Desitnation is: ', [destination[v] for v in self.right_arm_indices[:7]]
             if not motion.robot.right_mq.appendLinear(dt, [destination[v] for v in self.right_arm_indices[:7]]): raise RuntimeError()
         return True
     def appendMilestoneLeft(self, destination, dt=2):
@@ -711,6 +712,8 @@ class PickingController:
         self.world = world
         self.robot = world.robot(0)
 
+        self.recorder = None
+
         print "initialized picking controller number of robots = ", self.world.numRobots()
 
         self.controller = robotController
@@ -732,15 +735,24 @@ class PickingController:
         # calibration constants
         #==========================================================================================================================
 
-        self.cameraTransform_LEFT = ([-0.0011963120477381838, 0.9991595344703198, -0.040973082804945785, 0.02110884648019782, -0.04093875104569311, -0.9989386544043113, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.13570000000000004, 0.009999999999999983, 0.08100000000000003])
-        self.cameraTransform_RIGHT = ([-0.001407337179312747, 0.999518957597277, -0.03098181411277777, 0.021095828125576088, -0.030945275306251838, -0.9992984318870506, -0.9997764677355453, -0.0020599368619652614, -0.021042129701264334], [-0.14070000000000005, -0.010000000000000014, 0.08100000000000003])
+
+        if TASK == 'pick':
+            self.cameraTransform_LEFT = ([-0.005265452449771632, 0.9995690377458444, 0.02887929691576046, 0.08081924076130616, 0.02921060091028254, -0.9963006529744064, -0.9967148666159592, -0.002911970863461065, -0.08093821774925046], [-0.15570000000000006, 0.019999999999999983, 0.11299999999999999])
+            self.cameraTransform_RIGHT = ([-0.10121140701250368, 0.9943198755486343, -0.03292774179168634, 0.021095828125576088, -0.030945275306251838, -0.9992984318870506, -0.9946412504648348, -0.10183503829807747, -0.01784398634228295], [-0.14070000000000005, 0.041999999999999996, 0.08100000000000003])
+        else:
+            self.cameraTransform_LEFT = ([-0.07741092270722004, -0.008883962956966026, -0.9969596903826132, 0.004215694668159291, -0.9999542762926548, 0.008583311860728818, -0.9969903595141133, -0.003538435560092878, 0.07744483526811462], [-0.11, -0.015, 0.049999999999999996])
+
+            self.cameraTransform_RIGHT = ([-0.0068680743279194295, 0.049534345302957125, 0.998748806352445, -0.0843214069774556, 0.9951864873435861, -0.049937518301143125, -0.9964149386075908, -0.08455887915613661, -0.002658209075564383], [-0.11000000000000001, 0.11, 0.10999999999999999])
+
+
 
         self.vacuumTransform = []
 
         if TASK == 'stow':
             self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [-0.01, -0.01, 0.55])
         else:
-            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.03, 0.005, 0.54])
+            self.vacuumTransform = ([1, 0, 0, 0, 1, 0, 0, 0, 1], [0.02, 0.0, 0.55])
+
                #90 degrees
 
 
@@ -757,8 +769,6 @@ class PickingController:
         self.left_gripper_link = self.robot.link(left_gripper_link_name)
         self.right_gripper_link = self.robot.link(right_gripper_link_name)
 
-        self.q_most_recent_right = None 
-        self.q_most_recent_left = None
 
         self.points = None
         self.bin_content_cloud = None
@@ -785,6 +795,8 @@ class PickingController:
 
         self.targetOffsetPoints = []
 
+
+        self.tilt = False
         self.full_run = False
 
         if REAL_JSON:
@@ -804,8 +816,7 @@ class PickingController:
         self.pickedObject = None
         self.numStowFails = 0
         self.shortcutViewBin = False
-        #for use in picking
-
+ 
         self.toteContents = []
         self.binQueue = []
         self.armQueue = []
@@ -850,142 +861,6 @@ class PickingController:
         #     print "perception calibration not working"
         print "Camera calibration DONE\n"
 
-    def saveCanonicalBinPointCloud(self, bin_letter, limb='left'):
-        print 'Saving canonical point cloud for bin', bin_letter
-        perceiver.save_canonical_bin_point_cloud(bin_letter, *self.getCameraToWorldXform(limb), limb=limb)
-
-    def saveCanonicalTotePointCloud(self, limb='left'):
-        print 'Saving canonical point cloud for tote'
-        perceiver.save_canonical_tote_cloud(*self.getCameraToWorldXform(limb), limb=limb)
-
-    def renderBinContent(self, bin_letter, render_type, limb='left'):
-        print 'Render bin content for bin %s. render_type: %s - %s'%(bin_letter, render_type, ['none', 'full', 'content', 'cc'][int(render_type)])
-        if render_type in ['full', '1']:
-            self.bin_content_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb, colorful=True)
-            self.bin_render_downsample_rate = 50
-            self.bin_render_ptsize = 5
-        elif render_type in ['content', '2']:
-            local_bound = apc.bin_bounds['bin_'+bin_letter]
-            min_local_bound, max_local_bound = local_bound
-            min_global_bound = se3.apply(knowledge.shelf_xform, min_local_bound)
-            max_global_bound = se3.apply(knowledge.shelf_xform, max_local_bound)
-
-            if min_global_bound[0] < max_global_bound[0]:
-                min_global_x = min_global_bound[0]
-                max_global_x = max_global_bound[0]
-            else:
-                min_global_x = max_global_bound[0]
-                max_global_x = min_global_bound[0]
-            if min_global_bound[1] < max_global_bound[1]:
-                min_global_y = min_global_bound[1]
-                max_global_y = max_global_bound[1]
-            else:
-                min_global_y = max_global_bound[1]
-                max_global_y = min_global_bound[1]
-            
-            if min_global_bound[2] < max_global_bound[2]:
-                min_global_z = min_global_bound[2]
-                max_global_z = max_global_bound[2]
-            else:
-                min_global_z = max_global_bound[2]
-                max_global_z = min_global_bound[2]
-            self.bin_content_cloud = perceiver.get_current_bin_content_cloud(bin_letter, *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
-                bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]])
-            self.bin_render_downsample_rate = 1
-            self.bin_render_ptsize = 5
-        elif render_type in ['cc', '3']:
-            self.bin_content_cloud = perceiver.get_current_bin_content_cc_cloud(bin_letter, *self.getCameraToWorldXform(limb), limb=limb)
-            self.bin_render_downsample_rate = 1
-            self.bin_render_ptsize = 5
-
-    def renderToteContent(self, including_tote, limb='left'):
-        '''
-        including_tote is True if the tote is also rendered and False if the tote needs to be subtracted
-        '''
-        print 'Render tote content. Also rendering tote?', including_tote
-        if including_tote:
-            self.tote_cloud = perceiver.get_current_point_cloud(*self.getCameraToWorldXform(limb), limb=limb)
-            self.tote_render_downsample_rate = 50
-            self.tote_render_ptsize = 5
-        else:
-            self.tote_cloud = perceiver.get_current_tote_content_cloud(*self.getCameraToWorldXform(limb), limb=limb)
-            self.tote_render_downsample_rate = 1
-            self.tote_render_ptsize = 5
-
-    def getPickPositionForPick(self, bin_letter, target_item=None, possible_items=None, limb='left'):
-        local_bound = apc.bin_bounds['bin_'+bin_letter]
-        min_local_bound, max_local_bound = local_bound
-        min_global_bound = se3.apply(knowledge.shelf_xform, min_local_bound)
-        max_global_bound = se3.apply(knowledge.shelf_xform, max_local_bound)
-        
-        if min_global_bound[0] < max_global_bound[0]:
-            min_global_x = min_global_bound[0]
-            max_global_x = max_global_bound[0]
-        else:
-            min_global_x = max_global_bound[0]
-            max_global_x = min_global_bound[0]
-        if min_global_bound[1] < max_global_bound[1]:
-            min_global_y = min_global_bound[1]
-            max_global_y = max_global_bound[1]
-        else:
-            min_global_y = max_global_bound[1]
-            max_global_y = min_global_bound[1]
-        
-        if min_global_bound[2] < max_global_bound[2]:
-            min_global_z = min_global_bound[2]
-            max_global_z = max_global_bound[2]
-        else:
-            min_global_z = max_global_bound[2]
-            max_global_z = min_global_bound[2]
-
-        if target_item is None:
-            target_item = raw_input('Enter target item: ')
-        if possible_items is None:
-            possible_items = raw_input('Enter possible items, separated by comma: ')
-            if possible_items=='':
-                possible_items = [target_item]
-            elif ',' not in possible_items: # single item input
-                possible_items = [possible_items]
-            else:
-                possible_items = map(lambda x:x.strip(), possible_items.split(','))
-
-        print 'target item is %s'%target_item
-        print 'possible items are %s'%str(possible_items)
-
-        res = perceiver.get_picking_position_for_bin(target_item, possible_items, bin_letter, 
-            *self.getCameraToWorldXform(limb), limb=limb, colorful=True, crop=True, 
-            bin_bound=[[min_global_x, min_global_y, min_global_z], [max_global_x, max_global_y, max_global_z]], 
-            return_bin_content_cloud=True)
-        
-        if res is None:
-            'Object not found'
-            return False
-
-        pos, cloud = res
-        print 'Picking position is:', pos
-        self.pick_pick_pos = pos
-        self.bin_content_cloud = cloud
-        self.bin_render_downsample_rate = 1
-        self.bin_render_ptsize = 5
-        return True
-        
-
-    def getPickPositionForStow(self, limb='left'):
-        res = perceiver.get_candidate_picking_positions_for_stowing(*self.getCameraToWorldXform(limb), limb=limb, fit=True, return_tote_content_cloud=True)
-        if res is None:
-            print 'Perception Failed for Getting Picking Position for Stowing'
-            return False
-        poss, cloud = res
-        print 'All picking positions are:', poss
-        if len(poss)==0:
-            print 'No valid picking position. Empty poss list'
-            return
-        self.stow_pick_pos = poss[0]
-        self.all_stow_pick_poss = poss[0:5]
-        self.tote_cloud = cloud
-        self.tote_render_downsample_rate = 1
-        self.tote_render_ptsize = 5
-        return True
     #====================================================
     '''
     DEBUG methods
@@ -1048,15 +923,6 @@ class PickingController:
             print "minimum sliceZ is 2 (Start, Goal)"
             return False 
 
-        #use / to find these relative to the vacuum gripper
-        point1 = [0.4798129387979302, 0.27387636103959584, 0.4489993529429332]
-        point2 = [0.729562827187139, -0.22440848211492773, 0.23683088095005633]
-
-
-        point1 = [0.7345506986310872, -0.15495465859843727, 0.23459600770185196]
-        point2 = [0.28799199514357793, 0.1297286843466862, 0.4367729217053905]
-
-
         point1 = TOTE_BOUNDS[0]
         point2 = TOTE_BOUNDS[1]
 
@@ -1081,7 +947,7 @@ class PickingController:
                 # print 'x, y is : ', curX, ' ',curY
             curX = curX + (maxX-minX)*1.0/sliceX
 
-        self.viewToteAction(limb=limb)
+        self.viewToteAction(limb=limb, doPerception=False)
         self.waitForMove()
         self.prepGraspFromToteAction(limb=limb)
         self.waitForMove()
@@ -1106,184 +972,7 @@ class PickingController:
 
     improve path for placeInBinAction 
     '''
-    def runStowingTask(self):
-        #
 
-
-        print stowHandler.getToteContents()
-
-        startTime = time.clock()
-        #print startTime
-        endTime = time.clock()
-
-        self.evaluateShelf()
-
-        if REAL_SCALE:
-            toteContents = stowHandler.getToteContents()
-            #get toteContents 
-            print toteContents
-
-        print endTime - startTime 
-
-        #print toteContents == []
-        self.evaluateShelf()
-
-        while (endTime - startTime < STOW_TIME and not toteContents == []):
-
-            #bestLimb = evalBestLimb()
-            self.runPickFromTote(limb='right')
-            if REAL_SCALE:
-                toteContents = stowHandler.getToteContents()
-            endTime = time.clock()
-            print (endTime - startTime)
-        
-        
-        if REAL_SCALE:
-            stowHandler.jsonOutput(JSON_STOW_OUTPUT_FILE)
-        #print out bin contents
-
-    def runPickFromTote(self, limb, bin=None):
-
-        #bin = getKnowledgeFromParser   
-
-        if limb == 'left':
-            self.moveArmAway('right')
-        elif limb == 'right':
-            self.moveArmAway('left')
-
-        self.waitForMove()
-
-
-        if self.all_stow_pick_poss is None or self.all_stow_pick_poss == [] or self.numStowFails >= PERCEPTION_FAIL_THRESHOLD:
-
-            self.numStowFails = 0
-            if REAL_CAMERA:
-
-                time.sleep(2)
-
-                if self.viewToteAction(limb=limb):
-
-                    self.waitForMove()
-
-                    target = self.all_stow_pick_poss.pop(0)
-
-                else:
-                    print 'View action failed'
-                    target = self.vacuumSearch()
-
-        else:
-            target = self.all_stow_pick_poss.pop(0)
-
-
-        if REAL_CAMERA:
-            value = self.chooseLimb(target=target)
-        else:
-            value = self.chooseLimb()
-
-        print 'value = ', value
-        if value != False:
-            limb = value[0]
-            path = value[1]
-        else:
-            return False
-
-
-        self.moveToRestConfig()
-        self.waitForMove()
-
-        # need to clean path configs
-        if limb == 'left':
-            indices = self.right_arm_indices
-        else:
-            indices = self.left_arm_indices
-
-        cleanPath = []
-
-        for milestone in path:
-            for index in indices:
-                milestone[index] = self.controller.getSensedConfig()[index]
-            cleanPath.append(milestone)
-        
-
-
-        if self.prepGraspFromToteAction(limb=limb):
-
-            self.waitForMove()
-            if SKIP_GRASP_FROM_TOTE:
-                pass
-            else:
-                if self.graspFromToteAction(limb=limb, path=cleanPath):
-                    self.waitForMove()
-                else: 
-                    print 'Grasp From Tote Action Failed'
-                    self.moveToRestConfig()
-                    return False
-
-            self.waitForMove()
-
-            if self.evaluateObjectAction(limb=limb):
-                #self.pickedObject should be populated
-                #self.pickBin should be populated
-                if bin == None:
-                    bin = self.pickBin
-
-                self.waitForMove()
-                if self.placeInBinAction(limb=limb, bin=bin):
-                    #place successful
-                    #update result
-                    print 'Place successful'
-                    return True
-                else:
-                    turnOffVacuum(limb)
-                    print 'Place In Bin Action Failed'
-            else:
-                print 'Evaluating the object Failed'
-        else:
-            print 'Prep Grasp From Tote Action Failed'
-
-
-        return False
-
-    def runPickFromToteNew(self, limb, bin=None):
-        if limb == 'left':
-            self.moveArmAway('right')
-        elif limb == 'right':
-            self.moveArmAway('left')
-
-        
-        if self.all_stow_pick_poss is None or self.all_stow_pick_poss == []:
-
-            if self.viewToteAction(limb=limb) and self.perceptionFailCount < PERCEPTION_FAIL_THRESHOLD:
-                #perception hasn't failed yet
-                pass
-            else:
-                self.perceptionFailCount = self.perceptionFailCount + 1
-                if self.toteGraspBackup(limb=limb):
-                    #successful - go again
-                    return limb
-                else:
-                    #try the other limb
-                    if limb == 'left':
-                        return 'right'
-                    else:
-                        return 'left'
-        
-        stow_pick_pos = self.all_stow_pick_poss.pop(0)
-
-        [chosenLimb, chosenPath] = self.chooseLimb(target = stow_pick_pos)
-
-        self.prepGraspFromToteActionNew(limb=chosenLimb)
-        self.waitForMove()
-
-        if self.graspFromToteActionNew(limb=chosenLimb, path = chosenPath):
-            # we got something
-            bin = self.evaluateObjectAction()
-
-        else:
-            # we failed
-            # turn off the vacuum and return the most recently used limb
-            # ideally, this method will be called again
-            return chosenLimb
 
     def viewToteAction(self,limb, doPerception=True):
 
@@ -1350,39 +1039,41 @@ class PickingController:
             return self.moveIntoTote(limb, path)
 
 
-        if REAL_CAMERA:
 
-            goalXY = self.stow_pick_pos
-        else:
-            if position is None:
+        if position is None:
+            position = self.stow_pick_pos
 
-                myInts = []
-                while( 1):
-                    myInput = raw_input("Where would you like to pick? (separated by commmas) ")
-                    if myInput == 'skip':
-                        self.stow_pick_pos = [0.5, 0, 0]
+        # if still none - get input
+
+        if position is None:
+
+            myInts = []
+            while( 1):
+                myInput = raw_input("Where would you like to pick? (separated by commmas) ")
+                if myInput == 'skip':
+                    self.stow_pick_pos = [0.5, 0, 0]
+                    break
+
+                myInput = myInput.split(',')
+                for el in myInput:
+                    try:
+                        myInts.append(float(el))
+                        assert(len(myInput)==3 or len(myInput)==2)
+                        goodInput = True     
+                    except:
+                        goodInput = False
+
+                if goodInput:
+                    print myInts
+                    self.stow_pick_pos = myInts
+                    response = raw_input("Continue? y/n ")
+                    if response == 'y' and len(myInts)>=2:
                         break
-
-                    myInput = myInput.split(',')
-                    for el in myInput:
-                        try:
-                            myInts.append(float(el))
-                            assert(len(myInput)==3 or len(myInput)==2)
-                            goodInput = True     
-                        except:
-                            goodInput = False
-
-                    if goodInput:
-                        print myInts
-                        self.stow_pick_pos = myInts
-                        response = raw_input("Continue? y/n ")
-                        if response == 'y' and len(myInts)>=2:
-                            break
-                        else:
-                            myInts = []
-                            self.stow_pick_pos = None
-            else:
-                self.stow_pick_pos = position
+                    else:
+                        myInts = []
+                        self.stow_pick_pos = None
+        else:
+            self.stow_pick_pos = position
 
 
         if not self.isInTote(self.stow_pick_pos):
@@ -1541,7 +1232,13 @@ class PickingController:
             else:
                 print 'Didn\'t grab anything'
                 print 'Or dropped something on the way back up '
+
+
+
+                self.numStowFails = self.numStowFails + 1
                 turnOffVacuum(limb)
+                time.sleep(3)
+                #let it fall off
                 return False
 
         else:                
@@ -1560,22 +1257,32 @@ class PickingController:
     def evaluateObjectAction(self, limb):
 
         #start state = graspTote
-        #end state = graspTote
+        #end state = evaluateObject
 
         #TODO - 
 
         path_name = 'Q_EVAL_SCALE_'+limb.upper()
         print "self.moveArm(",path_name,")...",
-        self.moveArm(limb = limb, path_name = path_name)
+        self.moveArm(limb = limb, path_name = path_name, finalState = 'evaluateObject')
 
         self.waitForMove()
 
         time.sleep(2)
 
         if REAL_SCALE:
-            (self.stowItems, self.pickBin) = stowHandler.pickWhichObj(limb, True)
+            (self.stowItems, self.pickBin, self.tilt) = stowHandler.pickWhichObj(limb, True)
             if self.pickBin==None:
                 print "No target object in the weight range"
+
+                self.moveArm(limb = limb, path_name = 'Q_REPLACE_'+limb.upper())
+                self.waitForMove()
+                
+                turnOffVacuum(limb)
+
+                time.sleep(2)
+                self.moveArm(limb = limb, path_name = path_name)
+                self.waitForMove()
+                return False
             # if len(items)>1:
             #     print 'More than One Item'
             #     self.pickBin = stowHandler.getBin(items)
@@ -1600,6 +1307,12 @@ class PickingController:
 
 
         # limb, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False
+
+        if self.tilt:
+            self.tilt = False
+            return self.placeHardcoded(limb)
+
+
         if limb == 'left':
             if len(bin)==1:
                 self.left_bin = 'bin_'+bin
@@ -1617,7 +1330,10 @@ class PickingController:
 
         path_name = 'PREP_TOTE_STOW_'+limb.upper()
         print "self.moveArm(",path_name,")...",
-        if self.moveArm(limb = limb, path_name = path_name, reverse=True):
+        
+        path = [eval(path_name)[-1]]
+
+        if self.moveArm(limb = limb, path = path, reverse=True):
             print "success"      
         else:
             print "fail"
@@ -1640,7 +1356,12 @@ class PickingController:
                     self.waitForMove()
                     return True
             else:
+                print "moveArm(",path_name,")...",
+                if self.moveArm(limb=limb, path_name = path_name, finalState = 'toteStow'):
+                    print "success"
+                    self.waitForMove()
                 print 'Error in moving into the bin'
+                return False
 
             #then actually move into bin a bi
         else:
@@ -1730,7 +1451,7 @@ class PickingController:
 
         if step==2: 
             #target2 = knowledge.getBinTrueCenter('bin_'+bin)
-            target2 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .25])
+            target2 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .35])
             ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target2)
 
             print '\ttrying step2 ik'
@@ -1743,6 +1464,8 @@ class PickingController:
                 self.moveArm(limb=limb, path_name = path_name, finalState = 'ready' )
                 time.sleep(0.5)
 
+
+                return False
                 # I recommend we keep this off if failed because we don't know if we made it
                 # try:
                 #     turnOffVacuum(limb)
@@ -1756,7 +1479,7 @@ class PickingController:
 
         if step==3: 
             #target2 = knowledge.getBinTrueCenter('bin_'+bin)
-            target3 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .5])
+            target3 = knowledge.getBinWorldPosition(bin_name = 'bin_'+bin, localPoint = [.5, .3, .7])
             ikGoal = self.buildIKGoalSuctionDown(limb=limb, target = target3)
 
             print '\ttrying step3 ik'
@@ -1813,7 +1536,7 @@ class PickingController:
                     turnOffVacuum(limb)
                 except:
                     print '\tError in vacuum Comms'
-                return False
+                return True
             self.debugPoints.append(target4)
             self.sendPath(path = [step4], limb = limb)
 
@@ -1840,7 +1563,7 @@ class PickingController:
                     turnOffVacuum(limb)
                 except:
                     print '\tError in vacuum Comms'
-                return False
+                return True
             self.debugPoints.append(target5)
             self.sendPath(path = [step5], limb = limb)
 
@@ -2028,14 +1751,30 @@ class PickingController:
             return False
 
 
-    def vacuumSearch(self, timeout=300):
-        return False
-        #raise NotImplemented
-
-
-
-
     # Stowing Debug
+
+    def placeHarcoded(self, limb):
+
+
+        path_name = 'GRASP_TO_STOW_B_' + limb.upper() + '_HARDCODED'
+        self.moveArm(limb = limb, path_name = path_name, reverse=True, finalState = 'placeInBin')
+
+        success = False
+
+        self.waitForMove()
+        time.sleep(.5)
+
+        if REAL_PRESSURE:
+            if readPressure(limb):
+                success = True
+                stowHandler.updateBin(bin='bin_B',item=self.stowItems)
+
+        time.sleep(2)
+        turnOffVacuum(limb)
+
+        self.moveArm(limb = limb, path_name = path_name, finalState = 'toteStow')
+
+        return success
 
     def isInTote(self, point):
         tote1 = TOTE_BOUNDS[0]
@@ -2056,6 +1795,8 @@ class PickingController:
         #TODO - may need work
 
         minMax = knowledge.getGlobalBounds(bin)
+
+        point = se3.apply(se3.inv(self.perceptionTransform), point)
 
         xVal = minMax[0][0] <= point[0] <=minMax[1][0]
         yVal = minMax[0][1] <= point[1] <= minMax[1][1]
@@ -2082,33 +1823,6 @@ class PickingController:
 
     '''
 
-    def getMostEmptyBin(self):
-
-        bin = None
-        arm = None
-
-        leftList = ['bin_A', 'bin_D', 'bin_G', 'bin_H']
-
-        if TASK == 'stow':
-            bin= stowHandler.mostEmptyBin()
-
-            if bin in leftList:
-                arm = 'left'
-            else:
-                arm = 'right'
-        elif TASK == 'pick':
-            bin = pickHandler.mostEmptyBin()
-            if bin in leftList:
-                arm = 'left'
-            else:
-                arm = 'right'
-        else:
-            bin = 'bin_C'
-            arm = 'right'
-            
-
-        return [bin, arm]
-
     def evaluateShelf(self):
 
 
@@ -2125,40 +1839,11 @@ class PickingController:
         self.moveToRestConfig()
         self.waitForMove()
 
-    def runPickingTask(self):
-        #
-        startTime = time.clock()
-        #print startTime
-        endTime = time.clock()
-
-        self.evaluateShelf()
-        self.stateLeft = 'ready'
-        self.stateRight = 'ready'
-
-        self.full_run = True
-
-        self.binQueue = binList
-        self.armQueue = ['right' if rightTrueList[i] else 'left' for i in range(len(rightTrueList))]
-        print self.binQueue
-        print self.armQueue
-        print binMap
-        while (endTime - startTime < PICK_TIME and self.binQueue is not []):
-
-            print self.binQueue
-
-            turnOffVacuum('right')
-            turnOffVacuum('left')
-            self.runPickFromBin(bin = self.binQueue.pop(0), limb = self.armQueue.pop(0))
-            endTime = time.clock()
-
-        if self.binQueue is []:
-            print 'Ended - bin queue is empty'
-        else:
-            print 'Ended - out of time'
-
-        pickHandler.jsonOutput(JSON_PICK_OUTPUT_FILE)
-
     def runPickFromBin(self, bin, limb):
+
+        rating =easinessList.pop(0)
+        if rating < MAX_RATING-1:
+            rating = rating+1
 
 
         self.moveToRestConfig()
@@ -2186,6 +1871,8 @@ class PickingController:
                 print 'Error in prepGraspFromBinAction'
         else:
 
+
+
             shortCutList = eval(limb.upper()+'_BIN_VIEW_SHORTCUTS')[bin]
             
             print shortCutList
@@ -2195,25 +1882,13 @@ class PickingController:
 
                 if self.binQueue[0] in shortCutList:
                 # if we can shortcut
+                    rating =easinessList.pop(0)
+                    rating = rating+1
                 # move to the desired bin 
                 # return 
-                # call this function again with viewBinActionDifferent
-                    self.shortcutViewBin=True
+                # call this function again with viewBinActio                
 
-                    if bin in MIDDLE_BINS:
-                        if limb == 'left':
-                            self.armQueue.append('right')
-                        else:
-                            self.armQueue.append('left')
-                    
-                    self.binQueue.append(eval('self.'+limb+'_bin'))
-
-                    orderList.append(self.currentPickObject)
-                    #stay in the current config, we're going to shortcut from here
-
-                    self.armQueue.pop(0)
-                    self.armQueue.insert(0, limb.lower())
-
+                    self.updateQueue(bin, limb, rating)
                     return False
                 else:
                     self.shortcutViewBin = False
@@ -2225,19 +1900,13 @@ class PickingController:
 
             print 'readding things to queue'
 
-            if bin in MIDDLE_BINS:
-                if limb == 'left':
-                    self.armQueue.append('right')
-                else:
-                    self.armQueue.append('left')
-            else:
-                self.armQueue.append(limb)
-            
-            self.binQueue.append(eval('self.'+limb+'_bin'))
+            if REAL_JSON:
 
-            print eval('self.'+limb+'_bin')
+                self.updateQueue(bin, limb, rating)
 
-            orderList.append(self.currentPickObject)
+        else:
+            rating = easinessList.pop()
+
 
         turnOffVacuum(limb)
         self.moveToRestConfig()
@@ -2286,7 +1955,8 @@ class PickingController:
                                     else:
                                         print 'perception failed'
                                         return False
-
+                            else:
+                                return True
                     else:
 
                         #typical motion
@@ -2361,18 +2031,6 @@ class PickingController:
         #Ideally move to the bin we're aiming for unless perception tells us that we can't grasp it
         self.waitForMove()
 
-        right_arm = baxter_interface.Limb('right')
-        right_joints = right_arm.joint_names()
-
-        right_angles = [right_arm.joint_angle(j) for j in right_joints]
-        right_efforts = [right_arm.joint_effort(j) for j in right_joints]
-        sumEfforts=sum(map(lambda x:x*x,right_efforts))
-        print "right efforts sum before"
-        print sumEfforts
-        print "right angles before"
-        print right_angles
-        print "right efforts before"
-        print right_efforts
         position = None
         if bin is None:
             bin = eval('self.'+limb+'_bin')
@@ -2387,7 +2045,7 @@ class PickingController:
             #self.moveToOffset(limb, milestone=eval(), finalState = 'grasp')
             # covered in self.move_from_scan_to_grasp
 
-            graspDirection = ['up', [0,0,1]]
+            graspDirection = ['up', [0,1,0]]
             #graspDirection[0] = direction
             #graspDirection[1] = normal in vector format
 
@@ -2419,18 +2077,9 @@ class PickingController:
 
                     if REAL_PRESSURE:
                         time.sleep(.5)
-                        right_angles = [right_arm.joint_angle(j) for j in right_joints]
-                        right_efforts = [right_arm.joint_effort(j) for j in right_joints]
-                        sumEfforts=sum(map(lambda x:x*x,right_efforts))
-                        print "right efforts sum after"
-                        print sumEfforts
-                        print "right angles after"
-                        print right_angles
-                        print "right efforts after"
-                        print right_efforts
                         #let stuff catch up
                         if readPressure(limb):
-                            # pickHandler.updateBin(bin, self.currentPickObject)
+                            pickHandler.updateBin(bin, self.currentPickObject)
                             return True
                         else:
                             print 'did not grasp item'
@@ -2462,7 +2111,7 @@ class PickingController:
                 except:
                     print 'Error perception code for point not set up'
 
-                if self.moveToObjectInBinFromSide(position=position, limb=limb, step=-1):
+                if self.moveToObjectInBinFromSide(position=position, limb=limb, normal=vectorops.unit(graspDirection[1]), step=-1):
 
                     if limb == 'left':
                         self.stateLeft = 'grasp'
@@ -2538,475 +2187,6 @@ class PickingController:
                 return False
 
     #==============================================
-
-    def graspAction(self):
-        self.waitForMove()
-
-
-        # for quick debugging perception
-        self.current_bin = "center"
-        self.stateRight = "ready"
-        self.stateLeft = "holding"
-        xPos = 0.33*0.5
-        yPos = 0.435*0.5
-        #run_perception_on_bin(knowledge, 'bin_A')
-        self.held_object = knowledge.bin_contents['bin_A'].pop()        
-        self.held_object.randRt = [ so3.rotation([0,1,0], random.uniform(0,math.pi/2)),
-                                   vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
-        global binIndex
-        binIndex = 0
-
-
-
-        if self.current_bin != "center":
-            print "Spatula is not located at the center bin"
-            return False
-        elif self.stateRight != 'ready':
-            print "Already holding an object, can't grasp another"
-            return False
-        elif self.stateLeft != 'holding':
-            print "No object in spatula"
-            return False
-        else:
-            # if self.move_gripper_to_center():
-            #     self.waitForMove()
-
-            if self.move_to_grasp_object(self.held_object, step=1):
-                self.waitForMove()
-
-                self.move_to_grasp_object(self.held_object, step=2)
-                self.waitForMove()
-
-                # now close the gripper
-                self.controller.commandGripper('right', [1])
-                self.waitForMove()
-
-                # New Version
-                if PHYSICAL_SIMULATION:
-                    val = 0
-                    step = 3
-                    while val==0:
-                        with open("pressureReading.pkl", "rb") as f:
-                            valList = pickle.load(f)
-                            val = valList[0]
-                            print "Vacuum sensor state:", val, "Pressure:", valList[1]
-                        self.move_to_grasp_object(self.held_object, step=step)
-                        self.waitForMove()
-                        step += 1
-                    print "GRASPED OBJECT"
-
-                else:
-                    # Old Version
-                    for i in range(25):
-                        self.move_to_grasp_object(self.held_object, step=i+2)
-                        self.waitForMove()
-
-                    # now close the gripper
-                    self.controller.commandGripper('right', [0])
-                    self.waitForMove()
-
-                # self.held_object = knowledge.bin_contents[self.current_bin].pop()
-                self.stateRight = 'holding'
-
-                print "Holding object",self.held_object.info.name,"in right hand"
-                return True
-            else:
-                print "Grasp failed"
-                return False   
-
-    def tilt_wrist(self,direction, step=0, ignoreColShelfSpatula = True):
-        self.waitForMove()
-        self.world.terrain(0).geometry().setCollisionMargin(0)
-        #self.robot.setConfig(self.controller.getCommandedConfig())
-
-        bin_name = self.current_bin
-        world_center = knowledge.bin_front_center(bin_name)
-
-        # Setup ik objectives for both arms
-        # place +z in the +x axis, -y in the +z axis, and x in the -y axis
-        left_goal = []
-        incremental= False
-
-        # tilted angle view for spatula
-        if direction == 'down':
-            #R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*20))
-            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*30))
-
-            # [(+Right/-Left), (+Up/-Down), (+In/-Out)
-            #world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.155,0.4225])
-
-            t_camera = vectorops.add(world_center,world_offset)
-            dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)
-            if step == 0:
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-                maxSmoothIters=2
-                incremental = True
-            elif step == 1:
-                # print "tilting down (tilt-wrist part 1)"
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=self.left_camera_link.getTransform()[1]))
-                maxSmoothIters=0
-
-            elif step == 2:
-                # print "moving up/side (tilt-wrist part 2)"
-                #left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115,0.4675]))))
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.15,0.4675-0.02]))))
-                # print "goal pos =", vectorops.add(world_center, so3.apply(knowledge.shelf_xform[0],[-0.0275,0.115+0.05,0.4675-0.02]))
-                maxSmoothIters=3
-                incremental = True
-
-            elif step == 3:
-                # print "tilting down (tilt-wrist part 3)"
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-                maxSmoothIters=5
-                incremental = True
-
-            elif step == 4:
-                #R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*20))
-                R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi - math.pi/360*10))
-
-                # [(+Right/-Left), (+Up/-Down), (+In/-Out)
-                #world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.095,0.4375])
-                world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.055,0.4375])
-
-                t_camera = vectorops.add(world_center,world_offset)
-                dist = vectorops.distance(self.left_camera_link.getTransform()[1], t_camera)                                
-
-                # print "tilting down (tilt-wrist part 3)"
-                left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-                maxSmoothIters=1
-                incremental = True
-
-
-        elif direction == 'up':
-            # method 1
-            R_camera = so3.mul(knowledge.shelf_xform[0], so3.rotation([1,0,0], math.pi + math.pi/360*2*step))
-            #world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015+0.05,0.4575])
-            world_offset = so3.apply( knowledge.shelf_xform[0],[-0.0275,0.015+0.05,0.5175])
-
-            t_camera = vectorops.add(world_center,world_offset)
-            left_goal.append(ik.objective(self.left_camera_link,R=R_camera,t=t_camera))
-
-            dist = (vectorops.distance(self.left_camera_link.getTransform()[1], t_camera))/10.0
-            left_goal.append(ik.objective(self.left_camera_link, R=R_camera, t=t_camera))
-
-            maxSmoothIters = 1
-            ignoreColShelfSpatula = True
-
-        limbs = ['left']
-        qcmd = self.controller.getCommandedConfig()
-
-        print "Solving for TILT_WRIST (", direction, step, ")"
-        for i in range(500):
-            sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100,rangeVal=dist/1000)
-
-            if len(sortedSolutions)==0:
-                print "No Sorted Solutions"
-                continue
-
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
-
-            # else, if we want to path plan
-            numSol = 0
-            for solution in sortedSolutions:
-                numSol += 1
-                # print numSol, "solutions planned out of", len(sortedSolutions)
-
-                path = [qcmd, solution[0]]
-
-                if path == 1 or path == 2 or path == False:
-                    continue
-                elif path != None:
-                    self.sendPath(path, maxSmoothIters = maxSmoothIters, INCREMENTAL = incremental)
-                    return True
-
-
-        print "Failed to plan path"
-        return False
-
-    def move_spatula_to_center(self, ik_constrain=True):
-        """Tilt the robot's wrist before and after actuating the spatula
-        so that the objects are picked up.
-        """
-        self.waitForMove()
-
-        print "Loading "+self.current_bin+"_spatula_to_center Trajectory..."
-        path = loaded_trajectory[self.current_bin+"_spatula_to_center"]
-        # print "loaded pathlength =", len(path)
-        if FAKE_SIMULATION:
-            q = path[-1]
-            n = self.robot.numLinks()
-            if len(q)<n:
-                q += [0.0]*(n-len(q))
-            self.controller.setMilestone(q)
-        else:
-            sortedSolutions = [loadFromFile("../IK_Solutions/"+self.current_bin), 0]
-            qcmd = sortedSolutions[0][0]
-            self.robot.setConfig(qcmd)
-            # print "starting config", qcmd
-            self.sendPathClosedLoop(path)
-        self.current_bin = "center"
-        return True
-
-        # self.robot.setConfig(self.controller.getCommandedConfig())
-        # self.world.terrain(0).geometry().setCollisionMargin(0.05)
-
-        # R_wrist = so3.mul( so3.rotation([0,0,1], -math.pi), so3.rotation([1,0,0], -math.pi/2) )
-        # t_wrist = knowledge.bin_center_point()
-
-        # # Setup ik objectives for both arms
-        # # place +z in the +x axis, -y in the +z axis, and x in the -y axis
-        # left_goal = ik.objective(self.left_camera_link,R=R_wrist,t=t_wrist)
-
-        # qcmd = self.controller.getCommandedConfig()
-        # # qcmd = self.controller.getSensedConfig()
-        # limbs = ['left']
-
-        # ik_constraint = None
-        # if ik_constrain:
-        #     ik_constraint = IKObjective()
-        #     ik_constraint.setLinks(55)
-        #     ik_constraint.setAxialRotConstraint([-1,0,0], [0,0,1])
-
-        # print "\nSolving for MOVE_SPATULA_TO_CENTER (Left Hand)"
-
-        # for i in range(100):
-        #     # if LOAD_IK_SOLUTIONS:
-        #     #     sortedSolutions = [loadFromFile("../IK_Solutions/move_spatula_to_center"),0]
-        #     # else:
-        #     #     sortedSolutions = self.get_ik_solutions([left_goal], limbs, qcmd, maxResults=100, maxIters=100)
-        #     # # sortedSolutions = [loadFromFile("../IK_Solutions/move_spatula_to_center"),0]
-
-        #     # if len(sortedSolutions)==0:
-        #     #     continue
-
-        #     sortedSolutions = [[baxter_rest_config],0]
-
-        #     # prototyping hack: move straight to target
-
-
-        #     # else, if we want to path plan
-        #     else:
-        #         numSol = 0
-        #         for solution in sortedSolutions:
-        #             numSol += 1
-        #             print numSol, "solutions planned out of", len(sortedSolutions)
-        #             if ik_constraint==None:
-        #                 path = self.planner.plan(qcmd,solution[0],'left')
-        #             else:
-        #                 path = self.planner.plan(qcmd,solution[0], 'left', iks = ik_constraint)
-        #             if path == 1 or path == 2 or path == False:
-        #                 break
-        #             elif path != None:
-        #                 if ik_constraint==None:
-        #                     self.sendPath(path)
-        #                 else:
-        #                     self.sendPathClosedLoop(path)
-        #                 self.current_bin = None
-        #                 return True
-        # print "Failed to plan path"
-        # return False
-
-    def move_gripper_to_center(self, FROM_ORDER_BIN=1):
-        self.waitForMove()
-
-        if FROM_ORDER_BIN:
-            print "Loading gripper_to_center Trajectory..."
-            path = loaded_trajectory["gripper_to_center"]
-            if FAKE_SIMULATION:
-                q = path[-1]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-            else:
-                # make a copy of start position
-                q0 = copy.deepcopy(path[0])
-
-                # make a copy of goal position
-                q1 = copy.deepcopy(path[-1])
-
-                # change right shoulder joint so that the movement takes 2 steps
-                q1[35] = -0.3
-
-                # first step (move up)
-                self.sendPath([q0, q1], maxSmoothIters = 1)
-                self.waitForMove()
-
-                # secpmd step (move left, above spatula)
-                self.sendPath([q1, path[-1]], maxSmoothIters = 1)
-            return True
-        else:
-        # if LOAD_TRAJECTORY and not FAKE_SIMULATION:
-        #     print "Loading Trajectory..."
-        #     path = loaded_trajectory['gripper_to_center']
-        #     # print path
-        #     self.sendPathClosedLoop(path)
-        #     return True
-
-        # self.robot.setConfig(self.controller.getCommandedConfig())
-
-        # if self.stateLeft == 'holding':
-        #     R_wrist = so3.mul(so3.rotation([1,0,0], math.pi), so3.rotation([0,0,1], -math.pi))
-        #     t_wrist = knowledge.bin_vertical_point()
-
-        #     # Setup ik objectives for both arms
-        #     # place +z in the +x axis, -y in the +z axis, and x in the -y axis
-        #     right_goal = ik.objective(self.right_gripper_link,R=R_wrist,t=t_wrist)
-
-        #     qcmd = self.controller.getCommandedConfig()
-        #     # qcmd = self.controller.getSensedConfig()
-        #     limbs = ['right']
-
-        #     print "\nSolving for MOVE_GRIPPER_TO_CENTER (Right Hand)"
-        #     for i in range(100):
-
-        #         # if LOAD_IK_SOLUTIONS:
-            sortedSolutions = [loadFromFile("../IK_Solutions/gripper_to_center"),0]
-        #         # else:
-        #         #     sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
-        #         sortedSolutions = self.get_ik_solutions([right_goal], limbs, qcmd, maxResults=100, maxIters=100)
-
-            if len(sortedSolutions)==0:
-                print "Failed to plan path"
-                return False
-        #         # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
-
-            qcmd = self.controller.getCommandedConfig()
-            numSol = 0
-            for solution in sortedSolutions:
-                numSol += 1
-                print numSol, "solutions planned out of", len(sortedSolutions)
-                path = self.planner.plan(qcmd,solution[0],'right')
-                if path == 1 or path == 2 or path == False:
-                    break
-                elif path != None:
-                    self.sendPath(path)
-                    return True
-            print "Failed to plan path"
-            return False
-        # else:
-        #     print "no item in spatula"
-        #     return False
-
-    def placeInOrderBinAction(self):
-        self.waitForMove()
-        self.robot.setConfig(self.controller.getCommandedConfig())
-
-        if self.stateRight != 'holding':
-            print "Not holding an object"
-        else:
-            if self.move_gripper_to_center(FROM_ORDER_BIN=False):
-                self.waitForMove()
-
-                self.move_to_order_bin(self.held_object,step=1)
-                self.waitForMove()
-
-                self.move_to_order_bin(self.held_object,step=2)
-                self.waitForMove()
-
-                # now turn off vacuum
-                time.sleep(5)
-                self.controller.commandGripper('right',[0])
-                self.waitForMove()
-                time.sleep(3)
-
-                knowledge.order_bin_contents.append(self.held_object)
-                print "Successfully placed",self.held_object.info.name,"into order bin"
-                self.drop_in_order_bin(self.held_object)
-                self.active_grasp = None
-                self.held_object = None
-                # self.held_object.xform = None
-                # self.held_object.bin_name = 'order_bin'
-                self.stateRight = 'ready'
-                self.stateLeft = 'ready'
-                return True
-            else:
-                print "Move to order bin failed"
-                return False
-
-    def drop_in_order_bin(self,object):
-        R, t = order_bin_xform
-        tRandom = [random.uniform(-0.05,0.1),random.uniform(-0.4,.4),0]
-        objHeight = object.info.bmax[2] - object.info.bmin[2]
-        object.xform = (R, [t[0]+tRandom[0], t[1]+tRandom[1], t[2]+objHeight/2])
-        if object.info.name in orderList:
-            print "\nOrderList:", orderList
-            print "Picked Item:", object.info.name, "\n"
-            orderList.remove(object.info.name)
-        else:
-            print "\nOrderList:", orderList
-            print "Wrongly Picked Item:", object.info.name, "\n"
-        return True
-
-    def fulfillOrderAction(self,objectList):
-        """Given a list of objects to be put in the order bin, run
-        until completed."""
-        # go through all bins
-        DEFAULT_LIMB = 'left'
-
-        for b in apc.bin_names:
-            # # if the bin is empty
-            # if knowledge.bin_contents[b]==None:
-                # try to view the bin
-            if not self.viewBinAction(b,limb=DEFAULT_LIMB):
-                print "Could not view bin",b
-                continue
-            # PICK STEPS
-            self.saveCanonicalTotePointCloud(limb=DEFAULT_LIMB)
-            self.preparePickBinAction(b,limb=DEFAULT_LIMB)
-            # GET OBJECT POSITION FROM PERCEPTION
-            # self.moveToObjectInBinFromTop(position,limb=DEFAULT_LIMB, step)
-
-            doNextBin = False
-            # if any of the objects in the bin is in the "remaining objets" list, and we want to keep searching in current bin
-            while any(o.info.name in objectList for o in knowledge.bin_contents[b]) and not doNextBin:
-                #pick up and put down objects until you are holding one that is in the objectList list
-
-                # grasp failed
-                if not self.graspAction():
-                    print "Error grasping object"
-                    doNextBin = True
-                    break
-                # if robot is not holding on to something, or the object it is holding is not in order
-                while (self.held_object == None or self.held_object.info.name not in objectList) and not doNextBin:
-                    # cycle through objects by putting down and picking up the next object
-                    if not self.ungraspAction():
-                        print "Error putting down object"
-                        return False
-                    if not self.graspAction():
-                        print "Error grasping object"
-                        doNextBin = True
-                        break
-
-                # temporarily store held object because placeInOrderBinAction sets held object to None
-                obj = self.held_object
-                if self.placeInOrderBinAction():
-                    # don't want to remove obj from objList twice. It is already taken care of in drop_order_in_bin
-                    # objectList.remove(obj.info.name)
-                    print ""
-                else:
-                    print "Error putting object into order bin"
-                    return False
-
-            if len (objectList)==0:
-                return True
-        print "These items are remaining from the order:", objectList
-        return False
 
     def randomize_limb_position(self,limb,center=None, rangeVal=None):
         """Helper: randomizes the limb configuration in self.robot.
@@ -3144,134 +2324,7 @@ class PickingController:
         return [s[1] for s in sortedSolutions]
 
 
-    #===================================================================================
-    # New Movement Functions
-
-    def move_camera_to_bin(self,bin_name, colMargin = 0.05, ik_constrain=True,ignoreColShelfSpatula=True, LOAD_TRAJECTORY=LOAD_TRAJECTORY_DEFAULT, limb=None):
-        if LOAD_TRAJECTORY:
-            print "Loading "+bin_name+" Trajectory..."
-            path = loaded_trajectory[bin_name]
-            if FAKE_SIMULATION:
-                q = path[-1]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-            else:
-                self.sendPathClosedLoop(path, clearRightArm=True)
-                #if self.stateLeft == 'ready' and self.held_object == None:
-                #    self.sendPath(path, clearRightArm=True)
-                #else:
-                #    self.sendPathClosedLoop(path, clearRightArm=True)
-            return True
-
-        if LOAD_PHYSICAL_TRAJECTORY:
-            print "loading "+bin_name+" Physically Planned Trajectory"
-            if(limb is not None):
-                #path = LOADED_PHYSICAL_TRAJECTORY['CAMERA_TO_' + bin_name+'_' + limb.toUpper())]
-                camera_path = 'CAMERA_TO_'+ bin_name.upper()+'_'+limb.upper()
-                scan_path = 'Q_SCAN_' + bin_name.upper()+'_'+limb.upper()
-            
-                if limb=='left':
-                    self.left_bin = bin_name
-                if limb == 'right':
-                    self.right_bin = bin_name
-
-
-            if PHYSICAL_SIMULATION:
-
-                #splitting things up into two motions isn't working
-                self.moveArm(limb=limb, path_name=camera_path)
-                if SHELF_STATIONARY:
-                    self.moveArm(limb=limb, path_name=scan_path, finalState = 'scan')
-                else:
-                    self.moveToOffset(limb=limb, q_name=scan_path, finalState='scan')
-                    #self.moveToOffset2(limb=limb, bin_name=bin_name, finalState = 'scan')
-
-
-        # If we are backing off from bin to view camera
-        else:
-            print "Loading "+bin_name+" IK Solution..."
-
-            ik_constraint = None
-            sortedSolutions = [loadFromFile("../IK_Solutions/"+bin_name), 0]
-
-            if len(sortedSolutions)==0:
-                print "Failed to plan path"
-                return False
-
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
-
-            qcmd = self.controller.getCommandedConfig()
-            numSol = 0
-            for solution in sortedSolutions:
-                numSol += 1
-                path = [qcmd, solution[0]]
-                if path == 1 or path == 2 or path == False:
-                    break
-                elif path != None:
-                    if ik_constraint==None:
-                        self.sendPath(path, clearRightArm=True)
-                    else:
-                        self.sendPathClosedLoop(path)
-                    return True
-        print "Failed to plan path"
-        return False
-
-    def move_from_scan_to_grasp(self, limb, reverse=False):
-        if limb is None:
-            return
-
-        bin = eval('self.'+limb+'_bin')[4]
-
-        if LOAD_PHYSICAL_TRAJECTORY:
-            print "loading "+bin_name+" Physically Planned Trajectory"
-            
-            grasp_path = 'VIEW_TO_GRASP_'+ bin.upper()+'_'+limb.upper()
-
-            if PHYSICAL_SIMULATION:
-
-                if not reverse:
-                    self.moveArm(statusConditional = 'scan', limb=limb, path = eval(grasp_path)[0:-1], finalState='graspMove')
-                    # the above is the first to the second from last position
-                    #self.moveArm(statusConditional='scan', limb=limb, path_name=grasp_path, finalState='graspMove')
-                    # the above is the first to the last position
-                    self.moveToOffset(limb=limb, milestone=eval(grasp_path)[-1], finalState='graspPrep')
-
-                else:
-                    self.moveArm(limb = limb, path_name = grasp_path, reverse = True)
-
-    def move_from_grasp_to_stow(self, limb, reverse=False):
-        if limb is None:
-            return
-
-        bin = eval('self.'+limb+'_bin')[4]
-
-        if LOAD_PHYSICAL_TRAJECTORY:
-            print "loading "+bin_name+" Physically Planned Trajectory"
-            
-            stow_path = 'GRASP_TO_STOW_'+ bin.upper()+'_'+limb.upper()
-
-            if PHYSICAL_SIMULATION:
-
-                if not reverse:
-                    self.moveArm(statusConditional = 'grasp', limb=limb, path_name = stow_path, finalState='stow')
-                else:
-                    self.moveArm(limb=limb, path_name=stow_path, reverse=True)
-
-    def move_from_rest_to_grasp(self, limb, reverse=False):
-        print 'Error move_from_rest_to_grasp is not implemented'
-        return False
-
-
-    #============================================================================================================================================
+ #============================================================================================================================================
     #The above methods are somewhat clunky - consider deprecating
 
     # Streamlined movement functions
@@ -3501,21 +2554,6 @@ class PickingController:
 
                 step =3
 
-            # if step==2:
-            #     #move towards the object
-            #     # check to make sure point is within the
-            #     target = knowledge.getBinMidCenterTop(bin)
-            #     self.debugPoints.append(target)
-            #     ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target)
-            #     step2 = self.simpleIK(limb=limb, goal=ikGoal)
-            #     #ik to top center of bin, normal to the shelf
-            #     #use ik seed and knowledge of shelf
-            #     # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-            #     print 'trying step2 ik'
-            #     self.sendPath(path=step2, limb=limb)
-            #     time.sleep(2)
-            #     step = 3
-
             if step==3:
                 #keep the x, y - throw out the z
 
@@ -3571,34 +2609,10 @@ class PickingController:
                     if readPressure(limb):
                         # I got something
                         print 'chose step 5'
-                        right_arm = baxter_interface.Limb('right')
-                        right_joints = right_arm.joint_names()
-                        
-                        right_angles = [right_arm.joint_angle(j) for j in right_joints]
-                        right_efforts = [right_arm.joint_effort(j) for j in right_joints]
-                        sumEfforts=sum(map(lambda x:x*x,right_efforts))
-                        print "right efforts sum mid"
-                        print sumEfforts
-                        print "right angles mid"
-                        print right_angles
-                        print "right efforts mid"
-                        print right_efforts
                         step = 5
                     else:
                         print 'chose step 6'
-                        right_arm = baxter_interface.Limb('right')
-                        right_joints = right_arm.joint_names()
-                        
-                        right_angles = [right_arm.joint_angle(j) for j in right_joints]
-                        right_efforts = [right_arm.joint_effort(j) for j in right_joints]
-                        sumEfforts=sum(map(lambda x:x*x,right_efforts))
-                        print "right efforts sum mid"
-                        print sumEfforts
-                        print "right angles mid"
-                        print right_angles
-                        print "right efforts mid"
-                        print right_efforts
-                        step = 5
+                        step = 6
 
 
 
@@ -3642,7 +2656,7 @@ class PickingController:
 
             if step == 7:
 
-                self.sendPath(path = [step5], limb=limb)
+                self.sendPath(path = [step4], limb=limb)
                 self.waitForMove()
                 self.sendPath(path =[step3],  limb=limb)
                 self.waitForMove()
@@ -3651,33 +2665,6 @@ class PickingController:
 
 
                 return True
-
-
-        else:
-           
-            if step == 1:
-                pass
-
-            elif step==2:
-                #step 2: enter along vacuum/wrist axis until far enough in
-                pass
-            elif step==3:
-                #step 3: move along y direction to get above object
-                pass
-
-            elif step==4:
-                pass
-                #turn vacuum on
-                #attempt to move down to half the object's height from the ground
-
-            elif step==5:
-                pass
-                #check to make sure we have sucked something and that it is not the shelf
-                #throw in various other checks here
-
-            elif step==6: 
-                pass
-                #take the reverse path back out of the bins - something is in front of the front of the shelf
 
             #get back out from 
 
@@ -3753,7 +2740,7 @@ class PickingController:
                 #move to the top center of the bin
                 target1 = knowledge.getBinFrontCenterTop(bin)
                 self.debugPoints.append(target1)
-                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1, targetFurtherBack=True)
+                ikGoal = self.buildIKGoalSuctionDown(limb = limb, target=target1)
                 #ik to top center of bin, normal to the shelf
                 #use ik seed and knowledge of shelf
                 # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
@@ -3775,8 +2762,7 @@ class PickingController:
                 self.debugPoints.append(target)
 
                 #dummy = knowledge.applyShelfXform([target[0], 0, 0])
-                dummy = se3.apply(self.perceptionTransform, [target[0], 0, 0], targetFurtherBack = True)
-
+                dummy = se3.apply(self.perceptionTransform, [target[0], 0, 0])
                 target2[0] = dummy[0]
 
                 #target should be the middle of the bin, near the top but only so far in as would be indicated by x
@@ -3871,38 +2857,6 @@ class PickingController:
                 else:
                     return True
 
-        else:
-            if step==1:
-                #ik to top center of bin, normal to the shelf
-                #use ik seed and knowledge of shelf
-                # constraintst: suction cup down, vacuum/wrist forward direction in direction of shelf
-                pass
-            elif step==2:
-                #step 2: enter along vacuum/wrist axis until far enough in
-                pass
-            elif step==3:
-                #step 3: rotate suction cup so that it moves towards the normal
-
-                #if we collide with something, move out, down and then back in (push the object away)
-                pass
-            elif step==4:
-                #move until you intersect the normal
-                pass
-            elif step==5:
-                #step5: roate suction to be normal to object
-                pass
-            elif step==6:
-                #turn vacuum on
-                #attempt to move down to half the object's height from the ground
-                pass
-            elif step==7:
-                #check to make sure we have sucked something and that it is not the shelf
-                #throw in various other checks here
-                pass
-            elif step==8: 
-                pass
-                #take the reverse path back out of the bin
-
 
         #potential issues - something is in front of the front of the shelf
 
@@ -3928,11 +2882,12 @@ class PickingController:
                 self.right_bin = None
 
             elif limb == 'left':
-                self.moveToLeftRest()
+                pathL = self.getLeftRestPath()
+                self.moveArm(path = pathL, limb = 'left', finalState = 'ready')
 
             elif limb == 'right':
-                self.moveToRightRest()
-
+                pathR = self.getRightRestPath()
+                self.moveArm(path = pathR, limb = 'left', finalState = 'ready')
             self.waitForMove()
 
         else:
@@ -3943,35 +2898,13 @@ class PickingController:
             self.waitForMove()
         #print "Done"
 
-    def moveToLeftRest(self):
-        if(self.stateLeft == 'scan'):
-            lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
-            #rPath = eval('CAMERA_TO_'+self.right_bin+'_RIGHT')[::-1]
-            self.moveLeftArm(path =lPath)
 
-      
-        elif(self.stateLeft == 'grasp' ):
-            #not set up yet
-            # go to store then rest
-            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT' + END_EFFECTOR)
-            self.moveLeftArm(path = lPath)
-
-            return False
-
-        elif self.stateLeft == 'stow':
-            #go right ahead through the code
-            pass
-
-        else:
-            #not set up yet
-            #find the nearest milestone and follow the path back
-            pass
-
-        self.moveLeftArm(path_name = 'Q_DEFAULT_LEFT', finalState = 'ready')
-        self.left_bin = None
 
     def getLeftRestPath(self):
         path =  [[self.simworld.robot(0).getConfig()[v] for v in self.left_arm_indices]]
+
+        print 'left state is ', self.stateLeft
+
 
         if(self.stateLeft == 'scan'):
             lPath = eval('CAMERA_TO_'+ self.left_bin.upper()+'_LEFT')[::-1]
@@ -3984,19 +2917,22 @@ class PickingController:
         elif(self.stateLeft == 'grasp' or self.stateLeft == 'graspPrepped' ):
             #not set up yet
             # go to store then rest
-            lPath = eval('GRASP_TO_STOW_' + self.left_bin.upper()[4]+'_LEFT'+END_EFFECTOR)
+            lPath = eval('GRASP_TO_REST_' + self.left_bin.upper()[4]+'_LEFT')
 
             if lPath !=[]:
                 for milestone in lPath:
                     path.append(milestone)
 
-            path.append(eval('Q_OUT_OF_TOTE_LEFT'))
-
         elif self.stateLeft == 'stow':
             #go right ahead through the code
 
             path.append(eval('Q_OUT_OF_TOTE_LEFT'))
-    
+
+        elif self.stateLeft == 'evaluateObject' or self.stateLeft == 'toteStow' or self.stateLeft == 'prepTote':
+            lPath = (eval('PREP_TOTE_STOW_LEFT'))[::-1]
+            if lPath !=[]:
+                for milestone in lPath:
+                    path.append(milestone)  
 
         elif self.stateLeft == 'viewTote':
             lPath = eval('Q_VIEW_TOTE_LEFT')
@@ -4020,36 +2956,11 @@ class PickingController:
 
         return path
 
-    def moveToRightRest(self):
-        if(self.stateRight == 'scan'):
-            rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
-            self.moveRightArm(path=rPath)
-
-      
-        elif(self.stateRight == 'grasp' or self.stateRight == 'toteStowInBin'):
-            #not set up yet
-            # go to store then rest
-            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()+'_RIGHT'+END_EFFECTOR)
-            self.moveRightArm(path=rPath)
-            #sendPath(path = rPath, )
-            #self.moveRightArm()
-
-            return False
-
-        elif self.stateRight == 'stow':
-            #go right ahead through the code
-            pass
-
-        else:
-            #not set up yet
-            #find the nearest milestone and follow the path back
-            pass
-
-        self.moveRightArm(path_name = 'Q_DEFAULT_RIGHT', finalState = 'ready')
-        self.right_bin = None
-
     def getRightRestPath(self):
         path = [[self.simworld.robot(0).getConfig()[v] for v in self.right_arm_indices]]
+
+        print 'right state is ', self.stateRight
+        
 
         if(self.stateRight == 'scan'):
             rPath = eval('CAMERA_TO_'+ self.right_bin.upper()+'_RIGHT')[::-1]
@@ -4061,16 +2972,21 @@ class PickingController:
         elif(self.stateRight == 'grasp' or self.stateRight == 'graspPrepped'):
             #not set up yet
             # go to store then rest
-            rPath = eval('GRASP_TO_STOW_' + self.right_bin.upper()[4]+'_RIGHT'+END_EFFECTOR)
+            rPath = eval('GRASP_TO_REST_' + self.right_bin.upper()[4]+'_RIGHT')
             if rPath != []:
                 for milestone in rPath:
                     path.append(milestone)
 
-            path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
-
         elif self.stateRight == 'stow':
             #go right ahead through the code
             path.append(eval('Q_OUT_OF_TOTE_RIGHT'))
+
+
+        elif self.stateRight == 'evaluateObject' or self.stateRight == 'prepTote' or self.stateRight =='toteStow':
+            rPath = (eval('PREP_TOTE_STOW_RIGHT'))[::-1]
+            if rPath !=[]:
+                for milestone in rPath:
+                    path.append(milestone)               
 
         elif self.stateRight == 'viewTote':
             rPath = eval('Q_VIEW_TOTE_RIGHT')
@@ -4135,9 +3051,6 @@ class PickingController:
                 except:
                     print 'Error no '+path_nameR+'in recorded constants'
                     return False
-
-
-
         try:
             len(pathL[0])
         except:
@@ -4164,19 +3077,12 @@ class PickingController:
             #path is a single milestone                
             pathR=[pathR]
 
-        #print 'pathR before appends = ',pathR
-
         while len(pathL) < len(pathR):
-            pathL.append(pathL[-1])
-            
+            pathL.append(pathL[-1])          
     
         while len(pathR) < len(pathL):
             pathR.append(pathR[-1])
-
-        #print 'pathR after appends =', pathR
-
         realPath = []
-
         realConfig = [v for v in dummyConfig]
         for j in range(len(pathL)):
             for i in range(len(self.left_arm_indices)):
@@ -4217,12 +3123,7 @@ class PickingController:
                 path=[path]
                 path.append(path[0])
                 qAdd = None
-                if self.q_most_recent_left is None:
-                    # qAdd = motion.robot.getKlamptSensedPosition()
-                    qAdd = self.controller.getSensedConfig()
-                    qAdd = [qAdd[v] for v in self.left_arm_indices[:7]]
-                else: 
-                    qAdd = self.q_most_recent_left
+
                 path[0]=qAdd
                 #print path
 
@@ -4247,13 +3148,12 @@ class PickingController:
                 #wait at the milestone for 2 seconds
                 #later should replace with Hyunsoo's code setting milestones if dt is too large
 
-            self.q_most_recent_left = path[-1]
 
             if finalState is not None:
                 self.stateLeft = finalState
             return True
         else:
-            print "Error, arm is not in state "+ statusConditional
+            print "Error, arm is not in state ", statusConditional
             return False
 
     def moveRightArm(self, statusConditional=None, path_name=None, path=None, finalState=None, reverse=False):
@@ -4279,18 +3179,6 @@ class PickingController:
                 print 'Hit path exception for single milestones or empty paths'
                 path=[path]
                 path.append(path[0])
-
-                #change to most recently commanded position
-                #qAdd = None
-                #if self.q_most_recent_right is None:
-                    # qAdd = motion.robot.getKlamptSensedPosition()
-                #    qAdd = self.controller.getSensedConfig()
-                #    qAdd = [qAdd[v] for v in self.right_arm_indices[:7]]
-                    #print self.right_arm_indices
-                #else: 
-                #    qAdd = self.q_most_recent_right
-                #path[0]=qAdd
-                #print path 
 
             #print 'sending path ', path
 
@@ -4322,16 +3210,12 @@ class PickingController:
                     self.controller.appendMilestoneRight(milestone, WAIT_TIME)
                 #wait at the milestone for 2 seconds
 
-
-            self.q_most_recent_right = path[-1]
-
-
             if finalState is not None:
                 self.stateRight = finalState
         
             return True
         else:
-            print "Error, arm is not in state "+ statusConditional
+            print "Error, arm is not in state ", statusConditional
             return False
 
     #=============================================================================================================================================
@@ -4369,7 +3253,9 @@ class PickingController:
     def buildIKGoalSuctionNormal(self, limb, target, normal, offset = 0.5, normalDisplacement = 0, debug=False, targetFurtherBack = False):
 
         #appliedTransform = knowledge.shelf_xform
-        
+        appliedTransform = self.perceptionTransform
+
+
         if targetFurtherBack:
             target =  vectorops.add(target, so3.apply(appliedTransform[0],[PERCEPTION_OFFSET_DISTANCE,0,0]))
             self.targetOffsetPoints.append(target)
@@ -4377,7 +3263,6 @@ class PickingController:
         target = vectorops.add(target, vectorops.mul(normal, normalDisplacement))
 
 
-        appliedTransform = self.perceptionTransform
 
         targetAxisConstraint = vectorops.add(target, so3.apply(appliedTransform[0], [offset, 0,0]))
         targetZOffset = vectorops.add(target, vectorops.mul(normal, -offset))
@@ -4463,200 +3348,7 @@ class PickingController:
             return sortedSolutions
 
     #######################################################################################
-    #Old Movement Functions
                 
-    def move_to_grasp_object(self,object,step):
-        '''
-        This method ignores the object orientation (for vacuum only)
-        '''
-        if step == 1:
-            offset = 0.25
-        elif step == 2:
-            offset = 0.25
-        elif step >= 3:
-            offset = 0.25 - 0.15 - 0.01*step
-
-        self.waitForMove()
-        self.robot.setConfig(self.controller.getCommandedConfig())
-
-        global xPos
-        global yPos 
-        xScale = 0.33
-        yScale = 0.435
-        xPos = 0.5 * xScale
-        yPos = 0.5 * yScale
-
-
-        # if single item:
-        if step == 1:
-            print "\n=========================="        
-            if PHYSICAL_SIMULATION:
-                print "Running perception on order #", binIndex
-                time.sleep(5)
-                if singleItemList[binIndex]:
-                    print "Single object..."
-                    # xyPos = perceiver.perceive_single_object() OLD CODE
-                    if xyPos == None:
-                        print "Failed to detect object"
-                        return False
-                    xPos = xyPos[0]
-                    yPos = xyPos[1]
-                else:
-                    print "Multiple objects..."
-                    # xyPos = perceiver.perceive(orderList[binIndex]) OLD CODE
-                    if xyPos == None:
-                        print "Failed to detect object"
-                        return False
-                    xPos = xyPos[0]
-                    yPos = xyPos[1]
-                # change coordinate 
-                print "pre-adjust object position =", (xPos, yPos)                
-                temp = yPos
-                yPos = 1 - xPos
-                xPos = temp                    
-                print "adjusted object position =", (xPos, yPos)
-                xPos = xPos * xScale
-                yPos = yPos * yScale
-            else:
-                print "Running FAKE perception on bin", binIndex,"=", self.current_bin
-                xPos = 0.33
-                yPos = 0.435
-            self.held_object.randRt = [ so3.rotation([0,1,0], math.pi/4),
-                                       vectorops.add([-0.165,0,-0.33], [xPos,0,yPos])]
-            time.sleep(5)
-        t_obj = object.randRt[1]
-        #print "t_obj =",t_obj
-        # t_obj = [0,0,0]
-        R_obj = so3.identity()
-
-        # object xform relative to world frame
-        objxform = se3.mul( self.left_gripper_link.getTransform() ,
-                            # object xform relative to gripper link =
-                            # gripper center xform relative to gripper link (X) obj xform relative to gripper center
-                            se3.mul(left_gripper_center_xform,
-                                    # object xform relative to gripper center xform
-                                    [so3.mul(R_obj, so3.rotation([1,0,0],math.pi/2)), t_obj] ))
-
-        goal_loc = vectorops.add(objxform[1], [0,0,offset])
-
-        # self.frames.append((R_obj, t_obj))
-        # self.frames.append((objxform[0], objxform[1]))
-
-        # Setup ik objectives for both arms
-        right_goal = []
-        right_goal.append(ik.objective(self.vacuum_link,local=[[0,0,0],[0,0,0.01]], world=[goal_loc, vectorops.sub(goal_loc, [0,0,0.01])]))
-
-        qcmd = self.controller.getCommandedConfig()
-        # qcmd = self.controller.getSensedConfig()
-        limbs = ['right']
-
-        if step==1:
-            print "Solving for GRASP_OBJECT"
-        for i in range(500):
-            sortedSolutions = self.get_ik_solutions(right_goal, limbs, qcmd, maxResults=100, maxIters=100, rangeVal = 0.001)
-
-            if len(sortedSolutions)==0:
-                continue
-
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
-
-            # else, if we want to path plan
-            else:
-                numSol = 0
-                for solution in sortedSolutions:
-                    numSol += 1
-                    print numSol, "solutions planned out of", len(sortedSolutions)
-                    path = self.planner.plan(qcmd,solution[0],'right')
-                    if path == 1 or path == 2 or path == False:
-                        break
-                    # elif path != None:
-                    else:
-                        self.sendPath(path)
-                        return True
-        print "Failed to plan path"
-        return False
-
-    def move_to_grasp_object_backup(self,object):
-        '''
-        This method ignores the object orientation (for vacuum only)
-        '''
-        self.waitForMove()
-        self.robot.setConfig(self.controller.getCommandedConfig())
-
-        R_obj = object.randRt[0]
-        t_obj = object.randRt[1]
-
-        # object xform relative to world frame
-        objxform = se3.mul( self.left_gripper_link.getTransform() ,
-                            # object xform relative to gripper link =
-                            # gripper center xform relative to gripper link (X) obj xform relative to gripper center
-                            se3.mul(left_gripper_center_xform,
-                                    # object xform relative to gripper center xform
-                                    [so3.mul(R_obj, so3.rotation([1,0,0],math.pi/2)), t_obj] ))
-
-        Rt = se3.mul(objxform ,se3.inv(right_gripper_center_xform))
-
-        # Setup ik objectives for both arms
-        right_goal = []
-        right_goal.append(ik.objective(self.right_gripper_link,local=[[0,0,0],[0,0,0.01]], world=[Rt[1],vectorops.add(Rt[1],[0,0,-0.01])]))
-
-        qcmd = self.controller.getCommandedConfig()
-        # qcmd = self.controller.getSensedConfig()
-        limbs = ['right']
-
-        print "\nSolving for GRASP_OBJECT"
-        for i in range(100):
-            sortedSolutions = self.get_ik_solutions(right_goal, limbs, qcmd, maxResults=100, maxIters=100)
-
-            if len(sortedSolutions)==0:
-                continue
-
-            # prototyping hack: move straight to target
-            if FAKE_SIMULATION:
-                q = sortedSolutions[0][0]
-                n = self.robot.numLinks()
-                if len(q)<n:
-                    q += [0.0]*(n-len(q))
-                self.controller.setMilestone(q)
-                return True
-
-            # else, if we want to path plan
-            else:
-                numSol = 0
-                for solution in sortedSolutions:
-                    numSol += 1
-                    print numSol, "solutions planned out of", len(sortedSolutions)
-                    path = self.planner.plan(qcmd,solution[0],'right')
-                    if path == 1 or path == 2 or path == False:
-                        break
-                    # elif path != None:
-                    else:
-                        self.sendPath(path)
-                        return True
-        print "Failed to plan path"
-        return False
-
-    def move_to_order_bin(self,object,step):
-        if step == 1:
-            q = self.robot.getConfig()
-            q[35] = -0.3
-            self.controller.appendMilestone(q)
-            return True
-
-        elif step == 2:
-            self.controller.appendMilestone(baxter_rest_config)
-            return True
-
-        print "Planning failed"
-        return False
-
     def sendPath(self,path,maxSmoothIters = 0, INCREMENTAL=False, clearRightArm = False, limb = None, readConstants=False, internalSpeed=SPEED):
 
 
@@ -4828,6 +3520,9 @@ class PickingController:
                 self.controller.appendMilestone(path[-1])
             # print 'Done with moving'
 
+    def setRecorder(self, recordIn):
+        self.recorder = recordIn
+
     def sendPathClosedLoop(self,path, clearRightArm = False):
         # print "pathlength starting =", len(path)
         # removing AppendRamp clamping error
@@ -4917,13 +3612,14 @@ class PickingController:
     #============================================================
     # Calibration Functions
 
-    def calibrateShelf(self):
+    def calibrateShelf(self, index=0):
         #blocking
         global SHELF_CALIBRATION
 
         while(True):
             try:
-                input_var = raw_input("Shelf: Enter joint and angle to change to separated by a comma: ").split(',');
+                print 'Terrain', index, 
+                input_var = raw_input(": Enter joint and angle to change to separated by a comma: ").split(',');
                 #translational transformation
                 calibrateR = [1,0,0,0,1,0,0,0,1]
                 calibrateT = [0,0,0]
@@ -4946,11 +3642,12 @@ class PickingController:
                     break
 
                 time.sleep(0.1);
+                TERRAIN_CALIBRATION[index]
                 calibrate = (calibrateR, calibrateT)
-                SHELF_CALIBRATION = se3.mul(calibrate, SHELF_CALIBRATION)
-                print 'calibration Overall = ', SHELF_CALIBRATION
-                self.simworld.terrain(0).geometry().transform( calibrate[0], calibrate[1] )
-                self.shelf_xform = se3.mul(calibrate, self.shelf_xform)
+                TERRAIN_CALIBRATION[index] = se3.mul(calibrate, TERRAIN_CALIBRATION[index])
+                print 'calibration Overall = ', TERRAIN_CALIBRATION[index]
+                self.simworld.terrain(index).geometry().transform( calibrate[0], calibrate[1] )
+                #self.shelf_xform = se3.mul(calibrate, self.shelf_xform)
 
                 #rotation matrices are applied left to right
 
@@ -4997,7 +3694,7 @@ class PickingController:
             else:
                 self.cameraTransform_RIGHT = ( calibrate[0], calibrate[1] )
 
-            print self.simworld.robot(0).link(limb + '_wrist').getTransform()
+            #print self.simworld.robot(0).link(limb + '_wrist').getTransform()
             totalCameraXform = self.getCameraToWorldXform(limb)
 
             print limb.upper(), ' camera transform is ', eval('self.cameraTransform_'+limb.upper())
@@ -5083,7 +3780,125 @@ class PickingController:
         EndEffectorTransform = se3.mul(self.simworld.robot(0).link(limb+'_wrist').getTransform(), self.vacuumTransform)
         print EndEffectorTransform[1]
 
-    #=========================================================
+
+    def record(self, rate=20.0, prefix = "Trajectories/", file="Trajectories/arm_motion.traj"):
+    #save at 10Hz, by default.  Set to 0 to save by pressing enter
+
+    #commanded or sensed?
+
+        if PHYSICAL_SIMULATION:
+            switch = 's'
+
+            if switch == 's':
+                switch = 'sensed'
+            if switch == 'c':
+                switch = 'commanded'
+
+            #why would we want commanded?
+
+            print "Saves arm motions to disk for later inspection and playback"
+            print "Usage: arm_motion_record.py TYPE [RATE] [FN]"
+            print " TYPE can be 'sensed' or 'commanded', or 's' or 'c' for short"
+            print " [RATE] can be 0 to only save when enter is pressed"
+            print " [FN] is the file to save to"
+
+            #simple motion setup
+            
+            mode = None
+
+            if rate > 0:
+                mode = 'continuous'
+                print "Saving in %s mode at %g Hz to %s "%(mode,rate,fn)
+            else:
+                mode = 'manual'
+                print "Saving in %s mode. Milestone saved when enter is pressed to %s"%(mode,fn)
+
+            f = open(file,'rw')
+
+            lastt = None
+            lastq = None
+
+
+            path = []
+
+            goodManualLimbInputs = ['left', 'right', 'both', 'l', 'r','b']
+
+            if mode == 'continuous':
+                try:
+                    print "Beginning capture loop, press Ctrl+C to quit"
+                    t0 = time.time()
+                    while True:
+                        t = time.time() - t0
+                        if t < 1e-3: t = 0
+                        if switch == 'sensed':
+                            q = motion.robot.left_limb.sensedPosition()+motion.robot.right_limb.sensedPosition()
+                        else:
+                            q = motion.robot.left_limb.commandedPosition()+motion.robot.right_limb.commandedPosition()           
+                        if q != lastq:
+                            if lastq is not None:
+                                f.write(str(lastt) + '\t' + str(len(lastq)) + '\t'+ ' '.join(str(v) for v in lastq)+'\n')
+                            f.write(str(t) + '\t' + str(len(q)) + '\t'+ ' '.join(str(v) for v in q)+'\n')
+                            lastt = t
+                            lastq = q
+                            time.sleep(1.0/rate)
+                except KeyboardInterrupt:
+                    f.close()
+                    print "Saved %g seconds of motion. Exiting."%(time.time()-t0,)
+                    pass
+
+            elif mode == 'manual':
+                try:
+                    limb = None
+                    while True:
+                        print 'Beginning manual loop'
+                        goodLimb = False
+                        if limb != None: 
+                            response = raw_input("Change limb? (y/n) ")
+                            if response == 'n':
+                                goodLimb = True
+                        while not goodLimb:
+                            limb = raw_input('Which limb would you like to record? (left, right, or both) ')
+                            if limb in goodManualLimbInputs:
+                                goodLimb = True
+                            else:
+                                print 'Error bad input please choose someting within ', goodManualLimbInputs
+
+                        if limb == 'l': limb = 'left'
+                        if limb == 'r': limb = 'right'
+                        if limb == 'b': limb = 'both'
+
+                        while True:
+                            print 
+                            myInput = raw_input('Press enter to save milestone for ', limb)
+                            if limb == 'left':
+                                q = motion.robot.left_limb.sensedPosition()
+                            elif limb == 'right':
+                                q = motion.robot.right_limb.sensedPosition()
+                            elif limb == 'both':
+                                q = motion.robot.left_limb.sensedPosition()+motion.robot.right_limb.sensedPosition()
+                            if myInput == NULL:
+                                path.append(q)
+                                print 'Current path is ', path
+                            else:
+                                pass
+                            simulate = raw_input('Play in simulation? (y/n) ')
+
+                            if simulate == 'y':
+                                for milestone in path:
+                                    if limb == 'left':
+                                        pass
+                                    if limb == 'right':
+                                        pass
+                                    if limb == 'both':
+                                        pass
+                            save = raw_input('Save path? (y/n)')
+
+
+                except KeyboardInterrupt:
+                    f.close()
+                    pass
+
+        #=========================================================
 
 
             
@@ -5132,6 +3947,11 @@ class MyGLViewer(GLRealtimeProgram):
             self.sim.simulate(self.dt)
             glutPostRedisplay()
 
+        if self.picking_controller.recorder is not None:
+            self.dt = 0.01
+            self.picking_controller.recorder.fake_controller.sim.simulate(self.dt)
+            glutPostRedisplay()
+
     def glShowPointCloud(self, pc, downsample_rate=5, pt_size=None):
         # print glGetFloatv(GL_CURRENT_COLOR)
         pc = np.array(pc)
@@ -5178,6 +3998,25 @@ class MyGLViewer(GLRealtimeProgram):
         # print self.simworld.robot(0).getConfig()[-1], self.planworld.robot(0).getConfig()[-1]
 
         #draw the world
+
+        if self.picking_controller.recorder is not None:
+
+            recorder = self.picking_controller.recorder
+
+            glEnable(GL_BLEND)
+
+            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA)
+            glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE,[1,0,0,0.5])
+            # only 1 robot in this case, but still use for-loop for generality
+            for i in xrange(self.simworld.numRobots()):
+                r = recorder.fake_controller.robotModel
+                # q = self.sim.controller(i).getCommandedConfig()
+                q = recorder.fake_controller.getCommandedConfig()
+                r.setConfig(q)
+                r.drawGL(False)
+            
+            glDisable(GL_BLEND)
+
         if not PHYSICAL_SIMULATION:
             self.sim.updateWorld()
             #self.simworld.drawGL()
@@ -5334,6 +4173,8 @@ class MyGLViewer(GLRealtimeProgram):
         #     for i in range(self.planworld.numTerrains()):
         #         self.planworld.terrain(i).drawGL()
 
+        for i in xrange(self.simworld.numTerrains()):
+            self.simworld.terrain(i).drawGL()
 
         #draw commanded configurations
         glEnable(GL_BLEND)
@@ -5542,7 +4383,8 @@ class MyGLViewer(GLRealtimeProgram):
             print "Simulating:",self.simulate
         else:
             self.command_queue.put(c)
-            if c=='q':
+            if c  == chr(27):
+                #c == esc
                 self.picking_thread.join()
                 exit(0)
         glutPostRedisplay()
@@ -5638,18 +4480,14 @@ def run_controller(controller,command_queue):
                 print 'Y: Prepare Pick for Bin or Tote'
                 print 'X: Grasp Action from Tote or Bin'
                 print 'P: Place in Tote or Bin'
-                print 'I: Save Canonical Point Cloud for Bin/Tote'
-                print 'A: Render Bin Content'
-                print 'T: Render Tote Content'
-                print 'N: Get Pick Position for Bin'
-                print 'L: Get Pick Position for Stow'
                 print 'V: Change Default Limb'
                 print 'R: Move to Rest Configuration'
                 print 'M: Move Gripper to Center'
                 print '`: Run ICP to Find Transformation of Perturbed Shelf'
                 print 'S: Calibrate Canonical (Unperturbed) Shelf Transformation'
                 print 'W: Calibrate Camera Transformation Relative to Wrist'
-                print 'O: Calibrate Vacuum Transform Relative to Wrist'
+                print 'U: Calibrate Vacuum Transform Relative to Wrist'
+                print 'O: Begin recording functions'
                 print 'F: Transform Shelf from Canonical to Perturbed Pose'
                 print 'G: Transform Shelf from Perturbed to Canonical Pose'
                 print 'C: See(C) the Tote'
@@ -5731,29 +4569,7 @@ def run_controller(controller,command_queue):
                     continue
                 controller.placeInBinAction(limb=DEFAULT_LIMB, bin=bin_letter.upper())
 
-            elif c=='i':
-                print 'Save Canonical Point Cloud for Bin/Tote - Press Bin Letter on GUI. Press T to save tote. Press X to cancel. '
-                bin_letter = command_queue.get()
-                while bin_letter is None:
-                    bin_letter = command_queue.get()
-                if bin_letter.lower()=='x':
-                    print 'Canceled'
-                    continue
-                # bin_letter = raw_input('Save Canonical Point Cloud for Bin - Enter Bin Letter In Terminal: ')
-                if bin_letter.upper()!='T':
-                    controller.saveCanonicalBinPointCloud(bin_letter.upper(), limb=DEFAULT_LIMB)
-                else:
-                    controller.saveCanonicalTotePointCloud(limb=DEFAULT_LIMB)
-            elif c=='j':
-                print 'Reach into bin. Press X to cancel. '
-                bin_letter = command_queue.get()
-                while bin_letter is None:
-                    bin_letter = command_queue.get()
-                if bin_letter.lower()=='x':
-                    print 'Canceled'
-                    continue
-                controller.moveObjectIntoBin(limb=DEFAULT_LIMB, bin = bin_letter.upper())
-
+           
             elif c=='d':
                 print 'Run Debug method - currently testing IK for Bins'
                 binNumber = raw_input('Enter bin name (ex. all, bin_A, ... ): ')
@@ -5764,68 +4580,29 @@ def run_controller(controller,command_queue):
                 controller.testStowIK(limb=DEFAULT_LIMB)
                 # stderr.write('Don')   
 
-            elif c=='a':
-                print 'Render Bin/Tote Content - Press Bin Letter or T for tote on GUI. Press X to cancel'
-                bin_letter = command_queue.get()
-                while bin_letter is None:
-                    bin_letter = command_queue.get()
-                if bin_letter.lower()=='x':
-                    print 'Canceled'
-                    continue
-                if not ( ('a'<=bin_letter.lower()<='l') or bin_letter.lower()=='t' ):
-                    print 'Unrecognized Letter. Canceled'
-                    continue
-                print 'Render Bin/Tote Content - Press 1 to render objects including bin/tote, 2 to render only objects (bin/tote subtracted)'
-                flag = command_queue.get()
-                while flag is None:
-                    flag = command_queue.get()
-                if flag in ['x', 'X']:
-                    print 'Canceled'
-                    continue
-                if flag not in ['1', '2', '3']:
-                    print 'Unrecognized Input. Canceled'
-                    continue
-                if bin_letter!='t':
-                    a = time.time()
-                    controller.renderBinContent(bin_letter.upper(), flag, limb=DEFAULT_LIMB)
-                    print 'compute time', time.time() - a
-                else:
-                    controller.renderToteContent(flag=='1', limb=DEFAULT_LIMB)
-            elif c=='n':
-                print 'Get Pick Position for Bin - Press Bin Letter on GUI and Then Enter Object Information in Console. Press X to cancel'
-                bin_letter = command_queue.get()
-                while bin_letter is None:
-                    bin_letter = command_queue.get()
-                if bin_letter.lower()=='x':
-                    print 'Canceled'
-                    continue
-                if not ( ('a'<=bin_letter.lower()<='l') or bin_letter.lower()=='t' ):
-                    print 'Unrecognized Letter. Canceled'
-                    continue
-                controller.getPickPositionForPick(bin_letter.upper(), limb=DEFAULT_LIMB)
-            elif c=='l':
-                controller.getPickPositionForStow(limb=DEFAULT_LIMB)
             elif c=='v':
                 if DEFAULT_LIMB=='left':
                     DEFAULT_LIMB='right'
                 else:
                     DEFAULT_LIMB='left'
                 print 'Limb is now ' + DEFAULT_LIMB
-            elif c =='d':
-                readPressure(limb)
 
             elif c == 'r':
                 controller.moveToRestConfig()
-            elif c == '`':
-                print 'Press Bin Letter of the Bin to Calibrate'
-                bin_letter = command_queue.get()
-                while bin_letter is None:
-                    bin_letter = command_queue.get()
-                controller.calibratePerception(bin_letter.upper(), limb=DEFAULT_LIMB)
             elif c=='s':
                 controller.calibrateShelf()
             elif c=='w':
                 controller.calibrateCamera(limb=DEFAULT_LIMB)
+            elif c=='u':
+                controller.calibrateVacuum(DEFAULT_LIMB)
+            elif c =='o':
+                myRecorder  = armRecorder.Recorder(controller, command_queue)
+                controller.setRecorder(myRecorder)
+                myRecorder.run()
+                controller.setRecorder(None)
+                
+            elif c=='/':
+                controller.printEndEffectorPosition(DEFAULT_LIMB)
             elif c=='f':
                 visualizer.simworld.terrain(0).geometry().transform(*controller.perceptionTransform)
             elif c=='c':
@@ -5871,51 +4648,11 @@ def run_controller(controller,command_queue):
 
                 controller.runPickFromBin(limb = DEFAULT_LIMB, bin='bin_'+bin_letter.upper())
 
-            elif c =='+':
-                controller.runPickingTask()
-
-            elif c =='=':
-                controller.runStowingTask()
-
-
-                # print "================================"
-                # print "Bin Order:", binList
-                # print "Object Order:", orderList
-                # print "Single Item?:", singleItemList
-                # print "================================\n"
-
-
-                # #binList = ['A','B','C','D','E','F','G','H','I','J','K','L']
-                # global binIndex 
-                # binIndex = 0
-                # # for i in range(len(binList)):
-                #     controller.viewBinAction(binList[i])
-                #     controller.scoopAction()
-                #     controller.move_spatula_to_center()
-                #     controller.move_gripper_to_center()
-                #     controller.graspAction()
-                #     controller.placeInOrderBinAction()
-                #     controller.viewBinAction(binList[i])
-                #     controller.unscoopAction()
-                #     #controller.moveToRestConfig()
-                #     binIndex += 1
             elif c=='q':
                 turnOffVacuum('left')
                 turnOffVacuum('right')
-                break
-            elif c=='b':
-                print 'Get Bin Bounds - Press Bin Letter on GUI. Press X to cancel'
-                bin_letter = command_queue.get()
-                while bin_letter is None:
-                    bin_letter = command_queue.get()
-                if bin_letter.lower()=='x':
-                    print 'Canceled'
-                    continue
-                print controller.getBounds('bin_'+bin_letter.upper())
-            elif c=='o':
-                controller.calibrateVacuum(DEFAULT_LIMB)
-            elif c=='/':
-                controller.printEndEffectorPosition(DEFAULT_LIMB)
+                #break
+
         else:
             print "Waiting for command..."
             time.sleep(0.1)
@@ -5931,11 +4668,19 @@ def load_apc_world():
     # world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col2.rob"))
     #world.loadElement(os.path.join(model_dir,"baxter_with_new_spatula_col3.rob"))
     world.loadElement(os.path.join(model_dir,KLAMPT_MODEL))
-    print "Loading shelf model..."
-    world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
+    #print "Loading shelf model..."
+    #world.loadElement(os.path.join(model_dir,"Amazon_Picking_Shelf.STL"))
 
     print "Loading plane model..."
     world.loadElement(os.path.join(model_dir,"plane.env"))
+    leftWall = world.loadElement(os.path.join(model_dir, 'plane1.env'))
+
+    rightWall = world.loadElement(os.path.join(model_dir, 'plane2.env'))
+
+    table = world.loadElement(os.path.join(model_dir, 'plane3.env'))
+
+    print world.numTerrains(), ' is the number of terrains loaded'
+
 
     #shift the Baxter up a bit (95cm)
     Rbase,tbase = world.robot(0).link(0).getParentTransform()
@@ -5955,27 +4700,30 @@ def load_apc_world():
     #note: shift occurs in reorient because STL file is aligned with left side while shelf is aligned with center
 
 
+    factor = .1
+    wallfactor = .25
+    wall1Transform = ([wallfactor,0,0,0,0,wallfactor,0,wallfactor,0],[1.8,.7,.8])
+    wall2Transform = ([wallfactor,0,0,0,0,wallfactor,0,wallfactor,0],[1.8,-.7,.8])
+    tableTransform = ([factor, 0, 0, 0, factor, 0, 0, 0, factor],[1, 0, .75])
+
+    global TERRAIN_CALIBRATION
+
+    TERRAIN_CALIBRATION = [0]*world.numTerrains()
+
+    TERRAIN_CALIBRATION[0] = ([1,0,0,0,1,0,0,0,1],[0,0,0])
+    TERRAIN_CALIBRATION[1] = wall1Transform
+    TERRAIN_CALIBRATION[2] = wall2Transform
+    TERRAIN_CALIBRATION[3] = tableTransform
+    
+
 
     # perceptionTransform = ([ 0.99631874,  0.01519797, -0.08436826, -0.01459558,  0.9998634, 0.00775227, 0.08447454,   -0.00649233,    0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
 
 
     # ([ 0.99631874, -0.01459558,  0.08447454, 0.01519797,  0.9998634,  -0.00649233, -0.08436826,  0.00775227,  0.99640444], [-0.06180821,  0.0082858,  -0.00253027])
-
-    shelfCalibration = SHELF_CALIBRATION
-
-    world.terrain(0).geometry().transform( newTransform[0], newTransform[1])
-    world.terrain(0).geometry().transform(shelfCalibration[0], shelfCalibration[1])
-
-    testingTransform = (so3.rotation([0,0,1], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
-    world.terrain(0).geometry().transform(*testingTransform)
-    knowledgeTransform = (so3.rotation([0,1,0], INIT_DEGREE_OFFSET*math.pi/180), [0,0,0] )
-
-    #knowledge.shelf_xform = se3.mul(reorient, calibration)
-    knowledge.shelf_xform = se3.mul(shelfCalibration, reorient)
-    knowledge.shelf_xform = se3.mul(testingTransform, knowledge.shelf_xform)
-
-
-    # world.terrain(0).geometry().transform(*perceptionTransform)
+    world.terrain(1).geometry().transform(*wall1Transform)
+    world.terrain(2).geometry().transform(*wall2Transform)
+    world.terrain(3).geometry().transform(*tableTransform)
 
     #initialize the shelf xform for the visualizer and object
     #ground_truth_shelf_xform = se3.mul(Trel,reorient)
